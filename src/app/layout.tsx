@@ -10,17 +10,17 @@ export const viewport = {
 };
 export const metadata: Metadata = {
   title: {
-    default: "Creatr",
-    template: "%s | Creatr"
+    default: "SKOOP - Collect, Search & Rediscover Your Saved Content",
+    template: "%s | SKOOP"
   },
-  description: "A modern web application built with Next.js and TypeScript",
-  applicationName: "Creatr",
-  keywords: ["next.js", "react", "typescript", "web application"],
+  description: "SKOOP helps you collect, search and rediscover everything you've saved across the internet—tweets, GitHub stars, Reddit saves, Stack Overflow favorites, and more.",
+  applicationName: "SKOOP",
+  keywords: ["knowledge management", "bookmarks", "content curation", "productivity", "search", "twitter saves", "github stars"],
   authors: [{
-    name: "Creatr Team"
+    name: "SKOOP Team"
   }],
-  creator: "Creatr Team",
-  publisher: "Creatr Team",
+  creator: "SKOOP Team",
+  publisher: "SKOOP Team",
   icons: {
     icon: [{
       url: "/favicon-16x16.png",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Creatr"
+    title: "SKOOP"
   },
   formatDetection: {
     telephone: false
