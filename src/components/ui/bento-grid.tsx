@@ -4,10 +4,12 @@ import { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+
 interface BentoGridProps {
   children: ReactNode;
   className?: string;
 }
+
 export const BentoGrid = ({
   children,
   className
@@ -16,15 +18,17 @@ export const BentoGrid = ({
       {children}
     </div>;
 };
+
 interface BentoCardProps {
   name: string;
   className?: string;
   background: ReactNode;
   Icon: React.ComponentType<any>;
-  description: string;
+  description: ReactNode | string;
   href: string;
   cta: string;
 }
+
 export const BentoCard = ({
   name,
   className,
@@ -41,7 +45,11 @@ export const BentoCard = ({
       <h3 className="text-xl font-semibold text-foreground line-clamp-1 mt-2">
         {name}
       </h3>
-      <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+      {typeof description === 'string' ? (
+        <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+      ) : (
+        description
+      )}
     </div>
 
     <div className="pointer-events-none absolute bottom-0 flex w-full translate-y-10 transform-gpu flex-row items-center p-4 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
