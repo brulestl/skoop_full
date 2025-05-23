@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 import Link from "next/link";
 import Image from "next/image";
 import { Search, Github, Twitter, Code as StackOverflow, Bookmark, FolderPlus as Collection, CheckCircle2, ChevronRight, ArrowRight } from "lucide-react";
+
 export default function HomePage() {
   return <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-border">
+      <header className="border-b border-border relative z-10">
         <div className="skoop-container flex items-center justify-between h-16">
           <div className="flex items-center">
             <div className="text-2xl font-bold text-primary"><span className="editable-text">SKOOP</span></div>
@@ -26,8 +28,13 @@ export default function HomePage() {
       </header>
 
       <main className="flex-grow">
-        {/* Hero Section */}
-        <section className="skoop-section bg-gradient-to-b from-background to-secondary/20">
+        {/* Hero Section with Aurora Background */}
+        <section className="relative overflow-hidden">
+          <AuroraBackground className="absolute inset-0">
+            <div className="absolute inset-0 bg-background/40 backdrop-blur-sm" />
+          </AuroraBackground>
+          
+          <div className="skoop-section relative z-10">
           <div className="skoop-container">
             <div className="grid gap-12 lg:grid-cols-2 lg:gap-24 items-center">
               <div>
@@ -102,6 +109,7 @@ export default function HomePage() {
                 <div className="text-muted-foreground text-xl font-semibold"><span className="editable-text">DEV</span></div>
               </div>
             </div>
+          </div>
           </div>
         </section>
 
