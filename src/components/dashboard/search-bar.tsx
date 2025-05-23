@@ -228,14 +228,17 @@ export default function SearchBar({
       </div>
 
       {/* Full-screen search modal */}
-      {typeof window === 'object' && showModal && createPortal(
-        <AnimatePresence>
-          <motion.div 
-            className="fixed inset-0 bg-background/60 backdrop-blur-sm z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
+      {typeof window === 'object' && showModal && (() => {
+        // Access document only when in browser environment
+        const portalContainer = document.body;
+        return createPortal(
+          <AnimatePresence>
+            <motion.div 
+              className="fixed inset-0 bg-background/60 backdrop-blur-sm z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
             <div className="flex items-start justify-center pt-20">
               <motion.div 
                 ref={modalRef}
@@ -344,10 +347,11 @@ export default function SearchBar({
                 </div>
               </motion.div>
             </div>
-          </motion.div>
-        </AnimatePresence>,
-        document.body
-      )}
+            </motion.div>
+          </AnimatePresence>,
+          portalContainer
+        );
+      })()}
     </>
   );
 }
