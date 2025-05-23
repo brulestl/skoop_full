@@ -18,6 +18,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center space-x-4">
             <ThemeToggle />
+            <a href="/dashboard" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Dashboard</span></a>
             <a href="/login" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Log in</span></a>
             <Button className="skoop-button-accent"><span className="editable-text">Sign Up Free</span></Button>
           </div>
@@ -312,6 +313,7 @@ export default function HomePage() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="#features" className="hover:text-primary transition-colors"><span className="editable-text">Features</span></Link></li>
                 <li><Link href="#pricing" className="hover:text-primary transition-colors"><span className="editable-text">Pricing</span></Link></li>
+                <li><Link href="/dashboard" className="hover:text-primary transition-colors"><span className="editable-text">Dashboard</span></Link></li>
                 <li><Link href="#" className="hover:text-primary transition-colors"><span className="editable-text">Integrations</span></Link></li>
                 <li><Link href="#" className="hover:text-primary transition-colors"><span className="editable-text">Changelog</span></Link></li>
               </ul>

@@ -31,6 +31,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "creatr-devtools": "latest",
+        "date-fns": "^4.1.0",
         "error-stack-parser": "^2.1.4",
         "eslint": "^8.57.0",
         "eslint-config-next": "^15.0.1",
