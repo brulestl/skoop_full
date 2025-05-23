@@ -4,7 +4,7 @@ import { AuroraBackground } from "@/components/ui/aurora-background";
 import Link from "next/link";
 import Image from "next/image";
 import { MobileMenu } from "@/components/mobile-menu";
-import { Search, Github, Twitter, Code as StackOverflow, Bookmark, FolderPlus as Collection, CheckCircle2, ChevronRight, ArrowRight } from "lucide-react";
+import { Search, Github, X, Code as StackOverflow, Bookmark, FolderPlus as Collection, CheckCircle2, ChevronRight, ArrowRight } from "lucide-react";
 import { SummariesDemo } from "@/components/landing/summaries-demo";
 import dynamic from 'next/dynamic';
 
@@ -57,12 +57,12 @@ export default function HomePage() {
           <div className="skoop-section relative z-10">
           <div className="skoop-container">
             <div className="grid gap-8 lg:grid-cols-2 lg:gap-24 items-center">
-              <div>
+              <div className="max-w-[100%] px-4 sm:px-0">
                 <h1 className="text-3xl font-bold leading-tight md:text-5xl lg:text-6xl mb-6 max-w-full break-words"><span className="editable-text">
                   Collect, search and </span><span className="text-primary"><span className="editable-text">rediscover</span></span><span className="editable-text"> your saved content
                 </span></h1>
                 <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-full"><span className="editable-text">
-                  One calm space for all your saved tweets, GitHub stars, Reddit posts, and Stack Overflow favorites.
+                  One calm space for all your saved X posts, GitHub stars, Reddit posts, and Stack Overflow favorites.
                 </span></p>
                 <div className="flex flex-col sm:flex-row gap-3 w-full max-w-full">
                   <Button className="skoop-button-accent" size="lg"><span className="editable-text">Get Started</span></Button>
@@ -117,7 +117,7 @@ export default function HomePage() {
             </div>
 
             {/* Logos */}
-            <div className="mt-20">
+            <div className="mt-20 px-4 sm:px-0">
               <p className="text-center text-sm text-muted-foreground mb-6"><span className="editable-text">
                 Connect with your favorite platforms
               </span></p>
@@ -388,8 +388,8 @@ export default function HomePage() {
             </div>
             <div className="flex items-center space-x-4 mt-4 md:mt-0">
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                <span className="sr-only"><span className="editable-text">Twitter</span></span>
-                <Twitter className="h-5 w-5" />
+                <span className="sr-only"><span className="editable-text">X</span></span>
+                <X className="h-5 w-5" />
               </Link>
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 <span className="sr-only"><span className="editable-text">GitHub</span></span>

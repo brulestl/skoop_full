@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, X, Settings, MoreHorizontal, RefreshCw, Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, ExternalLink, Star, ArrowUp, MessageSquare, BookmarkCheck, Folder as FolderIcon } from "lucide-react";
+import { Plus, X as XClose, Settings, MoreHorizontal, RefreshCw, Github, X, MessageSquare as Reddit, Code as StackOverflow, ExternalLink, Star, ArrowUp, MessageSquare, BookmarkCheck, Folder as FolderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -10,9 +10,9 @@ import Image from "next/image";
 // Mock content for the feed columns
 const contentStreams = [{
   id: "twitter",
-  title: "Twitter",
-  icon: Twitter,
-  color: "bg-blue-500",
+  title: "X",
+  icon: X,
+  color: "bg-black",
   items: [{
     id: "t1",
     author: "Theo",
@@ -148,9 +148,9 @@ const contentStreams = [{
 // Available columns for the user to add
 const availableColumns = [{
   id: "twitter",
-  name: "Twitter",
-  icon: Twitter,
-  color: "bg-blue-500 text-white"
+  name: "X",
+  icon: X,
+  color: "bg-black text-white"
 }, {
   id: "github",
   name: "GitHub",
@@ -282,7 +282,7 @@ function ContentColumn({
             <Settings className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={onRemove}>
-            <X className="h-4 w-4" />
+            <XClose className="h-4 w-4" />
           </Button>
         </div>
       </div>

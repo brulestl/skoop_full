@@ -68,9 +68,9 @@ export default function Collections() {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [newCollectionOpen, setNewCollectionOpen] = useState(false);
   return <div>
-      <div className="flex flex-row items-center justify-between mb-6 gap-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-2">
         <h1 className="text-2xl font-semibold"><span className="editable-text">Collections</span></h1>
-        <Button className="skoop-button-primary" onClick={() => setNewCollectionOpen(true)}>
+        <Button className="skoop-button-primary w-full sm:w-auto" onClick={() => setNewCollectionOpen(true)}>
           <FolderPlus className="h-4 w-4 mr-2" /><span className="editable-text">
           New Collection
         </span></Button>

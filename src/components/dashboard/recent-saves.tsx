@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, Twitter, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, Tags, Trash2, ExternalLink, ArrowRight, Sparkles, FileText, X, ChevronRight, FolderPlus, TrendingUp, ArrowDownAZ, Calendar, Heart, Share2, CheckCircle2 } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, Tags, Trash2, ExternalLink, ArrowRight, Sparkles, FileText, ChevronRight, FolderPlus, TrendingUp, ArrowDownAZ, Calendar, Heart, Share2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ const initialSaves = [{
   content: "TypeScript offers powerful type system features that can help you build more robust applications. This guide explores advanced patterns like discriminated unions, which allow you to create type-safe state machines; branded types, which prevent type confusion between semantically different values; conditional types, which enable complex type transformations; and mapped types, which provide ways to transform existing types into new ones. These patterns help catch more errors at compile time and make your code more self-documenting.",
   source: "github",
   sourceUrl: "https://github.com/microsoft/TypeScript",
-  savedAt: new Date(2023, 4, 18),
+  savedAt: new Date(2025, 4, 18),
   tags: ["typescript", "programming", "web-development"],
   starred: true,
   engagement: {
@@ -34,7 +34,7 @@ const initialSaves = [{
   content: "1. Use React.memo() sparingly and only for components that render often with the same props. 2. Properly implement useCallback() for functions passed to child components. 3. Apply useMemo() for expensive calculations. 4. Use the new React 18 concurrent features like useTransition and useDeferredValue for smoother UIs. 5. Virtualize long lists with react-window or react-virtualized. 6. Split your app with code-splitting using React.lazy() and Suspense. 7. Avoid unnecessary re-renders by lifting state up or using context selectors. 8. Optimize context providers to prevent massive re-renders. 9. Use the profiler API to identify performance bottlenecks. 10. Consider using useEvent() hook (RFC stage) for stable callbacks without dependencies.",
   source: "twitter",
   sourceUrl: "https://twitter.com/dan_abramov/status/1234567890",
-  savedAt: new Date(2023, 4, 16),
+  savedAt: new Date(2025, 4, 16),
   tags: ["react", "javascript", "performance"],
   starred: false,
   engagement: {
@@ -51,7 +51,7 @@ const initialSaves = [{
   content: "When working with large datasets in PostgreSQL, performance optimization becomes critical. This guide covers essential techniques: 1) Proper indexing strategies using B-tree, GIN, and specialized indexes 2) Query optimization with EXPLAIN ANALYZE to identify bottlenecks 3) Partitioning tables for better query performance 4) Effective use of prepared statements 5) Configuration tuning for memory allocation, work_mem and maintenance_work_mem 6) Vacuum and analyze scheduling to maintain statistics 7) Connection pooling implementation 8) When and how to use materialized views 9) Query rewriting techniques to leverage indexes better 10) Advanced PostgreSQL features like parallel queries for multi-core utilization.",
   source: "stackoverflow",
   sourceUrl: "https://stackoverflow.com/questions/12345678",
-  savedAt: new Date(2023, 4, 15),
+  savedAt: new Date(2025, 4, 15),
   tags: ["postgresql", "database", "performance"],
   starred: true,
   engagement: {
@@ -68,7 +68,7 @@ const initialSaves = [{
   content: "Creating UI components that are both beautiful and accessible requires careful attention to design principles and accessibility standards. This guide walks through building components from scratch with a focus on inclusive design practices. We'll cover semantic HTML structure, ARIA attributes for enhanced accessibility, keyboard navigation implementation, focus management techniques, color contrast requirements, responsive design considerations, and animation guidelines that respect user preferences. Each component includes examples with both CSS and JavaScript implementations, along with testing procedures using screen readers and keyboard-only navigation.",
   source: "reddit",
   sourceUrl: "https://reddit.com/r/webdev/comments/12345",
-  savedAt: new Date(2023, 4, 12),
+  savedAt: new Date(2025, 4, 12),
   tags: ["ui", "design", "accessibility"],
   starred: false,
   engagement: {
@@ -85,7 +85,7 @@ const initialSaves = [{
   content: "Next.js App Router introduces a revolutionary approach to building React applications with Server Components at its core. This deep dive explains how Server Components fundamentally change the React programming model by allowing components to run at build time or on the server, significantly reducing the JavaScript sent to the client. We explore the mental model behind the Client and Server component split, streaming and progressive rendering capabilities, nested layouts and routing patterns, data fetching strategies with and without fetch(), caching behaviors and revalidation techniques, and optimization strategies. The article includes practical examples showing migration paths from Pages Router to App Router while highlighting key architectural decisions.",
   source: "github",
   sourceUrl: "https://github.com/vercel/next.js",
-  savedAt: new Date(2023, 4, 10),
+  savedAt: new Date(2025, 4, 10),
   tags: ["nextjs", "react", "server-components"],
   starred: false,
   engagement: {
@@ -102,7 +102,7 @@ const initialSaves = [{
   content: "CSS layout has evolved tremendously with Grid and Flexbox providing powerful tools for creating complex interfaces. This guide examines when to use each technology and how they can work together. We explore Grid's two-dimensional layout system perfect for overall page structure, alongside Flexbox's one-dimensional approach ideal for component alignment. Learn techniques for creating responsive grid systems without frameworks, mastering the fr unit, implementing auto-fit and auto-fill for dynamic layouts, building card interfaces, creating masonry layouts, and handling complex nested components with a mix of both technologies.",
   source: "github",
   sourceUrl: "https://github.com/css-tricks/css-grid-examples",
-  savedAt: new Date(2023, 3, 28),
+  savedAt: new Date(2025, 3, 28),
   tags: ["css", "frontend", "web-development"],
   starred: true,
   engagement: {
@@ -119,7 +119,7 @@ const initialSaves = [{
   content: "Effective Git workflows are essential for team productivity and code quality. This guide explores several advanced patterns including Gitflow for structured releases, trunk-based development for continuous integration, GitHub flow for simplicity, and Git forking workflows for open-source projects. We cover practical implementation details like branching strategies, merge vs. rebase approaches, effective commit message conventions, handling merge conflicts elegantly, using Git hooks for automation, implementing code review processes, and integrating with CI/CD pipelines. Each section includes real-world examples and commands for implementation.",
   source: "github",
   sourceUrl: "https://github.com/gitflow/gitflow-workflow",
-  savedAt: new Date(2023, 3, 23),
+  savedAt: new Date(2025, 3, 23),
   tags: ["git", "workflow", "collaboration"],
   starred: false,
   engagement: {
@@ -136,7 +136,7 @@ const initialSaves = [{
   content: "Real-time functionality has become essential for modern web applications. This guide provides a comprehensive overview of WebSockets and Socket.IO for implementing features like live notifications, chat systems, collaborative editing, and real-time dashboards. We cover fundamental WebSocket concepts, the Socket.IO library's advantages, handling connection management and reconnection strategies, room-based communication models, scaling considerations with Redis adapters, security best practices for preventing common attacks, and performance optimization techniques. The article includes complete code examples for Node.js backend and React frontend integration.",
   source: "stackoverflow",
   sourceUrl: "https://stackoverflow.com/questions/10112178/differences-between-socket-io-and-websockets",
-  savedAt: new Date(2023, 3, 18),
+  savedAt: new Date(2025, 3, 18),
   tags: ["websockets", "socketio", "real-time"],
   starred: true,
   engagement: {
@@ -153,7 +153,7 @@ const initialSaves = [{
   content: "Microservices architecture offers many benefits for complex applications, and Node.js is particularly well-suited for this approach. This comprehensive guide explores microservice design principles, service decomposition strategies, inter-service communication patterns (REST, gRPC, message queues), data management across services, implementing the API Gateway pattern, handling distributed transactions, effective service discovery mechanisms, containerization with Docker and orchestration with Kubernetes, monitoring and observability with tools like Prometheus and Grafana, and implementing resilience patterns like circuit breakers and retries. The article includes architecture diagrams and example code for each pattern.",
   source: "twitter",
   sourceUrl: "https://twitter.com/nodejs/status/1234569876",
-  savedAt: new Date(2023, 3, 14),
+  savedAt: new Date(2025, 3, 14),
   tags: ["microservices", "nodejs", "architecture"],
   starred: false,
   engagement: {
@@ -175,7 +175,7 @@ const SourceIcon = ({
     case "github":
       return <Github className="h-4 w-4" />;
     case "twitter":
-      return <Twitter className="h-4 w-4" />;
+      return <X className="h-4 w-4" />;
     case "stackoverflow":
       return <StackOverflow className="h-4 w-4" />;
     case "reddit":
@@ -313,7 +313,7 @@ const SaveCard = ({
             </span></Button>
             
             <Button variant="ghost" size="sm" className="text-xs h-7 px-2 text-primary" onClick={() => window.open(save.sourceUrl, '_blank')}><span className="editable-text">
-              View Source
+              Source
               </span><ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           </div>

@@ -44,16 +44,16 @@ const connectedAccounts = [{
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
   return <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col gap-3 mb-6">
         <h1 className="text-2xl font-semibold"><span className="editable-text">Profile</span></h1>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant={activeTab === 'profile' ? 'secondary' : 'ghost'} onClick={() => setActiveTab('profile')}><span className="editable-text">
             Profile
           </span></Button>
           <Button variant={activeTab === 'billing' ? 'secondary' : 'ghost'} onClick={() => setActiveTab('billing')}><span className="editable-text">
             Billing
           </span></Button>
-          <Button className="skoop-button-primary ml-2"><span className="editable-text">Connect Account</span></Button>
+          <Button className="skoop-button-primary"><span className="editable-text">Connect Account</span></Button>
         </div>
       </div>
       
@@ -86,7 +86,7 @@ export default function Profile() {
           </div>
           <div>
             <div className="text-sm text-muted-foreground"><span className="editable-text">Member Since</span></div>
-            <div className="font-semibold"><span className="editable-text">March, 2023</span></div>
+            <div className="font-semibold"><span className="editable-text">March, 2025</span></div>
           </div>
         </div>
       </div>
@@ -161,17 +161,17 @@ function BillingSection() {
   // Recent invoices
   const invoices = [{
     id: 'inv-001',
-    date: 'May 1, 2023',
+    date: 'May 1, 2025',
     amount: '$90.00',
     status: 'Paid'
   }, {
     id: 'inv-002',
-    date: 'Apr 1, 2023',
+    date: 'Apr 1, 2025',
     amount: '$90.00',
     status: 'Paid'
   }, {
     id: 'inv-003',
-    date: 'Mar 1, 2023',
+    date: 'Mar 1, 2025',
     amount: '$90.00',
     status: 'Paid'
   }];

@@ -3,15 +3,15 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Github, Twitter, MessageSquare as Reddit, FileText } from 'lucide-react';
+import { Github, X, MessageSquare as Reddit, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Demo content from various platforms
 const demoCards = [{
   id: 'twitter-1',
   platform: 'twitter',
-  icon: Twitter,
-  platformColor: 'text-blue-500',
+  icon: X,
+  platformColor: 'text-black',
   author: 'Sarah Chen',
   handle: '@sarahchen_ai',
   avatar: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=200&h=200&q=80&fit=crop',
