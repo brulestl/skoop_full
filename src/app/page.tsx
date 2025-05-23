@@ -1,6 +1,3 @@
 export default function HomePage() {
-  return (
-    /** This must be replaced */
-    <></>
-  );
+  return /** This must be replaced */<></>;
 }
