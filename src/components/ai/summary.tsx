@@ -70,19 +70,19 @@ export default function AISummary({
     setLoading(true); // Restart generation with new provider
   };
   if (loading) {
-    return <div className={cn("h-4 bg-gradient-to-r from-background via-muted to-background bg-[length:200%_100%] animate-pulse rounded", className)} />;
+    return <div className={cn("h-4 bg-gradient-to-r from-background via-muted to-background bg-[length:200%_100%] animate-pulse rounded", className)} data-unique-id="3c00b960-5b40-4e5c-8f50-be61d1ed7e5b" data-file-name="components/ai/summary.tsx" />;
   }
   if (error) {
-    return <div className={cn("flex items-center text-sm text-muted-foreground", className)}>
-        <span className="line-clamp-2">
+    return <div className={cn("flex items-center text-sm text-muted-foreground", className)} data-unique-id="af305ea6-47a5-44f6-b1c1-943165c58171" data-file-name="components/ai/summary.tsx">
+        <span className="line-clamp-2" data-unique-id="adbcf5f0-f6bb-4909-8ef1-8d4865bf7990" data-file-name="components/ai/summary.tsx" data-dynamic-text="true">
           {summary || description.slice(0, 80) || "No summary available"}
         </span>
-        <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-destructive/10 text-destructive rounded-full" title="AI summary generation failed"><span className="editable-text">
+        <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-destructive/10 text-destructive rounded-full" title="AI summary generation failed" data-unique-id="4af7431c-3802-4aa1-9716-0076ea8b89c0" data-file-name="components/ai/summary.tsx"><span className="editable-text" data-unique-id="bc9cb55f-0c28-4aad-b844-3d104b40feba" data-file-name="components/ai/summary.tsx">
           RAW
         </span></span>
       </div>;
   }
-  return <div className={cn("text-sm text-muted-foreground line-clamp-2", className)}>
+  return <div className={cn("text-sm text-muted-foreground line-clamp-2", className)} data-unique-id="6647bb0e-6b7b-42b4-acd8-b8b9e4f906f8" data-file-name="components/ai/summary.tsx" data-dynamic-text="true">
       {summary}
     </div>;
 }

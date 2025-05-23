@@ -99,23 +99,23 @@ export default function RecentSaves() {
   const toggleModel = () => {
     setSelectedModel(selectedModel === 'claude-bedrock' ? 'azure-gpt-4o' : 'claude-bedrock');
   };
-  return <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold"><span className="editable-text">Recent Saves</span></h1>
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" size="sm" onClick={toggleModel} className="flex items-center">
+  return <div data-unique-id="a9bcc8bb-da8d-49fb-ba19-a381dcccc6f4" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
+      <div className="flex items-center justify-between mb-6" data-unique-id="03833eb5-5fb4-40cc-a76f-a088aae9c167" data-file-name="components/dashboard/recent-saves.tsx">
+        <h1 className="text-2xl font-semibold" data-unique-id="14d41b75-6342-4737-9581-6d27a92c6520" data-file-name="components/dashboard/recent-saves.tsx"><span className="editable-text" data-unique-id="2008fbfc-ca1f-415a-a1e8-35da3a671121" data-file-name="components/dashboard/recent-saves.tsx">Recent Saves</span></h1>
+        <div className="flex items-center space-x-3" data-unique-id="7a92d97a-f8e7-431b-bb62-83abb8d45440" data-file-name="components/dashboard/recent-saves.tsx">
+          <Button variant="outline" size="sm" onClick={toggleModel} className="flex items-center" data-unique-id="c37a9c3d-0a89-4dbd-9520-dda8117b859a" data-file-name="components/dashboard/recent-saves.tsx">
             <Sparkles className="h-3 w-3 mr-1.5 text-primary" />
-            <span><span className="editable-text">AI: </span>{selectedModel === 'claude-bedrock' ? 'Claude' : 'OpenAI'}</span>
+            <span data-unique-id="db3e1c82-d8b8-4de7-98c3-053019d52035" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true"><span className="editable-text" data-unique-id="1ce3beed-d4ff-49cc-b0e1-d693a8e82ef5" data-file-name="components/dashboard/recent-saves.tsx">AI: </span>{selectedModel === 'claude-bedrock' ? 'Claude' : 'OpenAI'}</span>
           </Button>
           
-          <div className="flex border border-border rounded-md overflow-hidden">
-            <Button variant={viewMode === 'bento' ? 'secondary' : 'ghost'} size="sm" className="rounded-none" onClick={() => setViewMode('bento')}>
-              <span className="editable-text">
+          <div className="flex border border-border rounded-md overflow-hidden" data-unique-id="fcf9e6fa-0c94-49cc-8546-0bb9a81c25d7" data-file-name="components/dashboard/recent-saves.tsx">
+            <Button variant={viewMode === 'bento' ? 'secondary' : 'ghost'} size="sm" className="rounded-none" onClick={() => setViewMode('bento')} data-unique-id="09d53609-efbb-4b7f-9410-a85ef97231aa" data-file-name="components/dashboard/recent-saves.tsx">
+              <span className="editable-text" data-unique-id="54efc3eb-dd44-48f2-a784-1aea02a76f76" data-file-name="components/dashboard/recent-saves.tsx">
                 Bento
               </span>
             </Button>
-            <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="sm" className="rounded-none" onClick={() => setViewMode('list')}>
-              <span className="editable-text">
+            <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="sm" className="rounded-none" onClick={() => setViewMode('list')} data-unique-id="12721b6a-afcb-42c2-ad54-67b4ac7220a1" data-file-name="components/dashboard/recent-saves.tsx">
+              <span className="editable-text" data-unique-id="5fdaa7ca-6e1a-43d7-9b18-538ed2847270" data-file-name="components/dashboard/recent-saves.tsx">
                 List
               </span>
             </Button>
@@ -124,15 +124,15 @@ export default function RecentSaves() {
       </div>
 
       {viewMode === 'bento' ? <BentoGrid className="auto-rows-[180px] md:auto-rows-[240px]">
-          {recentSaves.map(save => <BentoCard key={save.id} name={save.title} className={save.className} background={<div className="absolute inset-0 z-0">
-                  {save.image && <Image src={save.image} alt={save.title} fill className="object-cover opacity-20 transition-opacity group-hover:opacity-30" />}
-                  <div className="absolute inset-0 bg-gradient-to-t from-background to-background/20" />
-                </div>} Icon={() => <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground">
+          {recentSaves.map(save => <BentoCard key={save.id} name={save.title} className={save.className} background={<div className="absolute inset-0 z-0" data-unique-id="fa1bc6e5-4895-4ae8-a443-e2602bd81808" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
+                  {save.image && <Image src={save.image} alt={save.title} fill className="object-cover opacity-20 transition-opacity group-hover:opacity-30" data-unique-id="6662ca76-19ec-4712-8781-f8a0b187ce04" data-file-name="components/dashboard/recent-saves.tsx" />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-background to-background/20" data-unique-id="e88487f9-a635-4faa-a9fb-65b887450bed" data-file-name="components/dashboard/recent-saves.tsx" />
+                </div>} Icon={() => <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground" data-unique-id="2fd204b0-ed9b-465a-9011-2d454bc15792" data-file-name="components/dashboard/recent-saves.tsx">
                   <SourceIcon source={save.source} />
-                </div>} description={<div className="space-y-1">
+                </div>} description={<div className="space-y-1" data-unique-id="5e5e278c-82f7-4f9b-ae1f-6f717490337b" data-file-name="components/dashboard/recent-saves.tsx">
                   <AISummary title={save.title} url={save.sourceUrl} description={save.description} content={save.content} />
                 </div>} href={save.sourceUrl} cta="View Source" />)}
-        </BentoGrid> : <div className="space-y-4">
+        </BentoGrid> : <div className="space-y-4" data-unique-id="43ba3ef5-bd8b-4155-bb3f-05f5c9a358d5" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
           {recentSaves.map(save => <motion.div key={save.id} className="skoop-card p-4 group relative" initial={{
         opacity: 0,
         y: 10
@@ -141,35 +141,35 @@ export default function RecentSaves() {
         y: 0
       }} transition={{
         duration: 0.3
-      }} onMouseEnter={() => setActiveItem(save.id)} onMouseLeave={() => setActiveItem(null)}>
-              <div className="flex gap-4">
-                {save.image && <div className="hidden md:block w-32 h-20 rounded-md overflow-hidden flex-shrink-0">
-                    <Image src={save.image} width={128} height={80} alt="" className="w-full h-full object-cover" />
+      }} onMouseEnter={() => setActiveItem(save.id)} onMouseLeave={() => setActiveItem(null)} data-unique-id="2b3e55d5-4bb5-4203-a490-2556987bdd8a" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
+              <div className="flex gap-4" data-unique-id="fb728fb9-6039-48da-8991-d5260c412442" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
+                {save.image && <div className="hidden md:block w-32 h-20 rounded-md overflow-hidden flex-shrink-0" data-unique-id="62b2cfd4-8657-493f-a36c-b92a8e66a434" data-file-name="components/dashboard/recent-saves.tsx">
+                    <Image src={save.image} width={128} height={80} alt="" className="w-full h-full object-cover" data-unique-id="e0d12d8e-4fef-4fe1-bff4-5804d17717ce" data-file-name="components/dashboard/recent-saves.tsx" />
                   </div>}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-muted-foreground">
+                <div className="flex-1 min-w-0" data-unique-id="8cd7a4cc-7ca8-4016-8da4-9278b14ea67f" data-file-name="components/dashboard/recent-saves.tsx">
+                  <div className="flex items-center gap-3 mb-2" data-unique-id="7e633415-9810-43db-abba-584a32047afb" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
+                    <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-muted-foreground" data-unique-id="13ca0308-1c8c-4fdc-81a9-6acdcd013143" data-file-name="components/dashboard/recent-saves.tsx">
                       <SourceIcon source={save.source} />
                     </div>
-                    <h3 className="font-medium text-foreground line-clamp-1">
+                    <h3 className="font-medium text-foreground line-clamp-1" data-unique-id="fa8dcaa8-7b4d-41c2-8703-1134f89e4978" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
                       {save.title}
                     </h3>
                     {save.starred && <Star className="h-4 w-4 fill-accent text-accent" />}
                   </div>
 
-                  <div className="mb-3">
+                  <div className="mb-3" data-unique-id="eefd19c8-cbe2-4218-a4c9-83a997d6ff6b" data-file-name="components/dashboard/recent-saves.tsx">
                     <AISummary title={save.title} url={save.sourceUrl} description={save.description} content={save.content} />
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-between" data-unique-id="9688492e-fd9c-4522-a811-be83607f6549" data-file-name="components/dashboard/recent-saves.tsx">
+                    <div className="flex items-center gap-1" data-unique-id="a23dee67-387f-4a55-9365-38a91df0362a" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
                       <Tags className="h-3 w-3 text-muted-foreground mr-1" />
-                      {save.tags.map(tag => <span key={tag} className="text-xs px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground mr-1">
+                      {save.tags.map(tag => <span key={tag} className="text-xs px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground mr-1" data-unique-id="8d025141-8047-4a81-8c8b-33f2eb376963" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
                           {tag}
                         </span>)}
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      <span className="editable-text">Saved </span>
+                    <span className="text-xs text-muted-foreground" data-unique-id="f2ff77e9-59f4-4df2-b094-ac9e92321219" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
+                      <span className="editable-text" data-unique-id="0da4a3c5-cea7-4dff-ae86-598848bd1695" data-file-name="components/dashboard/recent-saves.tsx">Saved </span>
                       {format(save.savedAt, "MMM d")}
                     </span>
                   </div>
@@ -177,23 +177,23 @@ export default function RecentSaves() {
               </div>
 
               {/* Action buttons - visible on hover */}
-              <div className={`absolute right-3 top-3 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
+              <div className={`absolute right-3 top-3 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity`} data-unique-id="205095cc-fc1f-4d59-8d16-f83632d191a5" data-file-name="components/dashboard/recent-saves.tsx">
+                <Button variant="ghost" size="icon" className="h-7 w-7" data-unique-id="1b88a229-429d-455b-800c-015be6b09d71" data-file-name="components/dashboard/recent-saves.tsx">
                   <Star className={cn("h-4 w-4", save.starred && "fill-accent text-accent")} />
-                  <span className="sr-only">
-                    <span className="editable-text">Star</span>
+                  <span className="sr-only" data-unique-id="54d0e54c-5bd6-43d7-80e3-893abee36db1" data-file-name="components/dashboard/recent-saves.tsx">
+                    <span className="editable-text" data-unique-id="8555939c-f5b8-4f89-81c7-81d648b78374" data-file-name="components/dashboard/recent-saves.tsx">Star</span>
                   </span>
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
+                <Button variant="ghost" size="icon" className="h-7 w-7" data-unique-id="98a7eca1-ee13-49ba-aff1-90b8a9e728ec" data-file-name="components/dashboard/recent-saves.tsx">
                   <ExternalLink className="h-4 w-4" />
-                  <span className="sr-only">
-                    <span className="editable-text">Open</span>
+                  <span className="sr-only" data-unique-id="4f2c0360-a949-476f-be20-2bcc978c92b1" data-file-name="components/dashboard/recent-saves.tsx">
+                    <span className="editable-text" data-unique-id="16311502-20e0-4409-ab45-981d1144a1f7" data-file-name="components/dashboard/recent-saves.tsx">Open</span>
                   </span>
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" data-unique-id="dc858c3e-6f6a-4a45-b560-e59725299b5e" data-file-name="components/dashboard/recent-saves.tsx">
                   <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">
-                    <span className="editable-text">Delete</span>
+                  <span className="sr-only" data-unique-id="1ef1fde5-f00a-4efc-8cda-cf82e308f19f" data-file-name="components/dashboard/recent-saves.tsx">
+                    <span className="editable-text" data-unique-id="7bac5db3-b4ff-4d83-bdb7-778849ad7f10" data-file-name="components/dashboard/recent-saves.tsx">Delete</span>
                   </span>
                 </Button>
               </div>
