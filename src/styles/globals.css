@@ -36,7 +36,8 @@
 
     /* SKOOP specific tokens */
     --shadow: 0 1px 3px rgba(0,0,0,0.08);
-    --transition: 150ms ease-out;
+    --transition-duration: 150ms;
+    --transition-timing: ease-out;
 
     --sidebar-background: #FAFAFA;
     --sidebar-foreground: #3F3F46;
@@ -105,15 +106,15 @@
 
 @layer components {
   .skoop-card {
-    @apply bg-card rounded-[var(--radius)] shadow-[var(--shadow)] transition-all duration-[var(--transition)] hover:translate-y-[-2px] hover:shadow-lg;
+    @apply bg-card rounded-[var(--radius)] shadow-[var(--shadow)] transition-all duration-150 ease-out hover:translate-y-[-2px] hover:shadow-lg;
   }
   
   .skoop-button-primary {
-    @apply bg-primary text-primary-foreground rounded-[var(--radius-sm)] px-5 py-2.5 font-medium transition-all duration-[var(--transition)] hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50;
+    @apply bg-primary text-primary-foreground rounded-[var(--radius-sm)] px-5 py-2.5 font-medium transition-all duration-150 ease-out hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50;
   }
   
   .skoop-button-accent {
-    @apply bg-accent text-accent-foreground rounded-[var(--radius-sm)] px-5 py-2.5 font-medium transition-all duration-[var(--transition)] hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50;
+    @apply bg-accent text-accent-foreground rounded-[var(--radius-sm)] px-5 py-2.5 font-medium transition-all duration-150 ease-out hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50;
   }
 
   .skoop-container {
