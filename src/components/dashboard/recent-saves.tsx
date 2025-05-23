@@ -88,24 +88,24 @@ const SourceIcon = ({
 };
 export default function RecentSaves() {
   const [activeItem, setActiveItem] = useState<number | null>(null);
-  return <div data-unique-id="b3623911-f0c2-4ef3-979e-a1382677140a" data-file-name="components/dashboard/recent-saves.tsx">
-      <div className="flex items-center justify-between mb-6" data-unique-id="0eb73b3d-7ed1-411c-b874-95a0e4de5f27" data-file-name="components/dashboard/recent-saves.tsx">
-        <h1 className="text-2xl font-semibold" data-unique-id="492e194e-72e9-4a2c-a384-971bba627a04" data-file-name="components/dashboard/recent-saves.tsx"><span className="editable-text" data-unique-id="d5f8f9fb-f070-490c-b952-fd5eca896465" data-file-name="components/dashboard/recent-saves.tsx">Recent Saves</span></h1>
-        <div className="flex items-center space-x-3" data-unique-id="07537b8f-518c-4e0c-9a7b-c23802e1dcc7" data-file-name="components/dashboard/recent-saves.tsx">
-          <Button variant="outline" size="sm" data-unique-id="897dc4e6-672a-46e5-97b2-7545858b1e31" data-file-name="components/dashboard/recent-saves.tsx"><span className="editable-text" data-unique-id="eefe7061-638f-4dae-9bfd-c587e5a045d5" data-file-name="components/dashboard/recent-saves.tsx">
+  return <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold"><span className="editable-text">Recent Saves</span></h1>
+        <div className="flex items-center space-x-3">
+          <Button variant="outline" size="sm"><span className="editable-text">
             Filter
           </span></Button>
-          <Button variant="outline" size="sm" data-unique-id="5d22fc92-2847-4f5e-ae2b-697de29e2148" data-file-name="components/dashboard/recent-saves.tsx"><span className="editable-text" data-unique-id="5193abb2-7681-4dd2-8756-dc2b0cce08dd" data-file-name="components/dashboard/recent-saves.tsx">
+          <Button variant="outline" size="sm"><span className="editable-text">
             Sort
           </span></Button>
         </div>
       </div>
 
       <BentoGrid className="auto-rows-[180px] md:auto-rows-[240px]">
-        {recentSaves.map(save => <BentoCard key={save.id} name={save.title} className={save.className} background={<div className="absolute inset-0 z-0" data-unique-id="709920e0-fd4b-4ee0-8445-15f7aefdc696" data-file-name="components/dashboard/recent-saves.tsx" data-dynamic-text="true">
-                {save.image && <Image src={save.image} alt={save.title} fill className="object-cover opacity-20 transition-opacity group-hover:opacity-30" data-unique-id="9cdee747-9906-41bd-a35d-afa9c0cb425a" data-file-name="components/dashboard/recent-saves.tsx" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-background to-background/20" data-unique-id="e2ca839b-587b-4122-a47b-8051cb9ab84a" data-file-name="components/dashboard/recent-saves.tsx" />
-              </div>} Icon={() => <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground" data-unique-id="e3c8749f-48b9-4bc6-84c1-5bf89343d7f1" data-file-name="components/dashboard/recent-saves.tsx">
+        {recentSaves.map(save => <BentoCard key={save.id} name={save.title} className={save.className} background={<div className="absolute inset-0 z-0">
+                {save.image && <Image src={save.image} alt={save.title} fill className="object-cover opacity-20 transition-opacity group-hover:opacity-30" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-background to-background/20" />
+              </div>} Icon={() => <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground">
                 <SourceIcon source={save.source} />
               </div>} description={save.description} href={save.sourceUrl} cta="View Source" />)}
       </BentoGrid>
