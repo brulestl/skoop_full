@@ -12,8 +12,8 @@ export const AuroraBackground = ({
   showRadialGradient = true,
   ...props
 }: AuroraBackgroundProps) => {
-  return <div className={cn("relative flex flex-col items-center justify-center transition-bg", className)} {...props} data-unique-id="d2af5bbb-56e0-43f3-84f5-4be5d93a49d9" data-file-name="components/ui/aurora-background.tsx" data-dynamic-text="true">
-      <div className="absolute inset-0 overflow-hidden" data-unique-id="b5d23416-0fa4-4498-b695-774332f0f050" data-file-name="components/ui/aurora-background.tsx">
+  return <div className={cn("relative flex flex-col items-center justify-center transition-bg", className)} {...props}>
+      <div className="absolute inset-0 overflow-hidden">
         <div className={cn(`
             [--white-gradient:repeating-linear-gradient(100deg,var(--primary)_0%,var(--primary)_7%,transparent_10%,transparent_12%,var(--primary)_16%)]
             [--dark-gradient:repeating-linear-gradient(100deg,var(--primary)_0%,var(--primary)_7%,transparent_10%,transparent_12%,var(--primary)_16%)]
@@ -28,7 +28,7 @@ export const AuroraBackground = ({
             after:[background-size:200%,_100%] 
             after:animate-aurora after:[background-attachment:fixed] after:mix-blend-difference
             pointer-events-none
-            absolute -inset-[10px] will-change-transform`, showRadialGradient && `[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,transparent_70%)]`)} data-unique-id="80d8dc4c-2c45-4aff-88ee-a65de77f5c90" data-file-name="components/ui/aurora-background.tsx"></div>
+            absolute -inset-[10px] will-change-transform`, showRadialGradient && `[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,transparent_70%)]`)}></div>
       </div>
       {children}
     </div>;

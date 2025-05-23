@@ -19,8 +19,8 @@ export function ThemeToggle() {
     setTheme(theme === "light" ? "dark" : "light");
   }
   if (!theme) return null;
-  return <Button variant="ghost" size="icon" onClick={toggleTheme} title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} data-unique-id="faf2496b-ca5a-480a-b7d7-591d9af6b2a8" data-file-name="components/theme-toggle.tsx" data-dynamic-text="true">
+  return <Button variant="ghost" size="icon" onClick={toggleTheme} title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
       {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-      <span className="sr-only" data-unique-id="70f67bac-18b9-4893-91ea-6d0356f4007c" data-file-name="components/theme-toggle.tsx"><span className="editable-text" data-unique-id="c9e8cc42-7593-4023-8294-090f4f7555b7" data-file-name="components/theme-toggle.tsx">Toggle theme</span></span>
+      <span className="sr-only"><span className="editable-text">Toggle theme</span></span>
     </Button>;
 }

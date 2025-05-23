@@ -57,8 +57,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <html lang="en" className={`${GeistSans.variable}`} data-unique-id="c0cfc282-aa13-4579-8668-180667b3d6be" data-file-name="app/layout.tsx">
-      <body data-unique-id="0cb10911-cade-44fd-88cc-13c399551d9c" data-file-name="app/layout.tsx">
+  return <html lang="en" className={`${GeistSans.variable}`}>
+      <body>
         <DevtoolsProvider>{children}</DevtoolsProvider>
       </body>
     </html>;
