@@ -1,4 +1,5 @@
 import "@/styles/globals.css";
+import "@fontsource/plus-jakarta-sans/800.css"; // Import Extra Bold variant
 import React from "react";
 import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";

@@ -68,55 +68,85 @@ export default function DashboardLayout() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className={cn("border-r border-border transition-all duration-300 ease-in-out bg-background", sidebarOpen ? "w-64" : "w-0")}>
-          {sidebarOpen && <div className="flex flex-col h-full">
-              <div className="p-4">
-                <SearchBar minimal />
-              </div>
-
-              <nav className="flex-1 px-3 py-2">
-                <div className="mb-4">
-                  <Link href="/">
-                    <div className="flex items-center px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50">
-                      <Home className="h-4 w-4 mr-3" />
-                      <span><span className="editable-text">Home</span></span>
-                    </div>
-                  </Link>
+        <aside className={cn("border-r border-border transition-all duration-300 ease-in-out bg-background overflow-x-hidden", 
+                            sidebarOpen ? "w-64" : "w-16")}>
+          <div className="flex flex-col h-full">
+            {sidebarOpen ? (
+              <>
+                <div className="p-4">
+                  <SearchBar minimal />
                 </div>
 
-                <div className="mb-8 space-y-1">
-                  {navigationItems.map(item => <button key={item.id} onClick={() => setActiveTab(item.id)} className={cn("w-full flex items-center justify-between px-2 py-1.5 rounded-md group", activeTab === item.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
-                      <div className="flex items-center">
-                        <item.icon className="h-4 w-4 mr-3" />
-                        <span>{item.name}</span>
-                        {item.isPremium && <span className="ml-2 px-1 py-0.5 text-[0.65rem] font-medium bg-accent/20 text-accent rounded-sm"><span className="editable-text">
-                            POWER
-                          </span></span>}
+                <nav className="flex-1 px-3 py-2">
+                  <div className="mb-4">
+                    <Link href="/">
+                      <div className="flex items-center px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50">
+                        <Home className="h-4 w-4 mr-3" />
+                        <span><span className="editable-text">Home</span></span>
                       </div>
-                      {item.count !== undefined && <span className={cn("text-xs rounded-full py-0.5 px-2", activeTab === item.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                          {item.count}
-                        </span>}
-                    </button>)}
-                </div>
+                    </Link>
+                  </div>
 
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-muted-foreground px-2 py-1.5"><span className="editable-text">
-                    Connected Services
-                  </span></h3>
-                  {["GitHub", "Twitter", "Reddit", "Stack Overflow"].map(service => <div key={service} className="flex items-center px-2 py-1.5 text-sm text-muted-foreground">
-                        <span className="h-2 w-2 rounded-full bg-primary mr-3"></span>
-                        <span>{service}</span>
-                      </div>)}
-                </div>
-              </nav>
+                  <div className="mb-8 space-y-1">
+                    {navigationItems.map(item => <button key={item.id} onClick={() => setActiveTab(item.id)} className={cn("w-full flex items-center justify-between px-2 py-1.5 rounded-md group", activeTab === item.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
+                        <div className="flex items-center">
+                          <item.icon className="h-4 w-4 mr-3" />
+                          <span>{item.name}</span>
+                          {item.isPremium && <span className="ml-2 px-1 py-0.5 text-[0.65rem] font-medium bg-accent/20 text-accent rounded-sm"><span className="editable-text">
+                              POWER
+                            </span></span>}
+                        </div>
+                        {item.count !== undefined && <span className={cn("text-xs rounded-full py-0.5 px-2", activeTab === item.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                            {item.count}
+                          </span>}
+                      </button>)}
+                  </div>
 
-              <div className="mt-auto p-4 border-t border-border">
-                <Button className="w-full" variant="outline" size="sm">
-                  <Plus className="h-4 w-4 mr-2" /><span className="editable-text">
-                  Add Connection
-                </span></Button>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium text-muted-foreground px-2 py-1.5"><span className="editable-text">
+                      Connected Services
+                    </span></h3>
+                    {["GitHub", "Twitter", "Reddit", "Stack Overflow"].map(service => <div key={service} className="flex items-center px-2 py-1.5 text-sm text-muted-foreground">
+                          <span className="h-2 w-2 rounded-full bg-primary mr-3"></span>
+                          <span>{service}</span>
+                        </div>)}
+                  </div>
+                </nav>
+
+                <div className="mt-auto p-4 border-t border-border">
+                  <Button className="w-full" variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" /><span className="editable-text">
+                    Add Connection
+                  </span></Button>
+                </div>
+              </>
+            ) : (
+              // Icon-only sidebar
+              <div className="py-4 flex flex-col items-center">
+                <Link href="/">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-8">
+                    <Home className="h-5 w-5 text-primary" />
+                  </div>
+                </Link>
+                
+                {navigationItems.map(item => (
+                  <button 
+                    key={item.id} 
+                    onClick={() => setActiveTab(item.id)}
+                    className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center mb-4",
+                      activeTab === item.id 
+                        ? "bg-primary/10 text-primary" 
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    )}
+                    title={item.name}
+                  >
+                    <item.icon className="h-5 w-5" />
+                  </button>
+                ))}
               </div>
-            </div>}
+            )}
+          </div>
         </aside>
 
         {/* Main content */}

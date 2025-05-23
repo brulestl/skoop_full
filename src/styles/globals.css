@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -101,6 +101,21 @@
 
   code {
     font-family: 'JetBrains Mono', monospace;
+  }
+  
+  h1 {
+    font-size: clamp(1.75rem, 4vw + 1rem, 3.5rem);
+    line-height: 1.15;
+    word-break: keep-all;
+  }
+  
+  .logo {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+  }
+  
+  .section-title-sm {
+    @apply text-lg sm:text-2xl font-semibold tracking-tight;
   }
 }
 

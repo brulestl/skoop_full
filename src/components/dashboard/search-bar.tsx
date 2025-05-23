@@ -80,6 +80,22 @@ export default function SearchBar({
   const [selectedModel, setSelectedModel] = useState<string>('claude-bedrock');
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const [placeholder, setPlaceholder] = useState("Search across all your saved content...");
+
+  // Update placeholder based on window width
+  useEffect(() => {
+    const updatePlaceholder = () => {
+      if (window.innerWidth <= 360) {
+        setPlaceholder("Search...");
+      } else {
+        setPlaceholder("Search across all your saved content...");
+      }
+    };
+    
+    updatePlaceholder();
+    window.addEventListener('resize', updatePlaceholder);
+    return () => window.removeEventListener('resize', updatePlaceholder);
+  }, []);
 
   // Handle keyboard shortcut
   useEffect(() => {
@@ -173,7 +189,16 @@ export default function SearchBar({
       <div className={cn("relative", minimal ? "w-full" : "max-w-2xl mx-auto w-full")}>
         <div className={cn("flex items-center rounded-lg border border-input bg-background px-3 py-2 text-sm transition-all", focused ? "border-primary ring-2 ring-primary ring-opacity-30" : "", minimal ? "" : "shadow-sm")}>
           <Search className="h-4 w-4 text-muted-foreground mr-2" />
-          <input ref={inputRef} type="text" placeholder="Search across all your saved content..." className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground" value={query} onChange={e => setQuery(e.target.value)} onFocus={handleInputFocus} onBlur={() => setFocused(false)} />
+          <input 
+            ref={inputRef} 
+            type="text" 
+            placeholder={placeholder} 
+            className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground" 
+            value={query} 
+            onChange={e => setQuery(e.target.value)} 
+            onFocus={handleInputFocus} 
+            onBlur={() => setFocused(false)} 
+          />
           
           {query && <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={() => setQuery("")}>
               <X className="h-3 w-3" />

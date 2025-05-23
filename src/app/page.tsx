@@ -3,7 +3,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import Link from "next/link";
 import Image from "next/image";
+import { MobileMenu } from "@/components/mobile-menu";
 import { Search, Github, Twitter, Code as StackOverflow, Bookmark, FolderPlus as Collection, CheckCircle2, ChevronRight, ArrowRight } from "lucide-react";
+import { SummariesDemo } from "@/components/landing/summaries-demo";
 import dynamic from 'next/dynamic';
 
 // Dynamically import the ExpandableCard component with client-side only rendering
@@ -17,18 +19,27 @@ export default function HomePage() {
       <header className="border-b border-border relative z-10">
         <div className="skoop-container flex items-center justify-between h-16">
           <div className="flex items-center">
-            <div className="text-2xl font-bold text-primary"><span className="editable-text">SKOOP</span></div>
-            <nav className="hidden ml-12 space-x-6 lg:flex">
+            <div className="text-2xl logo font-bold text-primary"><span className="editable-text">SKOOP</span></div>
+            <nav className="hidden ml-12 space-x-6 md:flex">
               <Link href="#features" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Features</span></Link>
               <Link href="#pricing" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Pricing</span></Link>
               <Link href="#faq" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">FAQ</span></Link>
             </nav>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center">
             <ThemeToggle />
-            <a href="/dashboard" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Dashboard</span></a>
-            <a href="/login" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Log in</span></a>
-            <Button className="skoop-button-accent"><span className="editable-text">Sign Up Free</span></Button>
+            <div className="hidden md:flex items-center space-x-4 ml-4">
+              <a href="/dashboard" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Dashboard</span></a>
+              <a href="/login" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Log in</span></a>
+              <Button className="skoop-button-accent"><span className="editable-text">Sign Up Free</span></Button>
+            </div>
+            <MobileMenu 
+              links={[
+                { href: "#features", label: "Features" },
+                { href: "#pricing", label: "Pricing" },
+                { href: "#faq", label: "FAQ" },
+              ]} 
+            />
           </div>
         </div>
       </header>
@@ -123,7 +134,7 @@ export default function HomePage() {
         <section id="features" className="skoop-section">
           <div className="skoop-container">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold mb-4"><span className="editable-text">Finally, a place for all your saved content</span></h2>
+              <h2 className="section-title-sm mb-4"><span className="editable-text">Finally, a place for all your saved content</span></h2>
               <p className="text-muted-foreground max-w-2xl mx-auto"><span className="editable-text">
                 SKOOP solves the problem of fragmented saves and makes it easy to find what you need when you need it.
               </span></p>
@@ -181,31 +192,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Expandable Card Demo Section */}
-        <section className="py-20 lg:py-28" style={{
-        backgroundColor: '#FCEADE'
-      }}>
-          <div className="skoop-container">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4"><span className="editable-text">Experience AI-Powered Summaries</span></h2>
-              <p className="text-muted-foreground max-w-2xl mx-auto"><span className="editable-text">
-                SKOOP automatically generates concise, intelligent summaries of your saved content.
-                Click to expand below and see it in action.
-              </span></p>
-            </div>
-            
-            <div className="mx-auto">
-              {/* Import the ExpandableCard component */}
-              <ExpandableCard />
-            </div>
-          </div>
-        </section>
+        {/* AI-Powered Summaries Demo Section */}
+        <SummariesDemo />
 
         {/* Pricing Section */}
         <section id="pricing" className="skoop-section bg-secondary bg-opacity-30">
           <div className="skoop-container">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold mb-4"><span className="editable-text">Simple, transparent pricing</span></h2>
+              <h2 className="section-title-sm mb-4"><span className="editable-text">Simple, transparent pricing</span></h2>
               <p className="text-muted-foreground max-w-2xl mx-auto"><span className="editable-text">
                 Choose the plan that fits your needs. All plans include our core features.
               </span></p>
@@ -383,9 +377,12 @@ export default function HomePage() {
           </div>
 
           <div className="border-t border-border mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
-            <div className="text-sm text-muted-foreground"><span className="editable-text">
-              © </span>{new Date().getFullYear()}<span className="editable-text"> SKOOP. All rights reserved.
-            </span></div>
+            <div className="flex items-center">
+              <div className="text-xl logo font-bold text-primary mr-2">SKOOP</div>
+              <div className="text-sm text-muted-foreground"><span className="editable-text">
+                © </span>{new Date().getFullYear()}<span className="editable-text"> All rights reserved.
+              </span></div>
+            </div>
             <div className="flex items-center space-x-4 mt-4 md:mt-0">
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 <span className="sr-only"><span className="editable-text">Twitter</span></span>

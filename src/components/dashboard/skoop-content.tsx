@@ -188,13 +188,16 @@ export default function SkoopContent() {
         <h1 className="text-2xl font-semibold"><span className="editable-text">Skoop Content</span></h1>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => setIsAddingColumn(!isAddingColumn)} className="flex items-center">
-            <Plus className="h-4 w-4 mr-2" /><span className="editable-text">
-            Add Column
-          </span></Button>
-          <Button className="skoop-button-primary">
-            <RefreshCw className="h-4 w-4 mr-2" /><span className="editable-text">
-            Refresh All
-          </span></Button>
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Add Column</span>
+          </Button>
+          <Button className="skoop-button-primary hidden sm:flex">
+            <RefreshCw className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Refresh All</span>
+          </Button>
+          <Button className="skoop-button-primary sm:hidden" size="icon">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
         </div>
       </div>
       
@@ -219,12 +222,20 @@ export default function SkoopContent() {
         </motion.div>}
       
       {/* Content columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-x-auto">
+      <div className="flex overflow-x-auto md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4 snap-x snap-mandatory">
         {activeColumns.map(columnId => {
-        const column = contentStreams.find(stream => stream.id === columnId);
-        if (!column) return null;
-        return <ContentColumn key={columnId} column={column} onRemove={() => removeColumn(columnId)} />;
-      })}
+          const column = contentStreams.find(stream => stream.id === columnId);
+          if (!column) return null;
+          return (
+            <div className="min-w-[280px] snap-center">
+              <ContentColumn 
+                key={columnId} 
+                column={column} 
+                onRemove={() => removeColumn(columnId)} 
+              />
+            </div>
+          );
+        })}
         
         {activeColumns.length === 0 && <div className="skoop-card p-8 text-center col-span-full">
             <div className="text-lg font-medium mb-2"><span className="editable-text">No content columns added</span></div>
