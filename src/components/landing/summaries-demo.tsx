@@ -108,8 +108,8 @@ export function SummariesDemo() {
               
               {/* Card content */}
               <div className="p-4 flex-1">
-                <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">{card.title}</h3>
-                <p className="text-sm text-gray-700 line-clamp-3">{card.content}</p>
+                <h3 className="font-medium text-white mb-2 line-clamp-2">{card.title}</h3>
+                <p className="text-sm text-white/80 line-clamp-3">{card.content}</p>
                 
                 {card.platform === 'twitter' && card.image && <div className="mt-3 rounded-md overflow-hidden">
                     <Image src={card.image} alt={`Image related to ${card.title}`} width={300} height={200} className="object-cover w-full" />

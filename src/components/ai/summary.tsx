@@ -21,7 +21,12 @@ export default function AISummary({
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [aiProvider, setAiProvider] = useState<string>('claude-bedrock'); // Default provider
+  const [aiProvider, setAiProvider] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('preferredAIModel') || 'claude-bedrock';
+    }
+    return 'claude-bedrock';
+  });
 
   useEffect(() => {
     // Check cache first (localStorage as a simple cache mechanism)

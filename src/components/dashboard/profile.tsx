@@ -44,7 +44,7 @@ const connectedAccounts = [{
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
   return <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-semibold"><span className="editable-text">Profile</span></h1>
         <div className="flex space-x-2">
           <Button variant={activeTab === 'profile' ? 'secondary' : 'ghost'} onClick={() => setActiveTab('profile')}><span className="editable-text">
@@ -336,22 +336,23 @@ function ConnectedAccountCard({
     duration: 0.2
   }}>
       <div className="p-4 flex justify-between items-center">
-        <div className="flex items-center">
-          <div className={cn("w-10 h-10 rounded-md flex items-center justify-center mr-3", account.status === "connected" ? "bg-primary/10" : "bg-destructive/10")}>
-            <Icon className={cn("h-5 w-5", account.status === "connected" ? "text-primary" : "text-destructive")} />
-          </div>
-          <div>
-            <div className="flex items-center">
-              <h3 className="font-medium">{account.name}</h3>
-              {account.status === "connected" ? <CheckCircle className="h-4 w-4 text-primary ml-2" /> : <AlertCircle className="h-4 w-4 text-destructive ml-2" />}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center">
+            <div className={cn("w-10 h-10 rounded-md flex items-center justify-center mr-3", account.status === "connected" ? "bg-primary/10" : "bg-destructive/10")}>
+              <Icon className={cn("h-5 w-5", account.status === "connected" ? "text-primary" : "text-destructive")} />
             </div>
-            <p className="text-sm text-muted-foreground"><span className="editable-text">
-              @</span>{account.username}
-            </p>
+            <div>
+              <div className="flex items-center">
+                <h3 className="font-medium">{account.name}</h3>
+                {account.status === "connected" ? <CheckCircle className="h-4 w-4 text-primary ml-2" /> : <AlertCircle className="h-4 w-4 text-destructive ml-2" />}
+              </div>
+              <p className="text-sm text-muted-foreground"><span className="editable-text">
+                @</span>{account.username}
+              </p>
+            </div>
           </div>
-        </div>
         
-        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 mt-3 sm:mt-0">
           <Button variant="outline" size="sm" className="text-xs flex items-center" onClick={() => {}}>
             <RefreshCw className="h-3 w-3 mr-1" /><span className="editable-text">
             Sync

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Database, Gauge, Save, Settings2, Bell } from "lucide-react";
+import { Clock, Database, Gauge, Save, Settings2, Bell, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 const settings = [{
@@ -14,6 +14,11 @@ const settings = [{
   label: "Embedding Model",
   icon: Database,
   content: <EmbeddingSettings />
+}, {
+  id: "ai",
+  label: "AI Models",
+  icon: Sparkles,
+  content: <AIModelSettings />
 }, {
   id: "performance",
   label: "Performance",
@@ -286,6 +291,109 @@ function PerformanceSettings() {
       </div>
     </div>;
 }
+function AIModelSettings() {
+  const [selectedModel, setSelectedModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('preferredAIModel') || 'claude-bedrock';
+    }
+    return 'claude-bedrock';
+  });
+
+  const handleModelChange = (model: string) => {
+    setSelectedModel(model);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('preferredAIModel', model);
+    }
+  };
+
+  return <div>
+      <h2 className="text-xl font-medium mb-4"><span className="editable-text">AI Model Settings</span></h2>
+      <p className="text-muted-foreground mb-6"><span className="editable-text">
+        Choose which AI model to use for summaries and search.
+      </span></p>
+      
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-md font-medium mb-3"><span className="editable-text">Default AI Model</span></h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className={cn("border rounded-md p-4 flex items-start cursor-pointer", selectedModel === 'claude-bedrock' ? "border-primary bg-primary/5" : "")}>
+              <input 
+                type="radio" 
+                name="aiModel" 
+                className="mr-3 mt-1" 
+                checked={selectedModel === 'claude-bedrock'} 
+                onChange={() => handleModelChange('claude-bedrock')}
+              />
+              <div>
+                <div className="font-medium">Claude (Anthropic)</div>
+                <div className="text-muted-foreground text-sm">Advanced understanding with nuanced responses</div>
+              </div>
+            </label>
+            
+            <label className={cn("border rounded-md p-4 flex items-start cursor-pointer", selectedModel === 'azure-gpt-4o' ? "border-primary bg-primary/5" : "")}>
+              <input 
+                type="radio" 
+                name="aiModel" 
+                className="mr-3 mt-1" 
+                checked={selectedModel === 'azure-gpt-4o'} 
+                onChange={() => handleModelChange('azure-gpt-4o')}
+              />
+              <div>
+                <div className="font-medium">GPT-4o (OpenAI)</div>
+                <div className="text-muted-foreground text-sm">Powerful reasoning with technical expertise</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-md font-medium mb-3"><span className="editable-text">AI Features</span></h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium"><span className="editable-text">Content Summaries</span></span>
+                <p className="text-xs text-muted-foreground"><span className="editable-text">Use AI to generate summaries</span></p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" defaultChecked />
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium"><span className="editable-text">Smart Search</span></span>
+                <p className="text-xs text-muted-foreground"><span className="editable-text">Use semantic search for better results</span></p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" defaultChecked />
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium"><span className="editable-text">Auto-categorization</span></span>
+                <p className="text-xs text-muted-foreground"><span className="editable-text">Automatically categorize saved content</span></p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" defaultChecked />
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-8 flex justify-end">
+        <Button className="skoop-button-primary">
+          <Save className="h-4 w-4 mr-2" /><span className="editable-text">
+          Save Changes
+        </span></Button>
+      </div>
+    </div>;
+}
+
 function NotificationSettings() {
   return <div>
       <h2 className="text-xl font-medium mb-4"><span className="editable-text">Notification Settings</span></h2>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, X, Settings, MoreHorizontal, RefreshCw, Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, ExternalLink, Star, ArrowUp, MessageSquare, BookmarkCheck } from "lucide-react";
+import { Plus, X, Settings, MoreHorizontal, RefreshCw, Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, ExternalLink, Star, ArrowUp, MessageSquare, BookmarkCheck, Folder as FolderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -184,6 +184,14 @@ export default function SkoopContent() {
     setActiveColumns(activeColumns.filter(id => id !== columnId));
   };
   return <div>
+      <div className="md:hidden flex flex-col items-center justify-center p-8 text-center rounded-lg border-2 border-dashed border-border bg-muted/20">
+        <FolderIcon className="h-12 w-12 text-muted-foreground mb-3" />
+        <h3 className="text-lg font-semibold mb-2"><span className="editable-text">Skoop Content</span></h3>
+        <p className="text-muted-foreground mb-4"><span className="editable-text">
+          This feature is optimized for desktop viewing. Please access on a larger screen for the best experience.
+        </span></p>
+      </div>
+      <div className="hidden md:block">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold"><span className="editable-text">Skoop Content</span></h1>
         <div className="flex space-x-2">
@@ -241,6 +249,7 @@ export default function SkoopContent() {
               Add Your First Column
             </span></Button>
           </div>}
+      </div>
       </div>
     </div>;
 }

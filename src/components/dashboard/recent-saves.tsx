@@ -602,7 +602,12 @@ export default function RecentSaves() {
 
   // State for panel and view options
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
-  const [selectedModel, setSelectedModel] = useState<string>('claude-bedrock');
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('preferredAIModel') || 'claude-bedrock';
+    }
+    return 'claude-bedrock';
+  });
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
   const [selectedSave, setSelectedSave] = useState<typeof initialSaves[0] | null>(null);
 
@@ -684,10 +689,12 @@ export default function RecentSaves() {
     loadMoreSaves();
   }, []);
 
-  // Handle model toggle
-  const toggleModel = () => {
-    setSelectedModel(selectedModel === 'claude-bedrock' ? 'azure-gpt-4o' : 'claude-bedrock');
-  };
+  // Handle model selection
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('preferredAIModel', selectedModel);
+    }
+  }, [selectedModel]);
 
   // Handle showing AI summary panel
   const handleShowAISummary = (save: typeof initialSaves[0]) => {
@@ -704,18 +711,13 @@ export default function RecentSaves() {
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background pt-4 pb-4 mb-2 border-b border-border">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold"><span className="editable-text">Recent Saves</span></h1>
-          <div className="flex items-center space-x-3">
-            <Button variant="outline" size="sm" onClick={toggleModel} className="flex items-center">
-              <Sparkles className="h-3 w-3 mr-1.5 text-primary" />
-              <span><span className="editable-text">AI: </span>{selectedModel === 'claude-bedrock' ? 'Claude' : 'OpenAI'}</span>
-            </Button>
-            
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold"><span className="editable-text">Recent Saves</span></h1>
             <div className="flex border border-border rounded-md overflow-hidden">
-              <Button variant={viewMode === 'card' ? 'secondary' : 'ghost'} size="sm" className="rounded-none" onClick={() => setViewMode('card')}><span className="editable-text">
+              <Button variant={viewMode === 'card' ? 'secondary' : 'ghost'} size="sm" className="rounded-none h-8" onClick={() => setViewMode('card')}><span className="editable-text">
                 Card
               </span></Button>
-              <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="sm" className="rounded-none" onClick={() => setViewMode('list')}><span className="editable-text">
+              <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="sm" className="rounded-none h-8" onClick={() => setViewMode('list')}><span className="editable-text">
                 List
               </span></Button>
             </div>
@@ -723,8 +725,8 @@ export default function RecentSaves() {
         </div>
         
         {/* Sort controls */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground"><span className="editable-text">
+        <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground hidden sm:block"><span className="editable-text">
             Showing </span>{visibleSaves.length}<span className="editable-text"> of </span>{initialSaves.length}<span className="editable-text"> saves
           </span></div>
           

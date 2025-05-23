@@ -56,15 +56,15 @@ export default function HomePage() {
           
           <div className="skoop-section relative z-10">
           <div className="skoop-container">
-            <div className="grid gap-12 lg:grid-cols-2 lg:gap-24 items-center">
+            <div className="grid gap-8 lg:grid-cols-2 lg:gap-24 items-center">
               <div>
-                <h1 className="text-4xl font-bold leading-tight md:text-5xl lg:text-6xl mb-6"><span className="editable-text">
+                <h1 className="text-3xl font-bold leading-tight md:text-5xl lg:text-6xl mb-6 max-w-full break-words"><span className="editable-text">
                   Collect, search and </span><span className="text-primary"><span className="editable-text">rediscover</span></span><span className="editable-text"> your saved content
                 </span></h1>
-                <p className="text-lg text-muted-foreground mb-8"><span className="editable-text">
+                <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-full"><span className="editable-text">
                   One calm space for all your saved tweets, GitHub stars, Reddit posts, and Stack Overflow favorites.
                 </span></p>
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-full">
                   <Button className="skoop-button-accent" size="lg"><span className="editable-text">Get Started</span></Button>
                   <Button variant="outline" size="lg" className="group"><span className="editable-text">
                     How It Works
