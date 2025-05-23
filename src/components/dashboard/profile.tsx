@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, AlertCircle, CheckCircle, RefreshCw, ChevronDown, ArrowUpRight } from "lucide-react";
+import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, AlertCircle, CheckCircle, RefreshCw, ChevronDown, ArrowUpRight, CreditCard, PiggyBank, Shield, Zap, Clock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -42,14 +42,32 @@ const connectedAccounts = [{
   itemCount: 32
 }];
 export default function Profile() {
+  const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
+
   return <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold"><span className="editable-text">Profile</span></h1>
-        <Button className="skoop-button-primary"><span className="editable-text">Connect Account</span></Button>
+        <div className="flex space-x-2">
+          <Button 
+            variant={activeTab === 'profile' ? 'secondary' : 'ghost'} 
+            onClick={() => setActiveTab('profile')}
+          >
+            Profile
+          </Button>
+          <Button 
+            variant={activeTab === 'billing' ? 'secondary' : 'ghost'} 
+            onClick={() => setActiveTab('billing')}
+          >
+            Billing
+          </Button>
+          <Button className="skoop-button-primary ml-2"><span className="editable-text">Connect Account</span></Button>
+        </div>
       </div>
       
-      {/* User info */}
-      <div className="skoop-card p-6 mb-8">
+      {activeTab === 'profile' ? (
+        <>
+          {/* User info */}
+          <div className="skoop-card p-6 mb-8">
         <div className="flex items-center">
           <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xl mr-4"><span className="editable-text">
             JD
@@ -81,11 +99,310 @@ export default function Profile() {
         </div>
       </div>
 
-      <h2 className="text-lg font-medium mb-4"><span className="editable-text">Connected Accounts</span></h2>
-      <div className="space-y-4">
-        {connectedAccounts.map(account => <ConnectedAccountCard key={account.id} account={account} />)}
-      </div>
+          <h2 className="text-lg font-medium mb-4"><span className="editable-text">Connected Accounts</span></h2>
+          <div className="space-y-4">
+            {connectedAccounts.map(account => <ConnectedAccountCard key={account.id} account={account} />)}
+          </div>
+        </>
+      ) : (
+        <BillingSection />
+      )}
     </div>;
+}
+
+// Billing Section Component
+function BillingSection() {
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'team'>('pro');
+  
+  // Payment cycle state
+  const [annually, setAnnually] = useState(true);
+  
+  // Plans data
+  const plans = [
+    {
+      id: 'free',
+      name: 'Free',
+      description: 'Perfect for getting started',
+      price: { monthly: 0, annual: 0 },
+      features: [
+        '500 saved items',
+        '2 connected platforms',
+        'Basic search',
+      ],
+      cta: 'Current Plan',
+      disabled: false,
+    },
+    {
+      id: 'pro',
+      name: 'Pro',
+      description: 'For power users',
+      price: { monthly: 9, annual: 90 },
+      features: [
+        'Unlimited saved items',
+        'All platforms',
+        'Advanced semantic search',
+        'Smart collections',
+        '15-minute sync',
+      ],
+      cta: 'Upgrade to Pro',
+      highlight: true,
+      disabled: false,
+    },
+    {
+      id: 'team',
+      name: 'Team',
+      description: 'Collaborate with your team',
+      price: { monthly: 19, annual: 190 },
+      features: [
+        'Everything in Pro',
+        '5 team members',
+        'Shared collections',
+        'Collaboration tools',
+        'Advanced analytics',
+      ],
+      cta: 'Upgrade to Team',
+      disabled: false,
+    },
+  ];
+  
+  // Payment methods
+  const paymentMethods = [
+    {
+      id: 'card-1',
+      type: 'visa',
+      last4: '4242',
+      expiry: '04/25',
+      isDefault: true,
+    },
+    {
+      id: 'card-2',
+      type: 'mastercard',
+      last4: '8210',
+      expiry: '09/24',
+      isDefault: false,
+    },
+  ];
+  
+  // Recent invoices
+  const invoices = [
+    {
+      id: 'inv-001',
+      date: 'May 1, 2023',
+      amount: '$90.00',
+      status: 'Paid',
+    },
+    {
+      id: 'inv-002',
+      date: 'Apr 1, 2023',
+      amount: '$90.00',
+      status: 'Paid',
+    },
+    {
+      id: 'inv-003',
+      date: 'Mar 1, 2023',
+      amount: '$90.00',
+      status: 'Paid',
+    },
+  ];
+  
+  // Calculate discount percentage for annual plans
+  const getDiscount = (monthly: number, annual: number) => {
+    if (monthly === 0) return 0;
+    const monthlyCost = monthly * 12;
+    const annualCost = annual;
+    const savings = monthlyCost - annualCost;
+    return Math.round((savings / monthlyCost) * 100);
+  };
+  
+  // Get price display with monthly/annual toggle
+  const getPriceDisplay = (plan: typeof plans[0]) => {
+    const price = annually ? plan.price.annual : plan.price.monthly;
+    const discount = getDiscount(plan.price.monthly, plan.price.annual);
+    
+    if (price === 0) {
+      return <span className="text-3xl font-bold">Free</span>;
+    }
+    
+    return (
+      <div className="flex items-baseline">
+        <span className="text-3xl font-bold">${price}</span>
+        <span className="text-muted-foreground text-sm font-normal ml-1">
+          /{annually ? 'year' : 'month'}
+        </span>
+        {annually && discount > 0 && (
+          <span className="ml-2 px-2 py-0.5 text-xs rounded-full text-primary bg-primary/10">
+            Save {discount}%
+          </span>
+        )}
+      </div>
+    );
+  };
+  
+  return (
+    <div className="space-y-8">
+      {/* Current Plan Section */}
+      <div className="skoop-card p-6">
+        <h2 className="text-xl font-medium mb-6">Your Plan</h2>
+        
+        <div className="flex justify-end mb-6">
+          <div className="bg-secondary rounded-full p-1 flex items-center">
+            <button
+              className={cn(
+                "px-4 py-1.5 rounded-full text-sm transition-all", 
+                !annually ? "bg-primary text-white" : "text-foreground"
+              )}
+              onClick={() => setAnnually(false)}
+            >
+              Monthly
+            </button>
+            <button
+              className={cn(
+                "px-4 py-1.5 rounded-full text-sm transition-all", 
+                annually ? "bg-primary text-white" : "text-foreground"
+              )}
+              onClick={() => setAnnually(true)}
+            >
+              Annually
+            </button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {plans.map(plan => (
+            <div 
+              key={plan.id}
+              className={cn(
+                "border rounded-lg overflow-hidden transition-all", 
+                selectedPlan === plan.id ? "border-primary ring-2 ring-primary/10" : "border-border",
+                plan.highlight ? "relative" : ""
+              )}
+            >
+              {plan.highlight && (
+                <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-medium rounded-bl-lg">
+                  Popular
+                </div>
+              )}
+              
+              <div className="p-6">
+                <h3 className="text-lg font-medium mb-2">{plan.name}</h3>
+                <p className="text-muted-foreground text-sm mb-4">{plan.description}</p>
+                
+                {getPriceDisplay(plan)}
+                
+                <div className="my-6 border-t border-border pt-4">
+                  <ul className="space-y-3">
+                    {plan.features.map((feature, i) => (
+                      <li key={i} className="flex items-start">
+                        <CheckCircle className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <Button 
+                  className={cn(
+                    "w-full", 
+                    selectedPlan === plan.id 
+                      ? "bg-primary/20 text-primary hover:bg-primary/30" 
+                      : "skoop-button-primary"
+                  )}
+                  disabled={selectedPlan === plan.id || plan.disabled}
+                  onClick={() => setSelectedPlan(plan.id as any)}
+                >
+                  {selectedPlan === plan.id ? 'Current Plan' : plan.cta}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Payment Methods */}
+      <div className="skoop-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-medium">Payment Methods</h2>
+          <Button variant="outline" size="sm">
+            <CreditCard className="h-4 w-4 mr-2" />
+            Add Payment Method
+          </Button>
+        </div>
+        
+        <div className="space-y-4">
+          {paymentMethods.map(method => (
+            <div key={method.id} className="flex items-center justify-between border border-border rounded-lg p-4">
+              <div className="flex items-center">
+                <div className="h-10 w-16 bg-muted rounded-md flex items-center justify-center mr-4">
+                  {method.type === 'visa' ? (
+                    <span className="text-blue-600 font-bold">VISA</span>
+                  ) : method.type === 'mastercard' ? (
+                    <div className="flex items-center">
+                      <div className="h-4 w-4 bg-red-500 rounded-full opacity-85"></div>
+                      <div className="h-4 w-4 bg-yellow-500 rounded-full -ml-2 opacity-85"></div>
+                    </div>
+                  ) : (
+                    <CreditCard className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="font-medium">
+                    {method.type.charAt(0).toUpperCase() + method.type.slice(1)} •••• {method.last4}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Expires {method.expiry}</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {method.isDefault && (
+                  <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">Default</span>
+                )}
+                <Button variant="ghost" size="sm">Edit</Button>
+                {!method.isDefault && (
+                  <Button variant="ghost" size="sm">Set as Default</Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Billing History */}
+      <div className="skoop-card p-6">
+        <h2 className="text-xl font-medium mb-6">Billing History</h2>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="p-3 text-sm font-medium">Invoice</th>
+                <th className="p-3 text-sm font-medium">Date</th>
+                <th className="p-3 text-sm font-medium">Amount</th>
+                <th className="p-3 text-sm font-medium">Status</th>
+                <th className="p-3 text-sm font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map(invoice => (
+                <tr key={invoice.id} className="border-b border-border hover:bg-muted/50">
+                  <td className="p-3 text-sm">{invoice.id}</td>
+                  <td className="p-3 text-sm">{invoice.date}</td>
+                  <td className="p-3 text-sm">{invoice.amount}</td>
+                  <td className="p-3 text-sm">
+                    <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-500 text-xs rounded-full">
+                      {invoice.status}
+                    </span>
+                  </td>
+                  <td className="p-3 text-sm text-right">
+                    <Button variant="ghost" size="sm">Download</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
 interface ConnectedAccountCardProps {
   account: typeof connectedAccounts[0];

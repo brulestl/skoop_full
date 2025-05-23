@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, Twitter, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, Tags, Trash2, ExternalLink, ArrowRight, Sparkles, FileText, X, ChevronRight } from "lucide-react";
+import { Github, Twitter, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, 
+  Star, Tags, Trash2, ExternalLink, ArrowRight, Sparkles, FileText, X, ChevronRight, 
+  FolderPlus, TrendingUp, ArrowDownAZ, Calendar, Heart, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
@@ -21,6 +23,11 @@ const initialSaves = [{
   savedAt: new Date(2023, 4, 18),
   tags: ["typescript", "programming", "web-development"],
   starred: true,
+  engagement: {
+    stars: 4256,
+    forks: 782,
+    saves: 980
+  },
   image: "https://images.unsplash.com/photo-1555952494-efd681c7e3f9?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 2,
@@ -32,6 +39,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 4, 16),
   tags: ["react", "javascript", "performance"],
   starred: false,
+  engagement: {
+    likes: 3821,
+    retweets: 1432,
+    replies: 341,
+    saves: 6754
+  },
   image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 3,
@@ -43,6 +56,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 4, 15),
   tags: ["postgresql", "database", "performance"],
   starred: true,
+  engagement: {
+    votes: 758,
+    answers: 24,
+    views: 45692,
+    saves: 2341
+  },
   image: "https://images.unsplash.com/photo-1544383835-bda2bc66a55d?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 4,
@@ -54,6 +73,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 4, 12),
   tags: ["ui", "design", "accessibility"],
   starred: false,
+  engagement: {
+    upvotes: 1254,
+    comments: 87,
+    awards: 3,
+    saves: 843
+  },
   image: "https://images.unsplash.com/photo-1559028012-481c04fa702d?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 5,
@@ -65,6 +90,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 4, 10),
   tags: ["nextjs", "react", "server-components"],
   starred: false,
+  engagement: {
+    stars: 1754,
+    forks: 245,
+    watches: 89,
+    saves: 678
+  },
   image: "https://images.unsplash.com/photo-1555952494-efd681c7e3f9?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 6,
@@ -76,6 +107,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 3, 28),
   tags: ["css", "frontend", "web-development"],
   starred: true,
+  engagement: {
+    stars: 3245,
+    forks: 542,
+    watches: 167,
+    saves: 1845
+  },
   image: "https://images.unsplash.com/photo-1587620962725-abab7fe55159?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 7,
@@ -87,6 +124,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 3, 23),
   tags: ["git", "workflow", "collaboration"],
   starred: false,
+  engagement: {
+    stars: 2456,
+    forks: 389,
+    watches: 124,
+    saves: 1247
+  },
   image: "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 8,
@@ -98,6 +141,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 3, 18),
   tags: ["websockets", "socketio", "real-time"],
   starred: true,
+  engagement: {
+    votes: 965,
+    answers: 42,
+    views: 67254,
+    saves: 3214
+  },
   image: "https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=500&auto=format&fit=crop"
 }, {
   id: 9,
@@ -109,6 +158,12 @@ const initialSaves = [{
   savedAt: new Date(2023, 3, 14),
   tags: ["microservices", "nodejs", "architecture"],
   starred: false,
+  engagement: {
+    likes: 2540,
+    retweets: 986,
+    replies: 142,
+    saves: 3765
+  },
   image: "https://images.unsplash.com/photo-1520085601670-ee14aa5fa3e8?q=80&w=500&auto=format&fit=crop"
 }];
 
@@ -135,12 +190,63 @@ const SourceIcon = ({
 // Card component for the grid view
 const SaveCard = ({
   save,
-  onShowAISummary
+  onShowAISummary,
+  onAddToCollection
 }: {
   save: typeof initialSaves[0];
   onShowAISummary: (save: typeof initialSaves[0]) => void;
+  onAddToCollection: (save: typeof initialSaves[0]) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  
+  // Function to format engagement numbers
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num;
+  };
+  
+  // Get the right engagement metric based on source
+  const getEngagementMetric = () => {
+    if (!save.engagement) return null;
+    
+    switch (save.source) {
+      case 'github':
+        return {
+          icon: <Star className="h-3.5 w-3.5 fill-accent text-accent" />,
+          value: formatNumber(save.engagement.stars),
+          label: 'stars'
+        };
+      case 'twitter':
+        return {
+          icon: <Heart className="h-3.5 w-3.5 text-red-500" />,
+          value: formatNumber(save.engagement.likes),
+          label: 'likes'
+        };
+      case 'stackoverflow':
+        return {
+          icon: <TrendingUp className="h-3.5 w-3.5 text-orange-500" />,
+          value: formatNumber(save.engagement.votes),
+          label: 'votes'
+        };
+      case 'reddit':
+        return {
+          icon: <ArrowDownAZ className="h-3.5 w-3.5 text-orange-600" />,
+          value: formatNumber(save.engagement.upvotes),
+          label: 'upvotes'
+        };
+      default:
+        return {
+          icon: <Share2 className="h-3.5 w-3.5" />,
+          value: formatNumber(save.engagement?.saves || 0),
+          label: 'saves'
+        };
+    }
+  };
+  
+  const engagementMetric = getEngagementMetric();
+  
   return <motion.div className="skoop-card h-full overflow-hidden flex flex-col" initial={{
     opacity: 0,
     y: 20
@@ -159,10 +265,32 @@ const SaveCard = ({
         <div className={cn("absolute top-2 right-2 flex space-x-1", isHovered ? "opacity-100" : "opacity-0")} style={{
         transition: "opacity 0.2s ease"
       }}>
-          <Button variant="secondary" size="icon" className="h-8 w-8 bg-background bg-opacity-80 backdrop-blur-sm">
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="h-8 w-8 bg-background bg-opacity-80 backdrop-blur-sm"
+            onClick={() => onAddToCollection(save)}
+            title="Add to collection"
+          >
+            <FolderPlus className="h-4 w-4 text-primary" />
+          </Button>
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="h-8 w-8 bg-background bg-opacity-80 backdrop-blur-sm"
+            title={save.starred ? "Unstar" : "Star"}
+          >
             <Star className={cn("h-4 w-4", save.starred && "fill-accent text-accent")} />
           </Button>
         </div>
+        
+        {/* Engagement metric badge */}
+        {engagementMetric && (
+          <div className="absolute top-2 left-2 flex items-center bg-background bg-opacity-80 backdrop-blur-sm rounded-full py-1 px-2 text-xs">
+            {engagementMetric.icon}
+            <span className="ml-1.5 font-medium">{engagementMetric.value}</span>
+          </div>
+        )}
         
         {/* Source icon */}
         <div className="absolute bottom-2 left-2 w-8 h-8 rounded-full bg-background flex items-center justify-center shadow-md">
@@ -215,12 +343,63 @@ const SaveCard = ({
 // List item component for list view
 const SaveListItem = ({
   save,
-  onShowAISummary
+  onShowAISummary,
+  onAddToCollection
 }: {
   save: typeof initialSaves[0];
   onShowAISummary: (save: typeof initialSaves[0]) => void;
+  onAddToCollection: (save: typeof initialSaves[0]) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  
+  // Function to format engagement numbers
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num;
+  };
+  
+  // Get the right engagement metric based on source
+  const getEngagementMetric = () => {
+    if (!save.engagement) return null;
+    
+    switch (save.source) {
+      case 'github':
+        return {
+          icon: <Star className="h-3.5 w-3.5 fill-accent text-accent" />,
+          value: formatNumber(save.engagement.stars),
+          label: 'stars'
+        };
+      case 'twitter':
+        return {
+          icon: <Heart className="h-3.5 w-3.5 text-red-500" />,
+          value: formatNumber(save.engagement.likes),
+          label: 'likes'
+        };
+      case 'stackoverflow':
+        return {
+          icon: <TrendingUp className="h-3.5 w-3.5 text-orange-500" />,
+          value: formatNumber(save.engagement.votes),
+          label: 'votes'
+        };
+      case 'reddit':
+        return {
+          icon: <ArrowDownAZ className="h-3.5 w-3.5 text-orange-600" />,
+          value: formatNumber(save.engagement.upvotes),
+          label: 'upvotes'
+        };
+      default:
+        return {
+          icon: <Share2 className="h-3.5 w-3.5" />,
+          value: formatNumber(save.engagement?.saves || 0),
+          label: 'saves'
+        };
+    }
+  };
+  
+  const engagementMetric = getEngagementMetric();
+  
   return <motion.div className="skoop-card p-4 group relative" initial={{
     opacity: 0,
     y: 10
@@ -243,6 +422,15 @@ const SaveListItem = ({
               {save.title}
             </h3>
             {save.starred && <Star className="h-4 w-4 fill-accent text-accent" />}
+            
+            {/* Engagement metric badge */}
+            {engagementMetric && (
+              <div className="flex items-center text-xs">
+                {engagementMetric.icon}
+                <span className="ml-1 font-medium">{engagementMetric.value}</span>
+                <span className="ml-1 text-muted-foreground">{engagementMetric.label}</span>
+              </div>
+            )}
           </div>
 
           <div className="mb-3">
@@ -274,6 +462,16 @@ const SaveListItem = ({
         <Button variant="ghost" size="icon" className="h-7 w-7">
           <Star className={cn("h-4 w-4", save.starred && "fill-accent text-accent")} />
           <span className="sr-only"><span className="editable-text">Star</span></span>
+        </Button>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-7 w-7"
+          onClick={() => onAddToCollection(save)}
+          title="Add to collection"
+        >
+          <FolderPlus className="h-4 w-4 text-primary" />
+          <span className="sr-only">Add to collection</span>
         </Button>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onShowAISummary(save)}>
           <FileText className="h-4 w-4" />
@@ -436,28 +634,61 @@ export default function RecentSaves() {
   const [selectedModel, setSelectedModel] = useState<string>('claude-bedrock');
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
   const [selectedSave, setSelectedSave] = useState<typeof initialSaves[0] | null>(null);
+  
+  // State for collection and sorting
+  const [addToCollectionModalOpen, setAddToCollectionModalOpen] = useState(false);
+  const [saveToAdd, setSaveToAdd] = useState<typeof initialSaves[0] | null>(null);
+  const [sortOption, setSortOption] = useState<'latest' | 'earliest' | 'popular'>('latest');
+
+  // Sort and filter function
+  const getSortedSaves = () => {
+    let sorted = [...initialSaves];
+    
+    switch (sortOption) {
+      case 'latest':
+        sorted = sorted.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
+        break;
+      case 'earliest':
+        sorted = sorted.sort((a, b) => a.savedAt.getTime() - b.savedAt.getTime());
+        break;
+      case 'popular':
+        sorted = sorted.sort((a, b) => {
+          const aPopularity = a.engagement?.saves || 0;
+          const bPopularity = b.engagement?.saves || 0;
+          return bPopularity - aPopularity;
+        });
+        break;
+    }
+    
+    return sorted;
+  };
 
   // Simulating loading more data
   const loadMoreSaves = () => {
     setLoading(true);
+
+    // Get the sorted data
+    const sortedData = getSortedSaves();
 
     // Simulate API call delay
     setTimeout(() => {
       const itemsPerPage = 6;
       const startIndex = (page - 1) * itemsPerPage;
       const endIndex = page * itemsPerPage;
-      if (startIndex >= initialSaves.length) {
+      
+      if (startIndex >= sortedData.length) {
         setHasMore(false);
         setLoading(false);
         return;
       }
-      const newItems = initialSaves.slice(0, endIndex);
+      
+      const newItems = sortedData.slice(0, endIndex);
       setVisibleSaves(newItems);
       setPage(prevPage => prevPage + 1);
       setLoading(false);
 
       // Check if there are more items to load
-      setHasMore(endIndex < initialSaves.length);
+      setHasMore(endIndex < sortedData.length);
     }, 1000);
   };
 
@@ -496,6 +727,12 @@ export default function RecentSaves() {
     setSelectedSave(save);
     setSummaryPanelOpen(true);
   };
+  
+  // Handle add to collection
+  const handleAddToCollection = (save: typeof initialSaves[0]) => {
+    setSaveToAdd(save);
+    setAddToCollectionModalOpen(true);
+  };
   return <div className="flex flex-col h-full">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background pt-4 pb-4 mb-2 border-b border-border">
@@ -517,14 +754,72 @@ export default function RecentSaves() {
             </div>
           </div>
         </div>
+        
+        {/* Sort controls */}
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {visibleSaves.length} of {initialSaves.length} saves
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-muted-foreground">Sort by:</span>
+            <div className="flex border border-border rounded-md overflow-hidden">
+              <Button 
+                variant={sortOption === 'latest' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                className="rounded-none text-xs py-1 h-8"
+                onClick={() => {
+                  setSortOption('latest');
+                  setPage(1);
+                  setVisibleSaves([]);
+                  setHasMore(true);
+                  setTimeout(() => loadMoreSaves(), 100);
+                }}
+              >
+                <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                Latest
+              </Button>
+              <Button 
+                variant={sortOption === 'earliest' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                className="rounded-none text-xs py-1 h-8"
+                onClick={() => {
+                  setSortOption('earliest');
+                  setPage(1);
+                  setVisibleSaves([]);
+                  setHasMore(true);
+                  setTimeout(() => loadMoreSaves(), 100);
+                }}
+              >
+                <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                Earliest
+              </Button>
+              <Button 
+                variant={sortOption === 'popular' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                className="rounded-none text-xs py-1 h-8"
+                onClick={() => {
+                  setSortOption('popular');
+                  setPage(1);
+                  setVisibleSaves([]);
+                  setHasMore(true);
+                  setTimeout(() => loadMoreSaves(), 100);
+                }}
+              >
+                <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+                Popular
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
         {viewMode === 'card' ? <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {visibleSaves.map(save => <SaveCard key={save.id} save={save} onShowAISummary={handleShowAISummary} />)}
+            {visibleSaves.map(save => <SaveCard key={save.id} save={save} onShowAISummary={handleShowAISummary} onAddToCollection={handleAddToCollection} />)}
           </div> : <div className="space-y-4">
-            {visibleSaves.map(save => <SaveListItem key={save.id} save={save} onShowAISummary={handleShowAISummary} />)}
+            {visibleSaves.map(save => <SaveListItem key={save.id} save={save} onShowAISummary={handleShowAISummary} onAddToCollection={handleAddToCollection} />)}
           </div>}
         
         {/* Loading indicator and observer target */}
@@ -542,5 +837,157 @@ export default function RecentSaves() {
       
       {/* AI Summary Panel */}
       <AISummaryPanel save={selectedSave} isOpen={summaryPanelOpen} onClose={() => setSummaryPanelOpen(false)} selectedModel={selectedModel} />
+      
+      {/* Add to Collection Modal */}
+      <AddToCollectionModal 
+        isOpen={addToCollectionModalOpen} 
+        onClose={() => setAddToCollectionModalOpen(false)} 
+        save={saveToAdd} 
+      />
     </div>;
 }
+
+// Add to Collection Modal Component
+interface AddToCollectionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  save: typeof initialSaves[0] | null;
+}
+
+const AddToCollectionModal = ({ isOpen, onClose, save }: AddToCollectionModalProps) => {
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Mock collections data (normally would be fetched from your collections state)
+  const availableCollections = [
+    { id: '1', name: 'Frontend Development', count: 47 },
+    { id: '2', name: 'Machine Learning', count: 23 },
+    { id: '3', name: 'Design Inspiration', count: 35 },
+    { id: '4', name: 'DevOps', count: 18 },
+    { id: '5', name: 'Productivity', count: 12 },
+  ];
+  
+  // Reset selection when modal opens with new save
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedCollections([]);
+    }
+  }, [isOpen, save]);
+  
+  const handleSubmit = async () => {
+    if (!save || selectedCollections.length === 0) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Mock API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Success - here you would actually save the data
+      console.log(`Added ${save.title} to collections:`, selectedCollections);
+      
+      // Close the modal
+      onClose();
+    } catch (error) {
+      console.error("Error adding to collections:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const toggleCollection = (collectionId: string) => {
+    setSelectedCollections(prev => 
+      prev.includes(collectionId)
+        ? prev.filter(id => id !== collectionId)
+        : [...prev, collectionId]
+    );
+  };
+  
+  if (!isOpen || !save) return null;
+  
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      >
+        <motion.div 
+          className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md overflow-hidden"
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          transition={{ type: "spring", duration: 0.3 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border">
+            <h3 className="text-lg font-medium">Add to Collection</h3>
+            <p className="text-sm text-muted-foreground mt-1">Select collections to add this item to:</p>
+          </div>
+          
+          <div className="p-6 max-h-[300px] overflow-y-auto">
+            <div className="space-y-2">
+              {availableCollections.map(collection => (
+                <div 
+                  key={collection.id}
+                  className={cn(
+                    "flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors",
+                    selectedCollections.includes(collection.id) 
+                      ? "bg-primary/10 border border-primary/30" 
+                      : "hover:bg-secondary border border-transparent"
+                  )}
+                  onClick={() => toggleCollection(collection.id)}
+                >
+                  <div className="flex items-center">
+                    <div className={cn(
+                      "w-8 h-8 rounded-md flex items-center justify-center mr-3",
+                      selectedCollections.includes(collection.id) ? "bg-primary/20" : "bg-secondary"
+                    )}>
+                      <FolderPlus className={cn(
+                        "h-4 w-4", 
+                        selectedCollections.includes(collection.id) ? "text-primary" : "text-muted-foreground"
+                      )} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">{collection.name}</div>
+                      <div className="text-xs text-muted-foreground">{collection.count} items</div>
+                    </div>
+                  </div>
+                  
+                  {selectedCollections.includes(collection.id) && (
+                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                      <CheckCircle2 className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={selectedCollections.length === 0 || isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span className="animate-spin mr-2">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  </span>
+                  <span>Adding...</span>
+                </>
+              ) : (
+                <span>Add to Collections</span>
+              )}
+            </Button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};

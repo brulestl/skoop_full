@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { FolderIcon, FolderPlus, MoreHorizontal, Plus, Star, Tag, Bookmark, PenSquare, Trash2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { FolderIcon, FolderPlus, MoreHorizontal, Plus, Star, Tag, Bookmark, PenSquare, Trash2, X, Check, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -66,10 +66,12 @@ const smartCollections = [{
 }];
 export default function Collections() {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [newCollectionOpen, setNewCollectionOpen] = useState(false);
+  
   return <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold"><span className="editable-text">Collections</span></h1>
-        <Button className="skoop-button-primary">
+        <Button className="skoop-button-primary" onClick={() => setNewCollectionOpen(true)}>
           <FolderPlus className="h-4 w-4 mr-2" /><span className="editable-text">
           New Collection
         </span></Button>
@@ -104,8 +106,179 @@ export default function Collections() {
           </div>
         </div>
       </div>
+      {/* New Collection Modal */}
+      <NewCollectionModal 
+        isOpen={newCollectionOpen}
+        onClose={() => setNewCollectionOpen(false)}
+      />
     </div>;
 }
+
+// New Collection Modal Component
+interface NewCollectionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const NewCollectionModal = ({ isOpen, onClose }: NewCollectionModalProps) => {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [color, setColor] = useState<string>('primary');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Color options
+  const colorOptions = [
+    { value: 'primary', label: 'Blue', class: 'bg-primary' },
+    { value: 'accent', label: 'Orange', class: 'bg-accent' },
+    { value: 'destructive', label: 'Red', class: 'bg-destructive' },
+    { value: 'secondary', label: 'Gray', class: 'bg-secondary' },
+  ];
+  
+  const handleSubmit = async () => {
+    if (!name.trim()) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Mock API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Success - here you would actually create the collection
+      console.log("Created collection:", {
+        name,
+        description,
+        color
+      });
+      
+      // Close the modal and reset form
+      onClose();
+      setName('');
+      setDescription('');
+      setColor('primary');
+    } catch (error) {
+      console.error("Error creating collection:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div 
+            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md overflow-hidden"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: "spring", duration: 0.3 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h3 className="text-lg font-medium">Create New Collection</h3>
+              <Button variant="ghost" size="icon" onClick={onClose}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block mb-1.5">
+                    Collection Name
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                    placeholder="Enter collection name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium block mb-1.5">
+                    Description (optional)
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background resize-none"
+                    rows={3}
+                    placeholder="Enter collection description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium block mb-1.5">
+                    Collection Color
+                  </label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {colorOptions.map(option => (
+                      <div
+                        key={option.value}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-md cursor-pointer border transition-all",
+                          color === option.value 
+                            ? "border-primary ring-1 ring-primary ring-opacity-50"
+                            : "border-border hover:border-primary/50"
+                        )}
+                        onClick={() => setColor(option.value)}
+                      >
+                        <div className={cn("w-8 h-8 rounded-full mb-2", option.class)} />
+                        <span className="text-xs">{option.label}</span>
+                        
+                        {color === option.value && (
+                          <div className="absolute -top-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-2">
+              <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={!name.trim() || isSubmitting}
+                className="skoop-button-primary"
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="animate-spin mr-2">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    </span>
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    <span>Create Collection</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 function getColorClass(color: string) {
   switch (color) {
     case "primary":
