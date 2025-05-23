@@ -73,7 +73,7 @@ export function MobileMenu({
             </nav>
             
             <div className="mt-auto p-6 border-t border-border flex flex-col space-y-4">
-              <Link href="/dashboard" className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors w-full text-center py-2 rounded-md" onClick={() => setIsOpen(false)}><span className="editable-text">
+              <Link href="/dashboard" className="text-foreground hover:text-primary transition-colors w-full text-center py-2" onClick={() => setIsOpen(false)}><span className="editable-text">
                 Dashboard
               </span></Link>
               <Link href="/login" onClick={() => setIsOpen(false)}>

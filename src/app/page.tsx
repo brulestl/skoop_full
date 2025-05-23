@@ -30,8 +30,10 @@ export default function HomePage() {
             <ThemeToggle />
             <div className="hidden md:flex items-center space-x-4 ml-4">
               <a href="/dashboard" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Dashboard</span></a>
-              <a href="/login" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Log in</span></a>
-              <Button className="skoop-button-accent"><span className="editable-text">Sign Up Free</span></Button>
+              <Link href="/login" className="text-foreground hover:text-primary transition-colors"><span className="editable-text">Log in</span></Link>
+              <Link href="/signup">
+                <Button className="skoop-button-accent"><span className="editable-text">Sign Up Free</span></Button>
+              </Link>
             </div>
             <MobileMenu links={[{
             href: "#features",

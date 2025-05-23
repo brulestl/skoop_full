@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Search, BookmarkIcon, FolderIcon, Settings, User, Menu, X, ChevronRight, LogOut, Home, Plus, Layout } from "lucide-react";
@@ -18,6 +18,41 @@ export default function DashboardLayout() {
   const [activeTab, setActiveTab] = useState<Tab>("recent");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Check if user is logged in
+  useEffect(() => {
+    const checkAuth = () => {
+      if (typeof window !== 'undefined') {
+        const userData = localStorage.getItem('skoop_user');
+        if (!userData) {
+          router.push('/login?redirect=/dashboard');
+          return;
+        }
+        
+        try {
+          const user = JSON.parse(userData);
+          if (!user.isLoggedIn) {
+            router.push('/login?redirect=/dashboard');
+            return;
+          }
+          
+          setIsLoggedIn(true);
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+          router.push('/login?redirect=/dashboard');
+        }
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
+  
+  // Don't render anything until auth check completes
+  if (!isLoggedIn) {
+    return null;
+  }
   const navigationItems = [{
     name: "Recent Saves",
     id: "recent" as Tab,

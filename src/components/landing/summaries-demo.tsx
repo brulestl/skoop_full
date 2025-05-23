@@ -69,7 +69,7 @@ export function SummariesDemo() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-[340px] md:max-w-none mx-auto">
-          {demoCards.map(card => <motion.div key={card.id} className="skoop-card overflow-hidden flex flex-col h-full" whileHover={{
+          {demoCards.map(card => <motion.div key={card.id} className="skoop-card overflow-hidden flex flex-col h-full bg-card dark:bg-card/90" whileHover={{
           y: -5,
           transition: {
             duration: 0.2
@@ -108,8 +108,8 @@ export function SummariesDemo() {
               
               {/* Card content */}
               <div className="p-4 flex-1">
-                <h3 className="font-medium text-white mb-2 line-clamp-2">{card.title}</h3>
-                <p className="text-sm text-white/80 line-clamp-3">{card.content}</p>
+                <h3 className="font-medium text-foreground mb-2 line-clamp-2">{card.title}</h3>
+                <p className="text-sm text-foreground/80 line-clamp-3">{card.content}</p>
                 
                 {card.platform === 'twitter' && card.image && <div className="mt-3 rounded-md overflow-hidden">
                     <Image src={card.image} alt={`Image related to ${card.title}`} width={300} height={200} className="object-cover w-full" />
