@@ -70,19 +70,19 @@ export default function AISummary({
     setLoading(true); // Restart generation with new provider
   };
   if (loading) {
-    return <div className={cn("h-4 bg-gradient-to-r from-background via-muted to-background bg-[length:200%_100%] animate-pulse rounded", className)} data-unique-id="65a9d4d9-9404-48cb-a353-368086e760ac" data-file-name="components/ai/summary.tsx" />;
+    return <div className={cn("h-4 bg-gradient-to-r from-background via-muted to-background bg-[length:200%_100%] animate-pulse rounded", className)} />;
   }
   if (error) {
-    return <div className={cn("flex items-center text-sm text-muted-foreground", className)} data-unique-id="4ca592fa-0fa2-4d34-94ab-f855847953fa" data-file-name="components/ai/summary.tsx">
-        <span className="line-clamp-2" data-unique-id="73deb4e3-cc8a-484b-8713-678ca829026a" data-file-name="components/ai/summary.tsx" data-dynamic-text="true">
+    return <div className={cn("flex items-center text-sm text-muted-foreground", className)}>
+        <span className="line-clamp-2">
           {summary || description.slice(0, 80) || "No summary available"}
         </span>
-        <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-destructive/10 text-destructive rounded-full" title="AI summary generation failed" data-unique-id="e76a4b38-e0f7-499d-af0d-6f0183fb6fae" data-file-name="components/ai/summary.tsx"><span className="editable-text" data-unique-id="0434ff79-cf88-463d-8713-20cf9c80a0e5" data-file-name="components/ai/summary.tsx">
+        <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-destructive/10 text-destructive rounded-full" title="AI summary generation failed"><span className="editable-text">
           RAW
         </span></span>
       </div>;
   }
-  return <div className={cn("text-sm text-muted-foreground line-clamp-2", className)} data-unique-id="d12027af-c01c-4f9a-9374-3ada72dce8fc" data-file-name="components/ai/summary.tsx" data-dynamic-text="true">
+  return <div className={cn("text-sm text-muted-foreground line-clamp-2", className)}>
       {summary}
     </div>;
 }
