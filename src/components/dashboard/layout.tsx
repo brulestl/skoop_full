@@ -13,43 +13,48 @@ import Collections from "@/components/dashboard/collections";
 import SkoopContent from "@/components/dashboard/skoop-content";
 import Profile from "@/components/dashboard/profile";
 import DashboardSettings from "@/components/dashboard/settings";
+import { useAuth } from "@/hooks/useAuth";
+
 type Tab = "recent" | "collections" | "skoopcontent" | "profile" | "settings";
+
 export default function DashboardLayout() {
   const [activeTab, setActiveTab] = useState<Tab>("recent");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, loading, signOut, isAuthenticated } = useAuth();
 
-  // Check if user is logged in
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const checkAuth = () => {
-      if (typeof window !== 'undefined') {
-        const userData = localStorage.getItem('skoop_user');
-        if (!userData) {
-          router.push('/login?redirect=/dashboard');
-          return;
-        }
-        try {
-          const user = JSON.parse(userData);
-          if (!user.isLoggedIn) {
-            router.push('/login?redirect=/dashboard');
-            return;
-          }
-          setIsLoggedIn(true);
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-          router.push('/login?redirect=/dashboard');
-        }
-      }
-    };
-    checkAuth();
-  }, [router]);
+    if (!loading && !isAuthenticated) {
+      router.push('/login?redirect=' + encodeURIComponent(pathname));
+    }
+  }, [loading, isAuthenticated, router, pathname]);
 
-  // Don't render anything until auth check completes
-  if (!isLoggedIn) {
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push('/login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Don't render anything if user is not authenticated
+  if (!isAuthenticated || !user) {
     return null;
   }
+
   const navigationItems = [{
     name: "Recent Saves",
     id: "recent" as Tab,
@@ -91,7 +96,7 @@ export default function DashboardLayout() {
 
         <div className="flex items-center space-x-3" data-unique-id="e0be8e25-0c4b-468d-95a6-b084685109a4" data-file-name="components/dashboard/layout.tsx">
           <ThemeToggle />
-          <Button size="sm" variant="outline" data-unique-id="ac274dd0-d140-4a94-a19c-7eff9589bb49" data-file-name="components/dashboard/layout.tsx">
+          <Button size="sm" variant="outline" onClick={handleLogout} data-unique-id="ac274dd0-d140-4a94-a19c-7eff9589bb49" data-file-name="components/dashboard/layout.tsx">
             <LogOut className="h-4 w-4 mr-2" /><span className="editable-text" data-unique-id="b562cc7d-ccca-48f1-b029-6845b6e25e99" data-file-name="components/dashboard/layout.tsx">
             Logout
           </span></Button>

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
+
 export default function SignupForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -47,20 +49,41 @@ export default function SignupForm() {
       setError('Please choose a stronger password');
       return;
     }
-    setIsLoading(true);
-    try {
-      // In a real app, you'd create a user here
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Store auth state in localStorage (for demo only)
-      localStorage.setItem('skoop_user', JSON.stringify({
-        email,
-        name,
-        isLoggedIn: true
-      }));
-      router.push('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during signup');
+    setIsLoading(true);
+
+    try {
+      // Sign up the user with Supabase
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          data: {
+            full_name: name.trim(),
+          }
+        }
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      if (data.user) {
+        // User profile will be created automatically by the database trigger
+        // No need to manually insert into public.users anymore
+
+        // If email confirmation is required, show a message
+        if (!data.session) {
+          setError('Please check your email and click the confirmation link to complete your registration.');
+          return;
+        }
+
+        // Redirect to dashboard on successful signup
+        router.push('/dashboard');
+      }
+    } catch (err: any) {
+      // Surface the error message from Supabase
+      setError(err.message || 'An error occurred during signup');
     } finally {
       setIsLoading(false);
     }

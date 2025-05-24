@@ -4,11 +4,14 @@ import React from "react";
 import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";
 import { DevtoolsProvider } from 'creatr-devtools';
+import AuthProvider from '@/components/providers/auth-provider';
+
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1
 };
+
 export const metadata: Metadata = {
   title: {
     default: "SKOOP - Collect, Search & Rediscover Your Saved Content",
@@ -52,6 +55,7 @@ export const metadata: Metadata = {
     telephone: false
   }
 };
+
 export default function RootLayout({
   children
 }: Readonly<{
@@ -59,7 +63,9 @@ export default function RootLayout({
 }>) {
   return <html lang="en" className={`${GeistSans.variable}`} data-unique-id="b8f55bdc-6802-413b-87e3-dd3a51cb6b04" data-file-name="app/layout.tsx">
       <body data-unique-id="a154a7ca-8368-4e5d-b0a4-b581e6c7fe69" data-file-name="app/layout.tsx">
-        <DevtoolsProvider>{children}</DevtoolsProvider>
+        <AuthProvider>
+          <DevtoolsProvider>{children}</DevtoolsProvider>
+        </AuthProvider>
       </body>
     </html>;
 }

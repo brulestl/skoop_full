@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
+
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,39 +17,34 @@ export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/dashboard';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+
     try {
-      // Simulating login for demo purposes
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
 
-      // In a real app, you'd verify credentials here
-      // For now, just do a basic validation
-      if (email.trim() === '' || password.trim() === '') {
-        throw new Error('Please enter both email and password');
-      }
-      if (!email.includes('@')) {
-        throw new Error('Please enter a valid email address');
-      }
-      if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
+      if (signInError) {
+        throw signInError;
       }
 
-      // Store auth state in localStorage (for demo only)
-      localStorage.setItem('skoop_user', JSON.stringify({
-        email,
-        name: email.split('@')[0],
-        isLoggedIn: true
-      }));
-      router.push(redirect);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during login');
+      if (data.user) {
+        // Redirect to dashboard on successful login
+        router.push(redirect);
+      }
+    } catch (err: any) {
+      // Surface the error message from Supabase
+      setError(err.message || 'An error occurred during login');
     } finally {
       setIsLoading(false);
     }
   };
+
   return <motion.div initial={{
     opacity: 0,
     y: 10
