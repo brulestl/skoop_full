@@ -1,48 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, AlertCircle, CheckCircle, RefreshCw, ChevronDown, ArrowUpRight, CreditCard, PiggyBank, Shield, Zap, Clock, Users } from "lucide-react";
+import { CheckCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import OAuthConnectButtons from "@/components/auth/oauth-connect-buttons";
 
-// Sample data for connected accounts
-const connectedAccounts = [{
-  id: "github",
-  name: "GitHub",
-  icon: Github,
-  username: "johndoe",
-  status: "connected",
-  lastSync: "Today, 11:23 AM",
-  itemCount: 124
-}, {
-  id: "twitter",
-  name: "Twitter",
-  icon: Twitter,
-  username: "johndoe42",
-  status: "connected",
-  lastSync: "Today, 10:45 AM",
-  itemCount: 87
-}, {
-  id: "reddit",
-  name: "Reddit",
-  icon: Reddit,
-  username: "john_doe_reddit",
-  status: "error",
-  lastSync: "Yesterday, 3:15 PM",
-  error: "Authentication token expired",
-  itemCount: 56
-}, {
-  id: "stackoverflow",
-  name: "Stack Overflow",
-  icon: StackOverflow,
-  username: "user123456",
-  status: "connected",
-  lastSync: "May 20, 2023",
-  itemCount: 32
-}];
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
+  const { user } = useAuth();
+
+  // Get user initials for avatar
+  const getUserInitials = (email: string | undefined) => {
+    if (!email) return 'U';
+    const nameParts = email.split('@')[0].split('.');
+    if (nameParts.length >= 2) {
+      return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+    }
+    return email[0].toUpperCase();
+  };
+
   return <div data-unique-id="480f98f8-3a19-4ace-b03f-38d7d23d7482" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
       <div className="flex flex-col gap-3 mb-6" data-unique-id="cc4e8fa0-1c6e-42e6-80f9-9a63e8cf9187" data-file-name="components/dashboard/profile.tsx">
         <h1 className="text-2xl font-semibold" data-unique-id="8369ae88-5f6f-4fbb-9165-97daf8998422" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="6bd77648-3569-4f1e-a664-57e48a67b855" data-file-name="components/dashboard/profile.tsx">Profile</span></h1>
@@ -53,7 +31,6 @@ export default function Profile() {
           <Button variant={activeTab === 'billing' ? 'secondary' : 'ghost'} onClick={() => setActiveTab('billing')} data-unique-id="a1197661-20b5-445d-b630-3674c4d3d2c2" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="2969663f-6c96-4ff1-b765-b0f6236c1a5e" data-file-name="components/dashboard/profile.tsx">
             Billing
           </span></Button>
-          <Button className="skoop-button-primary" data-unique-id="6b47a53f-4cd6-422b-824a-f25dfc2588cc" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="4f71c89e-b1d2-45fc-a560-fea023360a27" data-file-name="components/dashboard/profile.tsx">Connect Account</span></Button>
         </div>
       </div>
       
@@ -61,15 +38,19 @@ export default function Profile() {
           {/* User info */}
           <div className="skoop-card p-6 mb-8" data-unique-id="14b3b384-d714-44b1-a781-7bc511c89b36" data-file-name="components/dashboard/profile.tsx">
         <div className="flex items-center" data-unique-id="a0230fcd-f853-4a60-9c42-fe0bd8fd2b97" data-file-name="components/dashboard/profile.tsx">
-          <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xl mr-4" data-unique-id="791df67d-0493-42e3-9818-5b070dd0645f" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="4ef53d1b-c5d4-484f-bcb3-58d2253a23c7" data-file-name="components/dashboard/profile.tsx">
-            JD
-          </span></div>
+          <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xl mr-4" data-unique-id="791df67d-0493-42e3-9818-5b070dd0645f" data-file-name="components/dashboard/profile.tsx">
+            {getUserInitials(user?.email)}
+          </div>
           <div data-unique-id="73a91b44-3745-4e82-83c6-7d813dc9461a" data-file-name="components/dashboard/profile.tsx">
-            <h2 className="text-xl font-semibold" data-unique-id="da7fddc0-e95a-49d0-9960-760fc87f6f00" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="c5f9160e-7170-47df-b29b-d3c766de38cb" data-file-name="components/dashboard/profile.tsx">John Doe</span></h2>
-            <p className="text-muted-foreground" data-unique-id="bb076531-e068-4ad8-b175-d2e2b694c9f5" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="ccd4aab2-4e4d-4b37-b0c4-110cdd078ec7" data-file-name="components/dashboard/profile.tsx">john.doe@example.com</span></p>
+            <h2 className="text-xl font-semibold" data-unique-id="da7fddc0-e95a-49d0-9960-760fc87f6f00" data-file-name="components/dashboard/profile.tsx">
+              {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+            </h2>
+            <p className="text-muted-foreground" data-unique-id="bb076531-e068-4ad8-b175-d2e2b694c9f5" data-file-name="components/dashboard/profile.tsx">
+              {user?.email || 'No email available'}
+            </p>
             <div className="mt-2 text-sm" data-unique-id="8e5e856b-12c0-4fda-a35f-03856de9f019" data-file-name="components/dashboard/profile.tsx">
               <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full" data-unique-id="5750c9de-5eb9-4993-8ab6-b804629aa434" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="61fe20cc-2ba0-453b-a2b5-054d5c9a8984" data-file-name="components/dashboard/profile.tsx">
-                Pro Plan
+                Free Plan
               </span></span>
             </div>
           </div>
@@ -78,22 +59,24 @@ export default function Profile() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-border" data-unique-id="1fc40fff-fce0-4f7b-979b-e25e40819225" data-file-name="components/dashboard/profile.tsx">
           <div data-unique-id="ea160bfb-03d8-4d8c-bf9d-c81d65965199" data-file-name="components/dashboard/profile.tsx">
             <div className="text-sm text-muted-foreground" data-unique-id="f7428561-b8ce-4a89-8917-72f2b5c05663" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="8b123560-19b8-4772-b6d3-93c07ee89b31" data-file-name="components/dashboard/profile.tsx">Total Items</span></div>
-            <div className="font-semibold text-2xl" data-unique-id="35625845-f487-4494-a05f-4f7bb7927477" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="a6d376c5-a063-4e88-a089-98973c38133f" data-file-name="components/dashboard/profile.tsx">299</span></div>
+            <div className="font-semibold text-2xl" data-unique-id="35625845-f487-4494-a05f-4f7bb7927477" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="a6d376c5-a063-4e88-a089-98973c38133f" data-file-name="components/dashboard/profile.tsx">0</span></div>
           </div>
           <div data-unique-id="071a2e56-e92c-4684-a174-80d38f36bfb7" data-file-name="components/dashboard/profile.tsx">
             <div className="text-sm text-muted-foreground" data-unique-id="27e45538-57a9-4635-a718-1db2b2732298" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="49261c19-de82-471d-8dff-10fc21d07a29" data-file-name="components/dashboard/profile.tsx">Collections</span></div>
-            <div className="font-semibold text-2xl" data-unique-id="f8c7f500-d727-49b2-a705-a773d3beb4ae" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="79b30055-b95b-4232-b334-7300789bde88" data-file-name="components/dashboard/profile.tsx">15</span></div>
+            <div className="font-semibold text-2xl" data-unique-id="f8c7f500-d727-49b2-a705-a773d3beb4ae" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="79b30055-b95b-4232-b334-7300789bde88" data-file-name="components/dashboard/profile.tsx">0</span></div>
           </div>
           <div data-unique-id="94187fcf-a7d7-42de-9b69-243d561e8a7e" data-file-name="components/dashboard/profile.tsx">
             <div className="text-sm text-muted-foreground" data-unique-id="15e395df-c450-4737-86b6-6a4d7a2c45c0" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="a9fc7eac-7430-45b8-8a70-91ed4c71b1d9" data-file-name="components/dashboard/profile.tsx">Member Since</span></div>
-            <div className="font-semibold" data-unique-id="f204649c-8c96-477f-a8d9-a57c7e511ab6" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="5ebe19b9-da70-46c7-bf7c-17d14c887d81" data-file-name="components/dashboard/profile.tsx">March, 2025</span></div>
+            <div className="font-semibold" data-unique-id="f204649c-8c96-477f-a8d9-a57c7e511ab6" data-file-name="components/dashboard/profile.tsx">
+              {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}
+            </div>
           </div>
         </div>
       </div>
 
-          <h2 className="text-lg font-medium mb-4" data-unique-id="0eab4152-0f52-436c-af94-1492c9c9fb48" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="c6ae2915-686f-46fa-a76e-90c6ddbb1dde" data-file-name="components/dashboard/profile.tsx">Connected Accounts</span></h2>
-          <div className="space-y-4" data-unique-id="9503f9f6-bd0d-4a08-a199-3f3e626f9639" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
-            {connectedAccounts.map(account => <ConnectedAccountCard key={account.id} account={account} />)}
+          {/* OAuth Connect Buttons Section */}
+          <div className="skoop-card p-6 mb-8">
+            <OAuthConnectButtons />
           </div>
         </> : <BillingSection />}
     </div>;
@@ -317,89 +300,4 @@ function BillingSection() {
         </div>
       </div>
     </div>;
-}
-interface ConnectedAccountCardProps {
-  account: typeof connectedAccounts[0];
-}
-function ConnectedAccountCard({
-  account
-}: ConnectedAccountCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const Icon = account.icon;
-  return <motion.div className="skoop-card overflow-hidden" initial={{
-    opacity: 0,
-    y: 10
-  }} animate={{
-    opacity: 1,
-    y: 0
-  }} transition={{
-    duration: 0.2
-  }} data-unique-id="1eaba723-ab3b-4069-8137-4ca2a44804e3" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
-      <div className="p-4 flex justify-between items-center" data-unique-id="3363186b-92ef-4978-adab-b32d6c3b6869" data-file-name="components/dashboard/profile.tsx">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-unique-id="1b0c0cdd-ddf9-4f7f-9a9a-f10d2e4144bc" data-file-name="components/dashboard/profile.tsx">
-          <div className="flex items-center" data-unique-id="0109e119-1cfb-41e2-aa85-3fb5e1af417e" data-file-name="components/dashboard/profile.tsx">
-            <div className={cn("w-10 h-10 rounded-md flex items-center justify-center mr-3", account.status === "connected" ? "bg-primary/10" : "bg-destructive/10")} data-unique-id="f62d2b30-c1c3-456a-b458-89c200c6d17f" data-file-name="components/dashboard/profile.tsx">
-              <Icon className={cn("h-5 w-5", account.status === "connected" ? "text-primary" : "text-destructive")} />
-            </div>
-            <div data-unique-id="3846eebf-0afc-4f24-8bf4-c91ba09b2b52" data-file-name="components/dashboard/profile.tsx">
-              <div className="flex items-center" data-unique-id="0b76a5b4-1343-4211-adb8-985ee73263a7" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
-                <h3 className="font-medium" data-unique-id="339598d3-e658-474b-8055-8acd50e4271a" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">{account.name}</h3>
-                {account.status === "connected" ? <CheckCircle className="h-4 w-4 text-primary ml-2" /> : <AlertCircle className="h-4 w-4 text-destructive ml-2" />}
-              </div>
-              <p className="text-sm text-muted-foreground" data-unique-id="02b47d16-d4b5-4ef9-920b-b83e265f7c09" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true"><span className="editable-text" data-unique-id="7a9a9cc2-fb4b-449d-b309-a0e7838c7b39" data-file-name="components/dashboard/profile.tsx">
-                @</span>{account.username}
-              </p>
-            </div>
-          </div>
-        
-          <div className="flex items-center space-x-2 mt-3 sm:mt-0" data-unique-id="ab67c8e5-a86d-49a3-a376-b69fcd3baa68" data-file-name="components/dashboard/profile.tsx">
-          <Button variant="outline" size="sm" className="text-xs flex items-center" onClick={() => {}} data-unique-id="bfb0df71-8e3d-4adf-9e92-34d3fee4b906" data-file-name="components/dashboard/profile.tsx">
-            <RefreshCw className="h-3 w-3 mr-1" /><span className="editable-text" data-unique-id="0d3d2a50-031a-4a0c-85e9-c305ec99f7db" data-file-name="components/dashboard/profile.tsx">
-            Sync
-          </span></Button>
-          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} data-unique-id="46d61b12-c6e7-4905-8b56-64effcc9f5b5" data-file-name="components/dashboard/profile.tsx">
-            <ChevronDown className={cn("h-4 w-4 transition-transform", expanded ? "transform rotate-180" : "")} />
-          </Button>
-          </div>
-        </div>
-      </div>
-      
-      {expanded && <div className="bg-muted/30 p-4 border-t border-border" data-unique-id="d118ed27-6c27-4e75-a0a2-7d8886983bb1" data-file-name="components/dashboard/profile.tsx">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-unique-id="8d262e69-65d1-47f5-a80b-2a4f8d3fbc38" data-file-name="components/dashboard/profile.tsx">
-            <div data-unique-id="1bbb2296-98f7-493e-9ab1-b0c7bb0a0f35" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
-              <div className="text-xs text-muted-foreground mb-1" data-unique-id="2642a6d0-0f46-46e4-a1a7-a3be7aba093b" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="f6af781d-76a8-462f-80e4-b140c8fcb552" data-file-name="components/dashboard/profile.tsx">Status</span></div>
-              <div className="flex items-center" data-unique-id="726c2742-df82-4318-87aa-f1cae60f33c9" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
-                {account.status === "connected" ? <>
-                    <div className="w-2 h-2 rounded-full bg-primary mr-2" data-unique-id="bbce8d56-b9d5-4c7e-b62d-5b5b6f0448fb" data-file-name="components/dashboard/profile.tsx"></div>
-                    <span className="text-sm" data-unique-id="34faeb4e-48b8-4172-aea0-883ece751df3" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="39fb28c1-2264-4ae3-850d-38d24f08e0db" data-file-name="components/dashboard/profile.tsx">Connected</span></span>
-                  </> : <>
-                    <div className="w-2 h-2 rounded-full bg-destructive mr-2" data-unique-id="66ed9771-76a6-44f8-b846-226b277d7b78" data-file-name="components/dashboard/profile.tsx"></div>
-                    <span className="text-sm" data-unique-id="991ade9e-7bd7-44ad-8b91-37736e5f8779" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="0e12f555-047f-4581-8e6e-0264383c4f7f" data-file-name="components/dashboard/profile.tsx">Error</span></span>
-                  </>}
-              </div>
-              {account.status === "error" && <p className="text-xs text-destructive mt-1" data-unique-id="b8594c76-c0c3-4dec-b61f-a25a66c07c17" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">{account.error}</p>}
-            </div>
-            
-            <div data-unique-id="971b7f55-ac4b-4fb4-97b2-072b768a54e7" data-file-name="components/dashboard/profile.tsx">
-              <div className="text-xs text-muted-foreground mb-1" data-unique-id="5a208f48-b897-4ac6-82e5-ce3be081b468" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="ef372fec-b1bb-4af9-8486-0c443692b08a" data-file-name="components/dashboard/profile.tsx">Last Synced</span></div>
-              <div className="text-sm" data-unique-id="1a1b5e29-0355-47da-baf6-cd01f94eeb6b" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">{account.lastSync}</div>
-            </div>
-            
-            <div data-unique-id="3b865e1b-1e1e-4cb4-ace3-ffad9a46bb4f" data-file-name="components/dashboard/profile.tsx">
-              <div className="text-xs text-muted-foreground mb-1" data-unique-id="287f68da-b3dc-43c9-9e85-84318d737ba6" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="cc3ed6b9-d23e-4a36-a26f-b628f37dcf95" data-file-name="components/dashboard/profile.tsx">Items</span></div>
-              <div className="text-sm" data-unique-id="1bb20855-d4b0-4fdf-a73f-d9a18589f873" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">{account.itemCount}<span className="editable-text" data-unique-id="4716cb18-ef1d-481f-b934-c6287795da97" data-file-name="components/dashboard/profile.tsx"> saved items</span></div>
-            </div>
-          </div>
-          
-          <div className="mt-4 pt-3 border-t border-border flex justify-between" data-unique-id="ccccb3d0-6c27-4b28-ba47-8997dd6e9875" data-file-name="components/dashboard/profile.tsx">
-            <Button variant="ghost" size="sm" className="text-destructive" data-unique-id="df212a03-e6f5-4e3c-a6b4-8b37df538fc4" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="b2bf8787-7581-4259-b14c-825bf7fcb9fb" data-file-name="components/dashboard/profile.tsx">
-              Disconnect
-            </span></Button>
-            <Button variant="ghost" size="sm" className="text-primary flex items-center" data-unique-id="9d811aeb-fdad-4a85-8aee-be60fe8f8a18" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true"><span className="editable-text" data-unique-id="18e119cc-033d-482e-9d68-0b73bebfa1d2" data-file-name="components/dashboard/profile.tsx">
-              Visit </span>{account.name}
-              <ArrowUpRight className="h-3 w-3 ml-1" />
-            </Button>
-          </div>
-        </div>}
-    </motion.div>;
 }
