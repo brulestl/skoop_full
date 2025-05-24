@@ -132,3 +132,149 @@ SKOOP integrates advanced AI capabilities:
 - **Typography**: System with fluid responsive sizing
 - **Components**: Reusable UI components with consistent styling
 - **Animations**: Smooth transitions and micro-interactions with Framer Motion
+
+# SKOOP Backend Architecture
+
+SKOOP is an AI-powered content aggregation and discovery dashboard for developers, designers, and researchers. This repository contains the backend implementation using Supabase, OpenAI, and other modern technologies.
+
+## Architecture Overview
+
+### Core Technologies
+
+- **Supabase**: PostgreSQL database, authentication, and real-time subscriptions
+- **OpenAI API**: Text generation and embeddings for semantic search
+- **Anthropic API**: Backup summarization service
+- **pgvector**: Vector similarity search
+- **Edge Functions**: Serverless functions for data ingestion and processing
+
+### Database Schema
+
+The database consists of the following main tables:
+
+- `users`: User profiles and subscription plans
+- `connected_accounts`: OAuth connections to external services
+- `bookmarks_raw`: Raw data from external services
+- `bookmarks`: Processed bookmarks with embeddings
+- `collections`: User-created and AI-generated collections
+- `content_columns`: Custom content feeds
+- `fresh_content`: Real-time content updates
+
+### Edge Functions
+
+1. **Content Ingestion**
+   - `ingest_github.ts`: GitHub stars and repositories
+   - `ingest_twitter.ts`: Twitter/X bookmarks
+   - `ingest_reddit.ts`: Reddit saved posts
+   - `ingest_stack.ts`: Stack Overflow favorites
+
+2. **AI Processing**
+   - `generate_summary.ts`: Content summarization
+   - `generate_embedding.ts`: Vector embeddings
+   - `semantic_search.ts`: Semantic search functionality
+
+## Setup Instructions
+
+1. **Environment Variables**
+
+Create a `.env` file with the following variables:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+2. **Database Setup**
+
+Run the migrations in order:
+
+```bash
+supabase db reset
+```
+
+3. **Edge Functions**
+
+Deploy the Edge Functions:
+
+```bash
+supabase functions deploy
+```
+
+4. **Authentication**
+
+Configure OAuth providers in the Supabase dashboard:
+- GitHub
+- Twitter/X
+- Reddit
+- Stack Overflow
+
+## Development
+
+1. **Local Development**
+
+```bash
+# Start Supabase locally
+supabase start
+
+# Run migrations
+supabase db reset
+
+# Deploy functions
+supabase functions deploy
+```
+
+2. **Testing**
+
+```bash
+# Run database tests
+supabase db test
+
+# Test Edge Functions
+supabase functions serve
+```
+
+## API Documentation
+
+### Authentication
+
+All API endpoints require authentication using Supabase JWT tokens.
+
+### Endpoints
+
+1. **Content Ingestion**
+   - `POST /functions/v1/ingest_github`
+   - `POST /functions/v1/ingest_twitter`
+   - `POST /functions/v1/ingest_reddit`
+   - `POST /functions/v1/ingest_stack`
+
+2. **AI Processing**
+   - `POST /functions/v1/generate_summary`
+   - `POST /functions/v1/semantic_search`
+
+## Security
+
+- Row Level Security (RLS) policies ensure users can only access their own data
+- API keys are stored securely in environment variables
+- OAuth tokens are encrypted in the database
+- Rate limiting is implemented on all Edge Functions
+
+## Monitoring
+
+- Supabase Logs for database operations
+- Edge Function logs for serverless operations
+- OpenAI API usage monitoring
+- Error tracking and alerting
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+MIT License - see LICENSE file for details
