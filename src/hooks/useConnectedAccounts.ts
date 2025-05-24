@@ -1,10 +1,12 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from './useAuth';
+import { useSessionContext } from '@supabase/auth-helpers-react';
+import type { Provider as SupabaseProvider } from '@supabase/supabase-js';
 
 export type Provider = 'github' | 'twitter' | 'reddit' | 'stack';
 
-export interface ConnectedAccount {
+interface ConnectedAccount {
   id: string;
   user_id: string;
   provider: Provider;
@@ -15,85 +17,111 @@ export interface ConnectedAccount {
 }
 
 export function useConnectedAccounts() {
+  const { supabaseClient, session } = useSessionContext();
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<Provider | null>(null);
-  const { user } = useAuth();
 
   // Fetch connected accounts
   const fetchAccounts = async () => {
-    if (!user) {
+    if (!session?.user) {
       setAccounts([]);
       setLoading(false);
       return;
     }
 
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (supabaseClient as any)
         .from('connected_accounts')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', session.user.id);
 
       if (error) {
         console.error('Error fetching connected accounts:', error);
-        return;
+        setAccounts([]);
+      } else {
+        setAccounts(data || []);
       }
-
-      setAccounts(data || []);
     } catch (error) {
-      console.error('Error fetching connected accounts:', error);
+      console.error('Exception fetching connected accounts:', error);
+      setAccounts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Connect new account via OAuth
+  // Connect account via OAuth
   const connectAccount = async (provider: Provider) => {
     setConnecting(provider);
     
     try {
-      // Get OAuth provider mapping
-      const providerMap = {
-        github: 'github',
-        twitter: 'twitter', 
-        reddit: 'reddit',
-        stack: 'stackoverflow' // Stack Overflow is 'stackoverflow' in Supabase
-      } as const;
-
-      const supabaseProvider = providerMap[provider];
+      // Use the current origin, but ensure we're using the right port
+      const currentOrigin = window.location.origin;
+      const redirectTo = `${currentOrigin}/auth/callback?provider=${provider}`;
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: supabaseProvider as any,
+      console.log('Starting OAuth flow for provider:', provider);
+      console.log('Redirect URL:', redirectTo);
+      
+      // Map our provider types to Supabase OAuth provider types
+      let oauthProvider: 'github' | 'google' | 'twitter';
+      switch (provider) {
+        case 'github':
+          oauthProvider = 'github';
+          break;
+        case 'twitter':
+          oauthProvider = 'twitter';
+          break;
+        case 'reddit':
+          // Reddit OAuth needs to be handled via custom redirect
+          // For now, show an error message
+          setConnecting(null);
+          throw new Error('Reddit OAuth coming soon! Please use GitHub or Twitter for now.');
+        case 'stack':
+          oauthProvider = 'google'; // Stack Overflow uses Google OAuth
+          break;
+        default:
+          setConnecting(null);
+          throw new Error(`Unsupported provider: ${provider}`);
+      }
+      
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
+        provider: oauthProvider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?provider=${provider}`,
+          redirectTo,
           scopes: getProviderScopes(provider),
+          queryParams: {
+            provider: provider // Pass provider as query param
+          }
         }
       });
 
       if (error) {
         console.error('OAuth error:', error);
+        setConnecting(null);
         throw error;
       }
 
-      // The actual account connection happens in the callback handler
-      return data;
+      console.log('OAuth initiated successfully:', data);
+      // The redirect happens automatically, no need to handle data here
+      // Don't reset connecting state here as the redirect will happen
     } catch (error) {
-      console.error('Error connecting account:', error);
-      throw error;
-    } finally {
+      console.error('Failed to connect account:', error);
       setConnecting(null);
+      throw error;
     }
   };
 
   // Disconnect account
   const disconnectAccount = async (provider: Provider) => {
-    if (!user) return;
+    if (!session?.user) {
+      throw new Error('No user session');
+    }
 
     try {
-      const { error } = await (supabase as any)
+      const { error } = await (supabaseClient as any)
         .from('connected_accounts')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .eq('provider', provider);
 
       if (error) {
@@ -101,10 +129,10 @@ export function useConnectedAccounts() {
         throw error;
       }
 
-      // Refresh accounts list
+      // Refresh the accounts list
       await fetchAccounts();
     } catch (error) {
-      console.error('Error disconnecting account:', error);
+      console.error('Failed to disconnect account:', error);
       throw error;
     }
   };
@@ -114,35 +142,35 @@ export function useConnectedAccounts() {
     return accounts.some(account => account.provider === provider);
   };
 
-  // Get connected account for provider
-  const getAccount = (provider: Provider): ConnectedAccount | undefined => {
-    return accounts.find(account => account.provider === provider);
+  // Get account for provider
+  const getAccount = (provider: Provider): ConnectedAccount | null => {
+    return accounts.find(account => account.provider === provider) || null;
   };
 
+  // Get OAuth scopes for each provider
+  const getProviderScopes = (provider: Provider): string => {
+    const scopes = {
+      github: 'read:user,repo,user:email',
+      twitter: 'read,write',
+      reddit: 'read,history,identity',
+      stack: 'read_inbox,no_expiry'
+    };
+    return scopes[provider] || '';
+  };
+
+  // Fetch accounts on mount and when session changes
   useEffect(() => {
     fetchAccounts();
-  }, [user]);
+  }, [session]);
 
   return {
     accounts,
     loading,
     connecting,
+    fetchAccounts,
     connectAccount,
     disconnectAccount,
     isConnected,
-    getAccount,
-    refetch: fetchAccounts
+    getAccount
   };
-}
-
-// Helper function to get required scopes for each provider
-function getProviderScopes(provider: Provider): string {
-  const scopes = {
-    github: 'read:user,repo,user:email',
-    twitter: 'read,write',
-    reddit: 'read,history,identity',
-    stack: 'read_inbox,no_expiry'
-  };
-
-  return scopes[provider] || '';
 } 

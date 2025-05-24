@@ -1,6 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Configuration, OpenAIApi } from 'https://esm.sh/openai@3.1.0'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,84 +7,133 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { userId, accessToken } = await req.json()
+    // Initialize Supabase client with service role
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
 
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    // Get user from JWT token
+    const authorization = req.headers.get('Authorization')
+    if (!authorization) {
+      throw new Error('No authorization header')
+    }
 
-    // Fetch starred repositories
-    const response = await fetch('https://api.github.com/user/starred', {
+    const jwt = authorization.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(jwt)
+    
+    if (userError || !user) {
+      throw new Error('Invalid user token')
+    }
+
+    console.log(`Starting GitHub ingestion for user: ${user.id}`)
+
+    // Get GitHub access token from connected_accounts
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('connected_accounts')
+      .select('access_token')
+      .eq('user_id', user.id)
+      .eq('provider', 'github')
+      .single()
+
+    if (accountError || !account) {
+      throw new Error('GitHub account not connected or access token not found')
+    }
+
+    // Fetch starred repositories from GitHub
+    const response = await fetch('https://api.github.com/user/starred?per_page=100', {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${account.access_token}`,
         'Accept': 'application/vnd.github.v3+json',
-      },
+        'User-Agent': 'SKOOP/1.0'
+      }
     })
 
     if (!response.ok) {
-      throw new Error('Failed to fetch GitHub stars')
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`)
     }
 
-    const stars = await response.json()
+    const repositories = await response.json()
+    console.log(`Found ${repositories.length} starred GitHub repositories`)
+
+    let insertedCount = 0
 
     // Process each starred repository
-    for (const star of stars) {
-      // Store raw data
-      await supabaseClient
-        .from('bookmarks_raw')
-        .insert({
-          user_id: userId,
-          source: 'github',
-          raw_json: star,
-        })
+    for (const repo of repositories) {
+      try {
+        // Store raw data
+        await supabaseAdmin
+          .from('bookmarks_raw')
+          .upsert({
+            user_id: user.id,
+            source: 'github',
+            raw_json: repo,
+            fetched_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,source,raw_json'
+          })
 
-      // Generate embedding
-      const configuration = new Configuration({
-        apiKey: Deno.env.get('OPENAI_API_KEY'),
-      })
-      const openai = new OpenAIApi(configuration)
+        // Extract and store processed bookmark data
+        const tags = ['github', 'repository']
+        if (repo.language) {
+          tags.push(repo.language.toLowerCase())
+        }
+        if (repo.topics && Array.isArray(repo.topics)) {
+          tags.push(...repo.topics)
+        }
 
-      const content = `${star.full_name}\n${star.description || ''}\n${star.html_url}`
-      const embeddingResponse = await openai.createEmbedding({
-        model: 'text-embedding-ada-002',
-        input: content,
-      })
+        await supabaseAdmin
+          .from('bookmarks')
+          .upsert({
+            user_id: user.id,
+            url: repo.html_url,
+            title: repo.full_name || repo.name,
+            description: repo.description || '',
+            tags: tags,
+            created_at: repo.starred_at || repo.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,url'
+          })
 
-      const [{ embedding }] = embeddingResponse.data.data
-
-      // Store processed bookmark
-      await supabaseClient
-        .from('bookmarks')
-        .insert({
-          user_id: userId,
-          url: star.html_url,
-          title: star.full_name,
-          description: star.description,
-          vector: embedding,
-        })
+        insertedCount++
+      } catch (error) {
+        console.error('Error processing GitHub repository:', error)
+        // Continue processing other items
+      }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, count: stars.length }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
+    console.log(`Successfully processed ${insertedCount} GitHub repositories`)
+
+    return new Response(JSON.stringify({ 
+      count: insertedCount, 
+      total_fetched: repositories.length,
+      message: `Successfully synced ${insertedCount} GitHub starred repositories`
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200
+    })
+
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
-    )
+    console.error('GitHub ingestion error:', error)
+    
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Failed to ingest GitHub data',
+      count: 0
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500
+    })
   }
 }) 

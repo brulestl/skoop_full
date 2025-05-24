@@ -1,15 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { getProviderDisplayName } from "@/utils/ingest";
 import OAuthConnectButtons from "@/components/auth/oauth-connect-buttons";
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
   const { user } = useAuth();
+
+  // Handle URL parameters for success messages
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const connected = urlParams.get('connected');
+    const autoSync = urlParams.get('auto_sync');
+    const error = urlParams.get('error');
+
+    if (connected && connected !== 'account') {
+      const providerName = getProviderDisplayName(connected as any);
+      const message = autoSync 
+        ? `${providerName} connected successfully! Syncing your data...`
+        : `${providerName} connected successfully!`;
+      
+      showToast(message, 'success');
+    } else if (error) {
+      const errorMessages = {
+        oauth_failed: 'OAuth authorization failed. Please try again.',
+        store_failed: 'Failed to store account connection. Please try again.',
+        callback_failed: 'OAuth callback failed. Please check your connection.',
+        no_code: 'OAuth authorization was cancelled or failed.'
+      };
+      
+      const message = errorMessages[error as keyof typeof errorMessages] || 'Authentication failed. Please try again.';
+      showToast(message, 'error');
+    }
+
+    // Clean up URL parameters
+    if (connected || error) {
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('connected');
+      newUrl.searchParams.delete('auto_sync');
+      newUrl.searchParams.delete('error');
+      window.history.replaceState({}, document.title, newUrl.toString());
+    }
+  }, []);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    console.log(`Toast (${type}): ${message}`);
+    
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white z-50 transition-opacity duration-300 ${
+      type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    }`;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 5000);
+  };
 
   // Get user initials for avatar
   const getUserInitials = (email: string | undefined) => {

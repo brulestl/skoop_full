@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from 'react';
-import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConnectedAccounts, Provider } from '@/hooks/useConnectedAccounts';
+import { triggerIngestion, formatIngestMessage } from '@/utils/ingest';
 import { cn } from '@/lib/utils';
 
 const providers: Array<{
@@ -48,13 +49,36 @@ export default function OAuthConnectButtons() {
   } = useConnectedAccounts();
   
   const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
+  const [refreshing, setRefreshing] = useState<Provider | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    // Simple toast implementation - you can replace with your preferred toast library
+    console.log(`Toast (${type}): ${message}`);
+    
+    // Create a temporary toast element
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white z-50 transition-opacity duration-300 ${
+      type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    }`;
+    
+    document.body.appendChild(toast);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 300);
+    }, 3000);
+  };
 
   const handleConnect = async (provider: Provider) => {
     try {
       await connectAccount(provider);
     } catch (error) {
       console.error('Failed to connect account:', error);
-      // You could add toast notification here
+      showToast(`Failed to connect ${provider}`, 'error');
     }
   };
 
@@ -66,11 +90,26 @@ export default function OAuthConnectButtons() {
     setDisconnecting(provider);
     try {
       await disconnectAccount(provider);
+      showToast(`${provider} account disconnected`);
     } catch (error) {
       console.error('Failed to disconnect account:', error);
-      // You could add toast notification here
+      showToast(`Failed to disconnect ${provider}`, 'error');
     } finally {
       setDisconnecting(null);
+    }
+  };
+
+  const handleRefresh = async (provider: Provider) => {
+    setRefreshing(provider);
+    try {
+      const result = await triggerIngestion(provider);
+      const message = formatIngestMessage(result);
+      showToast(message, result.success ? 'success' : 'error');
+    } catch (error) {
+      console.error('Failed to refresh account:', error);
+      showToast(`Failed to sync ${provider}`, 'error');
+    } finally {
+      setRefreshing(null);
     }
   };
 
@@ -93,6 +132,7 @@ export default function OAuthConnectButtons() {
           const connected = isConnected(provider.id);
           const isConnecting = connecting === provider.id;
           const isDisconnecting = disconnecting === provider.id;
+          const isRefreshing = refreshing === provider.id;
           const Icon = provider.icon;
 
           return (
@@ -129,6 +169,28 @@ export default function OAuthConnectButtons() {
               </div>
 
               <div className="flex items-center space-x-2">
+                {connected && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRefresh(provider.id)}
+                    disabled={isRefreshing}
+                    className="text-xs"
+                  >
+                    {isRefreshing ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Sync
+                      </>
+                    )}
+                  </Button>
+                )}
+                
                 {connected ? (
                   <Button
                     variant="destructive"
