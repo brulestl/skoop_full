@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Database, Gauge, Save, Settings2, Bell, Sparkles } from "lucide-react";
+import { Clock, Database, Gauge, Save, Settings2, Bell, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useUserSettings, type SyncSchedule, type Provider } from "@/hooks/useUserSettings";
+import { useAuth } from "@/hooks/useAuth";
+import { autoSyncService } from "@/services/autoSyncService";
+
 const settings = [{
   id: "sync",
   label: "Sync Settings",
@@ -30,106 +34,296 @@ const settings = [{
   icon: Bell,
   content: <NotificationSettings />
 }];
+
 export default function DashboardSettings() {
   const [activeTab, setActiveTab] = useState("sync");
-  return <div data-unique-id="ade03ec6-cc45-4ca3-a765-bf978fabdcf1" data-file-name="components/dashboard/settings.tsx">
-      <div className="flex items-center justify-between mb-6" data-unique-id="281c5d0c-c00a-4a4d-afd8-ff8d8c26a001" data-file-name="components/dashboard/settings.tsx">
-        <h1 className="text-2xl font-semibold" data-unique-id="6e21ca4d-45df-4823-a940-f48a9070af26" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="df572fc1-9270-45a6-9605-769777e16d49" data-file-name="components/dashboard/settings.tsx">Settings</span></h1>
+  
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold">Settings</h1>
       </div>
       
-      <div className="flex flex-col md:flex-row gap-6" data-unique-id="1f39723a-0581-4a3f-9c63-45a6a1dd3092" data-file-name="components/dashboard/settings.tsx">
-        <div className="md:w-64 flex-shrink-0" data-unique-id="314c68e5-0b17-4a10-b9fd-c37d99499549" data-file-name="components/dashboard/settings.tsx">
-          <div className="sticky top-4" data-unique-id="e8077a9e-48c8-4a8c-bbc0-7c7fb02b6f60" data-file-name="components/dashboard/settings.tsx">
-            <div className="skoop-card divide-y divide-border" data-unique-id="74b24f6d-f1aa-4d30-bb5a-cc2f2590a0da" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">
-              {settings.map(setting => <button key={setting.id} className={cn("w-full flex items-center px-4 py-3 text-left", activeTab === setting.id ? "bg-primary/5 text-primary" : "text-foreground hover:bg-secondary/50")} onClick={() => setActiveTab(setting.id)} data-unique-id="84e38517-d409-4475-ae62-9f6f1f9cd370" data-file-name="components/dashboard/settings.tsx">
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="md:w-64 flex-shrink-0">
+          <div className="sticky top-4">
+            <div className="skoop-card divide-y divide-border">
+              {settings.map(setting => (
+                <button
+                  key={setting.id}
+                  className={cn(
+                    "w-full flex items-center px-4 py-3 text-left",
+                    activeTab === setting.id ? "bg-primary/5 text-primary" : "text-foreground hover:bg-secondary/50"
+                  )}
+                  onClick={() => setActiveTab(setting.id)}
+                >
                   <setting.icon className="h-4 w-4 mr-3" />
-                  <span data-unique-id="01659865-216b-4457-a8e8-344a55fb313b" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">{setting.label}</span>
-                </button>)}
+                  <span>{setting.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
         
-        <div className="flex-grow" data-unique-id="7def9915-0386-4bd5-b3b7-db4ee59ac4a2" data-file-name="components/dashboard/settings.tsx">
-          <div className="skoop-card p-6" data-unique-id="b3a817b4-d212-4a50-bab0-7715e674cbf1" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">
+        <div className="flex-grow">
+          <div className="skoop-card p-6">
             {settings.find(s => s.id === activeTab)?.content}
           </div>
         </div>
       </div>
-    </div>;
+    </div>
+  );
 }
+
 function SyncSettings() {
-  return <div data-unique-id="7a5285a6-524a-4153-a77e-1ffca6500290" data-file-name="components/dashboard/settings.tsx">
-      <h2 className="text-xl font-medium mb-4" data-unique-id="73738e68-8e6c-41f8-ad92-21102254bd7f" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="53ab9f60-caf7-4b60-a3b2-71fae37211a5" data-file-name="components/dashboard/settings.tsx">Sync Settings</span></h2>
-      <p className="text-muted-foreground mb-6" data-unique-id="bcea91fb-2bfd-4cb9-9cd6-4183149e3ddc" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="eeb14d8a-2597-4951-b13f-43e588f27e8b" data-file-name="components/dashboard/settings.tsx">
+  const { user } = useAuth();
+  const { settings, syncHistory, loading, updateSettings } = useUserSettings();
+  const [saving, setSaving] = useState(false);
+  const [localSchedule, setLocalSchedule] = useState<SyncSchedule>('manual');
+  const [localProviders, setLocalProviders] = useState<Record<Provider, boolean>>({
+    github: true,
+    twitter: false,
+    reddit: false,
+    stack: false
+  });
+
+  // Initialize local state when settings load
+  useEffect(() => {
+    if (settings) {
+      setLocalSchedule(settings.sync_schedule);
+      const providersState = {
+        github: settings.enabled_providers.includes('github'),
+        twitter: settings.enabled_providers.includes('twitter'),
+        reddit: settings.enabled_providers.includes('reddit'),
+        stack: settings.enabled_providers.includes('stack')
+      };
+      setLocalProviders(providersState);
+    }
+  }, [settings]);
+
+  // Update auto-sync service when user and settings change
+  useEffect(() => {
+    if (user && settings) {
+      autoSyncService.updateUserConfig(
+        user.id,
+        settings.sync_schedule,
+        settings.enabled_providers
+      );
+    }
+  }, [user, settings]);
+
+  const handleSaveSettings = async () => {
+    if (!settings || !user) return;
+
+    setSaving(true);
+    try {
+      const enabledProviders = Object.entries(localProviders)
+        .filter(([_, enabled]) => enabled)
+        .map(([provider, _]) => provider) as Provider[];
+
+      await updateSettings({
+        sync_schedule: localSchedule,
+        enabled_providers: enabledProviders
+      });
+
+      // Update auto-sync service with new settings
+      autoSyncService.updateUserConfig(user.id, localSchedule, enabledProviders);
+
+      // Show success message with auto-sync info
+      const scheduleText = localSchedule === 'manual' 
+        ? 'Auto-sync disabled' 
+        : `Auto-sync every ${localSchedule === '15min' ? '15 minutes' : localSchedule === 'hourly' ? 'hour' : 'day'}`;
+      
+      showToast(`Sync settings saved! ${scheduleText}`, 'success');
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      showToast('Failed to save settings. Please try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const existingToasts = document.querySelectorAll('.skoop-toast');
+    existingToasts.forEach(toast => document.body.removeChild(toast));
+    
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = `skoop-toast fixed top-4 right-4 px-6 py-4 rounded-lg text-white z-[9999] transition-all duration-300 transform translate-x-0 shadow-lg max-w-md ${
+      type === 'success' ? 'bg-green-600 border border-green-500' : 'bg-red-600 border border-red-500'
+    }`;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100px) scale(0.95)';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 3000);
+  };
+
+  const scheduleOptions: { value: SyncSchedule; label: string; description: string }[] = [
+    { value: '15min', label: 'Every 15 minutes', description: 'Most frequent updates, may use more battery' },
+    { value: 'hourly', label: 'Hourly', description: 'Good balance of freshness and battery life' },
+    { value: 'daily', label: 'Daily', description: 'Minimal battery usage, updates once per day' },
+    { value: 'manual', label: 'Manual only', description: 'No automatic syncing, sync when you want' }
+  ];
+
+  const providerOptions: { key: Provider; label: string }[] = [
+    { key: 'github', label: 'GitHub' },
+    { key: 'twitter', label: 'Twitter' },
+    { key: 'reddit', label: 'Reddit' },
+    { key: 'stack', label: 'Stack Overflow' }
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className="text-xl font-medium mb-4">Sync Settings</h2>
+      <p className="text-muted-foreground mb-6">
         Control how often SKOOP syncs with your connected platforms.
-      </span></p>
+      </p>
       
-      <div className="space-y-6" data-unique-id="6c33386f-92d6-4153-8b68-354c3f78553c" data-file-name="components/dashboard/settings.tsx">
-        <div data-unique-id="e093ed1c-34ce-413d-8802-c8d52908af8f" data-file-name="components/dashboard/settings.tsx">
-          <h3 className="text-md font-medium mb-3" data-unique-id="df43a71b-505d-420d-a81f-5af6616411d9" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="fe49f660-0c9c-460d-8812-d9ecea040297" data-file-name="components/dashboard/settings.tsx">Sync Schedule</span></h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3" data-unique-id="b8e31d3c-c145-4df5-bc0f-1069e766163b" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">
-            {["Every 15 minutes", "Hourly", "Daily", "Manual only"].map(option => <label key={option} className={cn("border border-border rounded-md p-3 flex items-center cursor-pointer", option === "Every 15 minutes" ? "border-primary bg-primary/5" : "")} data-unique-id="2ef1c6ce-2979-4be7-92b3-c3c4ecf510bd" data-file-name="components/dashboard/settings.tsx">
-                <input type="radio" name="syncSchedule" className="mr-3" defaultChecked={option === "Every 15 minutes"} data-unique-id="502fadcc-d5ff-405a-ae65-046d7ad42af7" data-file-name="components/dashboard/settings.tsx" />
-                <span data-unique-id="08f4f9eb-79de-42fa-b281-c0f1696ffda1" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">{option}</span>
-              </label>)}
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-md font-medium mb-3">Sync Schedule</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {scheduleOptions.map(option => (
+              <label
+                key={option.value}
+                className={cn(
+                  "border border-border rounded-md p-3 flex items-center cursor-pointer transition-colors",
+                  localSchedule === option.value ? "border-primary bg-primary/5" : "hover:bg-secondary/50"
+                )}
+              >
+                <input
+                  type="radio"
+                  name="syncSchedule"
+                  value={option.value}
+                  checked={localSchedule === option.value}
+                  onChange={(e) => setLocalSchedule(e.target.value as SyncSchedule)}
+                  className="mr-3"
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
           </div>
+          {localSchedule !== 'manual' && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Auto-sync will run in the background based on your selected schedule.
+            </p>
+          )}
         </div>
         
-        <div data-unique-id="53ff75e8-c977-4873-b2f9-bd4f652babef" data-file-name="components/dashboard/settings.tsx">
-          <h3 className="text-md font-medium mb-3" data-unique-id="dbc338e5-16f5-4f94-8600-234df6b6ca3a" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="b85baaf8-9e55-4d7a-9533-2b3c1e84e845" data-file-name="components/dashboard/settings.tsx">Platforms</span></h3>
-          <div className="space-y-3" data-unique-id="c19b244c-205a-4baa-a830-636bde474c2c" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">
-            {["GitHub", "Twitter", "Reddit", "Stack Overflow"].map(platform => <div key={platform} className="flex items-center justify-between" data-unique-id="ba0d585a-55f9-48e9-ba52-edf9caee7e71" data-file-name="components/dashboard/settings.tsx">
-                <span data-unique-id="a55d50ec-1086-4fbb-9d3d-145e2cdb5999" data-file-name="components/dashboard/settings.tsx" data-dynamic-text="true">{platform}</span>
-                <label className="relative inline-flex items-center cursor-pointer" data-unique-id="1666152f-1b48-459c-819e-b380f09d5e4a" data-file-name="components/dashboard/settings.tsx">
-                  <input type="checkbox" className="sr-only peer" defaultChecked data-unique-id="41b83b20-04c1-4a33-a66b-7ff43b6887e0" data-file-name="components/dashboard/settings.tsx" />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" data-unique-id="3a89afad-f963-4fdd-9993-af0db068544d" data-file-name="components/dashboard/settings.tsx"></div>
+        <div>
+          <h3 className="text-md font-medium mb-3">Platforms</h3>
+          <div className="space-y-3">
+            {providerOptions.map(provider => (
+              <div key={provider.key} className="flex items-center justify-between">
+                <div>
+                  <span className="font-medium">{provider.label}</span>
+                  {provider.key !== 'github' && (
+                    <span className="text-xs text-muted-foreground ml-2">(Coming soon)</span>
+                  )}
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={localProviders[provider.key]}
+                    onChange={(e) => 
+                      setLocalProviders(prev => ({
+                        ...prev,
+                        [provider.key]: e.target.checked
+                      }))
+                    }
+                    disabled={provider.key !== 'github'}
+                  />
+                  <div className={cn(
+                    "w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary",
+                    provider.key !== 'github' && "opacity-50 cursor-not-allowed"
+                  )} />
                 </label>
-              </div>)}
+              </div>
+            ))}
           </div>
         </div>
         
-        <div data-unique-id="8c4ed96a-d423-4961-8a1b-c0c650412825" data-file-name="components/dashboard/settings.tsx">
-          <h3 className="text-md font-medium mb-3" data-unique-id="5280e85a-fb54-4d6c-ad66-1b000380e624" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="60873388-ce89-4390-850c-ecb737fd931c" data-file-name="components/dashboard/settings.tsx">Sync History</span></h3>
-          <div className="text-sm border border-border rounded-md divide-y divide-border" data-unique-id="1022fded-d2fa-44ba-a0f8-20b7192e4a5b" data-file-name="components/dashboard/settings.tsx">
-            <div className="p-3 flex justify-between items-center" data-unique-id="a4ae8b29-801c-4e90-b13d-0e757ee2a2a6" data-file-name="components/dashboard/settings.tsx">
-              <div data-unique-id="91dd1cf8-83fe-4b0d-936c-13b9eef9dc64" data-file-name="components/dashboard/settings.tsx">
-                <div className="font-medium" data-unique-id="7bf68ea7-b47c-4384-a1d2-b2bd01162101" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="0bd1e94d-9e91-4ac1-9f35-cd3f5c6be5d5" data-file-name="components/dashboard/settings.tsx">Automatic Sync</span></div>
-                <div className="text-muted-foreground" data-unique-id="d109825b-bc62-4d20-8e7b-3790e0de231c" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="de1d08d3-fff4-4515-b492-6c90cac6feb0" data-file-name="components/dashboard/settings.tsx">Today, 11:45 AM</span></div>
+        <div>
+          <h3 className="text-md font-medium mb-3">Recent Sync History</h3>
+          <div className="text-sm border border-border rounded-md divide-y divide-border max-h-48 overflow-y-auto">
+            {syncHistory.length > 0 ? (
+              syncHistory.map((entry) => (
+                <div key={entry.id} className="p-3 flex justify-between items-center">
+                  <div>
+                    <div className="font-medium">
+                      {entry.sync_type === 'automatic' ? 'Automatic Sync' : 
+                       entry.sync_type === 'initial' ? 'Initial Sync' : 'Manual Sync'} - {entry.provider}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </div>
+                    {entry.error_message && (
+                      <div className="text-xs text-destructive mt-1">
+                        {entry.error_message}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {entry.items_synced > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {entry.items_synced} items
+                      </span>
+                    )}
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded-full",
+                      entry.status === 'success' ? "bg-primary/10 text-primary" :
+                      entry.status === 'failed' ? "bg-destructive/10 text-destructive" :
+                      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                    )}>
+                      {entry.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-muted-foreground">
+                No sync history yet
               </div>
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full" data-unique-id="28d70706-cc01-466b-9bb6-14fe1e1b78a6" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="6d658243-ab23-497f-8a1c-5015305ceb75" data-file-name="components/dashboard/settings.tsx">
-                Success
-              </span></span>
-            </div>
-            <div className="p-3 flex justify-between items-center" data-unique-id="fab41304-1ec5-45b7-909d-71da811d10a1" data-file-name="components/dashboard/settings.tsx">
-              <div data-unique-id="8c8140d2-8795-42df-895a-a95585bfc942" data-file-name="components/dashboard/settings.tsx">
-                <div className="font-medium" data-unique-id="b3d873d0-bab0-4f3d-bd71-4a9577f12b47" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="1ccf9172-6c05-4ded-9f46-2da8e760d7ff" data-file-name="components/dashboard/settings.tsx">Manual Sync</span></div>
-                <div className="text-muted-foreground" data-unique-id="a1dcec12-b0ec-4d27-85d1-0c389856f54a" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="343388a5-dcc0-4f2b-b010-849bd918ec26" data-file-name="components/dashboard/settings.tsx">Yesterday, 3:22 PM</span></div>
-              </div>
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full" data-unique-id="5311bd1d-154a-483a-a98b-73938de9f850" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="03570eaf-96bb-4689-9c26-6ff1d485c63f" data-file-name="components/dashboard/settings.tsx">
-                Success
-              </span></span>
-            </div>
-            <div className="p-3 flex justify-between items-center" data-unique-id="2ba62f48-75f8-4e98-8a30-eb50b64d00cf" data-file-name="components/dashboard/settings.tsx">
-              <div data-unique-id="10b06bfb-3846-4ee7-94a6-0c2ed6631ef1" data-file-name="components/dashboard/settings.tsx">
-                <div className="font-medium" data-unique-id="7396f717-29fb-4cb1-b9f6-922494d7eed5" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="475760a8-c106-412a-b15a-265403dc47c3" data-file-name="components/dashboard/settings.tsx">Automatic Sync</span></div>
-                <div className="text-muted-foreground" data-unique-id="b3543350-bc35-4c4c-9670-c4a77a7fc971" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="cfbc6bde-9030-42b6-b66d-1a29c0f3d5d2" data-file-name="components/dashboard/settings.tsx">Yesterday, 11:45 AM</span></div>
-              </div>
-              <span className="text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded-full" data-unique-id="279511c3-9605-4a03-93b7-a6ae465c5650" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="ac2a4450-e772-46d5-93bd-51ba228b54e9" data-file-name="components/dashboard/settings.tsx">
-                Failed
-              </span></span>
-            </div>
+            )}
           </div>
         </div>
       </div>
       
-      <div className="mt-8 flex justify-end" data-unique-id="f6f0dc35-33ef-4a19-9b4a-34a0b5584cf1" data-file-name="components/dashboard/settings.tsx">
-        <Button className="skoop-button-primary" data-unique-id="ce648171-c9fd-4748-8455-fb1bf508f8fd" data-file-name="components/dashboard/settings.tsx">
-          <Save className="h-4 w-4 mr-2" /><span className="editable-text" data-unique-id="dbfc0c59-cfb0-4824-8621-3b4a1443aa49" data-file-name="components/dashboard/settings.tsx">
-          Save Changes
-        </span></Button>
+      <div className="mt-8 flex justify-end">
+        <Button 
+          className="skoop-button-primary" 
+          onClick={handleSaveSettings}
+          disabled={saving}
+        >
+          {saving ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Save className="h-4 w-4 mr-2" />
+          )}
+          {saving ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
-    </div>;
+    </div>
+  );
 }
+
 function EmbeddingSettings() {
   return <div data-unique-id="bd54fdb5-9b4b-4de7-8aee-96f134a6e16a" data-file-name="components/dashboard/settings.tsx">
       <h2 className="text-xl font-medium mb-4" data-unique-id="74cc5eec-c220-45de-a07e-499d47a4fd57" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="dd8b4801-07f5-4a08-b4f3-859ef7325d6d" data-file-name="components/dashboard/settings.tsx">Embedding Model</span></h2>
@@ -205,6 +399,7 @@ function EmbeddingSettings() {
       </div>
     </div>;
 }
+
 function PerformanceSettings() {
   return <div data-unique-id="f4f9a881-d4db-4343-addb-56ca1432d493" data-file-name="components/dashboard/settings.tsx">
       <h2 className="text-xl font-medium mb-4" data-unique-id="beab1ed2-c1a7-4002-a985-d0e9434f5164" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="62c657b3-c6b9-471c-8e32-783846fdc5d2" data-file-name="components/dashboard/settings.tsx">Performance Settings</span></h2>
@@ -291,6 +486,7 @@ function PerformanceSettings() {
       </div>
     </div>;
 }
+
 function AIModelSettings() {
   const [selectedModel, setSelectedModel] = useState('claude-bedrock');
   useEffect(() => {
@@ -380,6 +576,7 @@ function AIModelSettings() {
       </div>
     </div>;
 }
+
 function NotificationSettings() {
   return <div data-unique-id="eeda86f1-6fe7-4ddf-ab88-3d614ee7e8ad" data-file-name="components/dashboard/settings.tsx">
       <h2 className="text-xl font-medium mb-4" data-unique-id="5c0b24a7-5a76-4ff4-a211-6b12d6050b92" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="59ee48ef-213c-4a67-a89b-3be5a1c1f380" data-file-name="components/dashboard/settings.tsx">Notification Settings</span></h2>

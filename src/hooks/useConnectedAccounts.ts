@@ -90,7 +90,9 @@ export function useConnectedAccounts() {
           redirectTo,
           scopes: getProviderScopes(provider),
           queryParams: {
-            provider: provider // Pass provider as query param
+            provider: provider, // Pass provider as query param
+            access_type: 'offline', // Request refresh token
+            prompt: 'consent' // Force fresh permissions
           }
         }
       });

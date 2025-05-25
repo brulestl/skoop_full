@@ -72,12 +72,12 @@ serve(async (req) => {
     // Process each starred repository
     for (const repo of repositories) {
       try {
-        // Store raw data
+      // Store raw data
         await supabaseAdmin
-          .from('bookmarks_raw')
+        .from('bookmarks_raw')
           .upsert({
             user_id: user.id,
-            source: 'github',
+          source: 'github',
             raw_json: repo,
             fetched_at: new Date().toISOString()
           }, {
@@ -94,7 +94,7 @@ serve(async (req) => {
         }
 
         await supabaseAdmin
-          .from('bookmarks')
+        .from('bookmarks')
           .upsert({
             user_id: user.id,
             url: repo.html_url,
@@ -121,7 +121,7 @@ serve(async (req) => {
       total_fetched: repositories.length,
       message: `Successfully synced ${insertedCount} GitHub starred repositories`
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     })
 
@@ -132,7 +132,7 @@ serve(async (req) => {
       error: error.message || 'Failed to ingest GitHub data',
       count: 0
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500
     })
   }

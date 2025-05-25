@@ -35,7 +35,7 @@ export default function LoginForm() {
 
       if (data.user) {
         // Redirect to dashboard on successful login
-        router.push(redirect);
+      router.push(redirect);
       }
     } catch (err: any) {
       // Surface the error message from Supabase

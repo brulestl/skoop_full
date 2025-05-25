@@ -64,7 +64,7 @@ export default function RootLayout({
   return <html lang="en" className={`${GeistSans.variable}`} data-unique-id="b8f55bdc-6802-413b-87e3-dd3a51cb6b04" data-file-name="app/layout.tsx">
       <body data-unique-id="a154a7ca-8368-4e5d-b0a4-b581e6c7fe69" data-file-name="app/layout.tsx">
         <AuthProvider>
-          <DevtoolsProvider>{children}</DevtoolsProvider>
+        <DevtoolsProvider>{children}</DevtoolsProvider>
         </AuthProvider>
       </body>
     </html>;

@@ -20,10 +20,16 @@ type Tab = "recent" | "collections" | "skoopcontent" | "profile" | "settings";
 export default function DashboardLayout() {
   const [activeTab, setActiveTab] = useState<Tab>("recent");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, signOut, isAuthenticated } = useAuth();
+
+  // Ensure consistent hydration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Handle URL parameters for tab switching
   useEffect(() => {
@@ -40,10 +46,10 @@ export default function DashboardLayout() {
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    if (mounted && !loading && !isAuthenticated) {
       router.push('/login?redirect=' + encodeURIComponent(pathname));
     }
-  }, [loading, isAuthenticated, router, pathname]);
+  }, [mounted, loading, isAuthenticated, router, pathname]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -55,8 +61,8 @@ export default function DashboardLayout() {
     }
   };
 
-  // Show loading state while checking authentication
-  if (loading) {
+  // Show consistent loading state while checking authentication or during hydration
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>

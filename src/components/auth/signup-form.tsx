@@ -79,7 +79,7 @@ export default function SignupForm() {
         }
 
         // Redirect to dashboard on successful signup
-        router.push('/dashboard');
+      router.push('/dashboard');
       }
     } catch (err: any) {
       // Surface the error message from Supabase

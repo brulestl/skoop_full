@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConnectedAccounts, Provider } from '@/hooks/useConnectedAccounts';
-import { triggerIngestion, formatIngestMessage } from '@/utils/ingest';
 import { cn } from '@/lib/utils';
 
 const providers: Array<{
@@ -25,7 +24,9 @@ const providers: Array<{
     id: 'twitter',
     name: 'Twitter',
     icon: Twitter,
-    color: 'text-blue-500'
+    color: 'text-blue-500',
+    disabled: true,
+    disabledReason: 'Coming soon'
   },
   {
     id: 'reddit',
@@ -58,25 +59,39 @@ export default function OAuthConnectButtons() {
   const [refreshing, setRefreshing] = useState<Provider | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    // Simple toast implementation - you can replace with your preferred toast library
+    // Enhanced toast implementation with better visibility
     console.log(`Toast (${type}): ${message}`);
     
-    // Create a temporary toast element
+    // Remove any existing toasts first
+    const existingToasts = document.querySelectorAll('.skoop-toast');
+    existingToasts.forEach(toast => document.body.removeChild(toast));
+    
+    // Create a more prominent toast element
     const toast = document.createElement('div');
     toast.textContent = message;
-    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white z-50 transition-opacity duration-300 ${
-      type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    toast.className = `skoop-toast fixed top-4 right-4 px-6 py-4 rounded-lg text-white z-[9999] transition-all duration-300 transform translate-x-0 shadow-lg max-w-md ${
+      type === 'success' ? 'bg-green-600 border border-green-500' : 'bg-red-600 border border-red-500'
     }`;
+    toast.style.fontSize = '14px';
+    toast.style.fontWeight = '500';
     
     document.body.appendChild(toast);
     
-    // Remove after 3 seconds
+    // Animate in
+    setTimeout(() => {
+      toast.style.transform = 'translateX(0) scale(1)';
+    }, 10);
+    
+    // Remove after 4 seconds (increased time)
     setTimeout(() => {
       toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100px) scale(0.95)';
       setTimeout(() => {
-        document.body.removeChild(toast);
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
       }, 300);
-    }, 3000);
+    }, 4000);
   };
 
   const handleConnect = async (provider: Provider) => {
@@ -107,13 +122,36 @@ export default function OAuthConnectButtons() {
 
   const handleRefresh = async (provider: Provider) => {
     setRefreshing(provider);
+    
+    // Show immediate feedback
+    showToast(`Syncing ${provider} bookmarks...`, 'success');
+    
     try {
-      const result = await triggerIngestion(provider);
-      const message = formatIngestMessage(result);
-      showToast(message, result.success ? 'success' : 'error');
+      // Manual bookmark sync - make a request to fetch from GitHub API
+      const response = await fetch(`/api/sync/${provider}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        showToast(`✅ Synced ${result.count || 0} bookmarks from ${provider}!`, 'success');
+        
+        // Force refresh the bookmarks data in the UI
+        window.dispatchEvent(new CustomEvent('bookmarks-updated'));
+        
+        // Reduced delay for faster feedback
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Sync failed');
+      }
     } catch (error) {
       console.error('Failed to refresh account:', error);
-      showToast(`Failed to sync ${provider}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`❌ Failed to sync ${provider}: ${errorMessage}`, 'error');
     } finally {
       setRefreshing(null);
     }
@@ -133,104 +171,76 @@ export default function OAuthConnectButtons() {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Connected Accounts</h3>
-      <div className="space-y-3">
+      
+      <div className="grid gap-3">
         {providers.map((provider) => {
           const connected = isConnected(provider.id);
           const isConnecting = connecting === provider.id;
           const isDisconnecting = disconnecting === provider.id;
           const isRefreshing = refreshing === provider.id;
-          const Icon = provider.icon;
-          const isDisabled = provider.disabled && !connected;
+          const IconComponent = provider.icon;
 
           return (
             <div
               key={provider.id}
               className={cn(
-                "flex items-center justify-between p-4 border border-border rounded-lg",
-                isDisabled && "opacity-60"
+                "flex items-center justify-between p-4 rounded-lg border",
+                connected ? "bg-green-50 border-green-200" : "bg-background border-border",
+                provider.disabled && "opacity-50"
               )}
             >
               <div className="flex items-center space-x-3">
-                <div className={cn(
-                  "w-10 h-10 rounded-md flex items-center justify-center",
-                  connected ? "bg-primary/10" : "bg-muted"
-                )}>
-                  <Icon className={cn("h-5 w-5", provider.color)} />
-                </div>
+                <IconComponent className={cn("h-5 w-5", provider.color)} />
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{provider.name}</span>
-                    {connected ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      connected ? "bg-green-500" : "bg-muted-foreground"
-                    )} />
-                    <span className="text-sm text-muted-foreground">
-                      {connected ? "Connected" : isDisabled ? provider.disabledReason : "Not connected"}
-                    </span>
-                  </div>
+                  <p className="font-medium">{provider.name}</p>
+                  {connected && (
+                    <p className="text-sm text-green-600 flex items-center">
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Connected
+                    </p>
+                  )}
+                  {provider.disabled && (
+                    <p className="text-sm text-muted-foreground">{provider.disabledReason}</p>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center space-x-2">
-                {connected && (
+                {connected && !provider.disabled && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleRefresh(provider.id)}
                     disabled={isRefreshing}
-                    className="text-xs"
                   >
-                    {isRefreshing ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        Syncing...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        Sync
-                      </>
-                    )}
+                    <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+                    {isRefreshing ? 'Syncing...' : 'Sync Now'}
                   </Button>
                 )}
                 
                 {connected ? (
                   <Button
-                    variant="destructive"
+                    variant="outline"
                     size="sm"
                     onClick={() => handleDisconnect(provider.id)}
-                    disabled={isDisconnecting}
+                    disabled={isDisconnecting || provider.disabled}
                   >
                     {isDisconnecting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Disconnecting...
-                      </>
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      "Disconnect"
+                      'Disconnect'
                     )}
                   </Button>
                 ) : (
                   <Button
-                    variant="outline"
-                    size="sm"
                     onClick={() => handleConnect(provider.id)}
-                    disabled={isConnecting || isDisabled}
+                    disabled={isConnecting || provider.disabled}
+                    size="sm"
                   >
                     {isConnecting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Connecting...
-                      </>
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      "Connect"
+                      'Connect'
                     )}
                   </Button>
                 )}
@@ -241,11 +251,13 @@ export default function OAuthConnectButtons() {
       </div>
 
       <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-        <h4 className="font-medium mb-2">Why connect accounts?</h4>
-        <p className="text-sm text-muted-foreground">
-          Connect your accounts to enable SKOOP to fetch and organize your saved items, 
-          starred repositories, bookmarked tweets, and more from these platforms.
-        </p>
+        <h4 className="font-medium mb-2">Why connect your accounts?</h4>
+        <ul className="text-sm text-muted-foreground space-y-1">
+          <li>• Automatically import your starred repositories from GitHub</li>
+          <li>• Sync your saved tweets and liked content from Twitter</li>
+          <li>• Import saved posts and comments from Reddit</li>
+          <li>• Collect your Stack Overflow favorites and bookmarks</li>
+        </ul>
       </div>
     </div>
   );
