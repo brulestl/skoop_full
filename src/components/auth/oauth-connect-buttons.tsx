@@ -12,6 +12,8 @@ const providers: Array<{
   name: string;
   icon: React.ComponentType<any>;
   color: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }> = [
   {
     id: 'github',
@@ -29,13 +31,17 @@ const providers: Array<{
     id: 'reddit',
     name: 'Reddit',
     icon: Reddit,
-    color: 'text-orange-500'
+    color: 'text-orange-500',
+    disabled: true,
+    disabledReason: 'Coming soon'
   },
   {
     id: 'stack',
     name: 'Stack Overflow',
     icon: StackOverflow,
-    color: 'text-orange-600'
+    color: 'text-orange-600',
+    disabled: true,
+    disabledReason: 'Coming soon'
   }
 ];
 
@@ -134,11 +140,15 @@ export default function OAuthConnectButtons() {
           const isDisconnecting = disconnecting === provider.id;
           const isRefreshing = refreshing === provider.id;
           const Icon = provider.icon;
+          const isDisabled = provider.disabled && !connected;
 
           return (
             <div
               key={provider.id}
-              className="flex items-center justify-between p-4 border border-border rounded-lg"
+              className={cn(
+                "flex items-center justify-between p-4 border border-border rounded-lg",
+                isDisabled && "opacity-60"
+              )}
             >
               <div className="flex items-center space-x-3">
                 <div className={cn(
@@ -162,7 +172,7 @@ export default function OAuthConnectButtons() {
                       connected ? "bg-green-500" : "bg-muted-foreground"
                     )} />
                     <span className="text-sm text-muted-foreground">
-                      {connected ? "Connected" : "Not connected"}
+                      {connected ? "Connected" : isDisabled ? provider.disabledReason : "Not connected"}
                     </span>
                   </div>
                 </div>
@@ -212,7 +222,7 @@ export default function OAuthConnectButtons() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleConnect(provider.id)}
-                    disabled={isConnecting}
+                    disabled={isConnecting || isDisabled}
                   >
                     {isConnecting ? (
                       <>
