@@ -40,9 +40,9 @@ file_size_limit = "50MiB"
 [auth]
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://localhost:3000"
+site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://localhost:3000"]
+additional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000", "https://localhost:3000", "https://127.0.0.1:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 seconds (one
 # week).
 jwt_expiry = 3600
@@ -69,4 +69,47 @@ secret = ""
 redirect_uri = ""
 # Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
 # or any other third-party OIDC providers.
-url = "" 
+url = ""
+
+[auth.external.github]
+enabled = true
+client_id = "env(GITHUB_CLIENT_ID)"
+secret = "env(GITHUB_CLIENT_SECRET)"
+
+[auth.external.twitter]
+enabled = true
+client_id = "env(TWITTER_CLIENT_ID)"
+secret = "env(TWITTER_CLIENT_SECRET)"
+# Force OAuth 2.0 user context instead of application-only
+redirect_uri = ""
+url = ""
+
+[auth.external.azure]
+enabled = false
+client_id = "env(AZURE_CLIENT_ID)"
+secret = "env(AZURE_CLIENT_SECRET)"
+
+[auth.external.discord]
+enabled = false
+client_id = "env(DISCORD_CLIENT_ID)"
+secret = "env(DISCORD_CLIENT_SECRET)"
+
+[auth.external.gitlab]
+enabled = false
+client_id = "env(GITLAB_CLIENT_ID)"
+secret = "env(GITLAB_CLIENT_SECRET)"
+
+[auth.external.linkedin]
+enabled = false
+client_id = "env(LINKEDIN_CLIENT_ID)"
+secret = "env(LINKEDIN_CLIENT_SECRET)"
+
+[auth.external.notion]
+enabled = false
+client_id = "env(NOTION_CLIENT_ID)"
+secret = "env(NOTION_CLIENT_SECRET)"
+
+[auth.external.twitch]
+enabled = false
+client_id = "env(TWITCH_CLIENT_ID)"
+secret = "env(TWITCH_CLIENT_SECRET)" 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2, RefreshCw, Cloud, MessageCircle, GitBranch, Linkedin, FileText, Tv, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConnectedAccounts, Provider } from '@/hooks/useConnectedAccounts';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,61 @@ const providers: Array<{
     id: 'twitter',
     name: 'Twitter',
     icon: Twitter,
-    color: 'text-blue-500',
+    color: 'text-blue-500'
+  },
+  {
+    id: 'azure',
+    name: 'Microsoft Azure',
+    icon: Cloud,
+    color: 'text-blue-600',
+    disabled: true,
+    disabledReason: 'Coming soon'
+  },
+  {
+    id: 'discord',
+    name: 'Discord',
+    icon: MessageCircle,
+    color: 'text-indigo-500',
+    disabled: true,
+    disabledReason: 'Coming soon'
+  },
+  {
+    id: 'gitlab',
+    name: 'GitLab',
+    icon: GitBranch,
+    color: 'text-orange-500',
+    disabled: true,
+    disabledReason: 'Coming soon'
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    icon: Linkedin,
+    color: 'text-blue-700',
+    disabled: true,
+    disabledReason: 'Coming soon'
+  },
+  {
+    id: 'notion',
+    name: 'Notion',
+    icon: FileText,
+    color: 'text-gray-800 dark:text-gray-200',
+    disabled: true,
+    disabledReason: 'Coming soon'
+  },
+  {
+    id: 'twitch',
+    name: 'Twitch',
+    icon: Tv,
+    color: 'text-purple-500',
+    disabled: true,
+    disabledReason: 'Coming soon'
+  },
+  {
+    id: 'telegram',
+    name: 'Telegram',
+    icon: Send,
+    color: 'text-blue-400',
     disabled: true,
     disabledReason: 'Coming soon'
   },
@@ -123,8 +177,9 @@ export default function OAuthConnectButtons() {
   const handleRefresh = async (provider: Provider) => {
     setRefreshing(provider);
     
-    // Show immediate feedback
-    showToast(`Syncing ${provider} bookmarks...`, 'success');
+    // Show immediate feedback  
+    const contentType = provider === 'twitter' ? 'likes' : 'bookmarks';
+    showToast(`Syncing ${provider} ${contentType}...`, 'success');
     
     try {
       // Manual bookmark sync - make a request to fetch from GitHub API
@@ -135,7 +190,14 @@ export default function OAuthConnectButtons() {
       
       if (response.ok) {
         const result = await response.json();
-        showToast(`✅ Synced ${result.count || 0} bookmarks from ${provider}!`, 'success');
+        const contentType = provider === 'twitter' ? 'likes' : 'bookmarks';
+        
+        // Handle Twitter special case with helpful message
+        if (provider === 'twitter' && result.helpMessage) {
+          showToast(`🐦 ${result.helpMessage}`, 'success');
+        } else {
+          showToast(`✅ Synced ${result.count || 0} ${contentType} from ${provider}!`, 'success');
+        }
         
         // Force refresh the bookmarks data in the UI
         window.dispatchEvent(new CustomEvent('bookmarks-updated'));
@@ -248,16 +310,6 @@ export default function OAuthConnectButtons() {
             </div>
           );
         })}
-      </div>
-
-      <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-        <h4 className="font-medium mb-2">Why connect your accounts?</h4>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Automatically import your starred repositories from GitHub</li>
-          <li>• Sync your saved tweets and liked content from Twitter</li>
-          <li>• Import saved posts and comments from Reddit</li>
-          <li>• Collect your Stack Overflow favorites and bookmarks</li>
-        </ul>
       </div>
     </div>
   );

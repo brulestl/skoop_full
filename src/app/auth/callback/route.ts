@@ -61,7 +61,9 @@ export async function GET(request: NextRequest) {
         if (provider === 'github') {
           try {
             console.log('Triggering initial sync...');
-            const syncResponse = await fetch(`${requestUrl.origin}/api/sync/${provider}`, {
+            // Use 127.0.0.1 instead of localhost to avoid IPv6 issues
+            const syncUrl = requestUrl.origin.replace('localhost', '127.0.0.1');
+            const syncResponse = await fetch(`${syncUrl}/api/sync/${provider}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -82,7 +84,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Success without sync or sync failed
+        // Success without sync or sync failed  
         return NextResponse.redirect(`${requestUrl.origin}/dashboard?connected=${provider}&tab=profile`);
         
       } catch (storeError) {
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // No provider info, just redirect to dashboard
+    // No provider info, just redirect to dashboard profile
     console.log('OAuth successful but no provider specified');
     return NextResponse.redirect(`${requestUrl.origin}/dashboard?tab=profile`);
 

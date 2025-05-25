@@ -90,7 +90,14 @@ export function getProviderDisplayName(provider: Provider): string {
     github: 'GitHub',
     twitter: 'Twitter',
     reddit: 'Reddit', 
-    stack: 'Stack Overflow'
+    stack: 'Stack Overflow',
+    azure: 'Microsoft Azure',
+    discord: 'Discord',
+    gitlab: 'GitLab',
+    linkedin: 'LinkedIn',
+    notion: 'Notion',
+    twitch: 'Twitch',
+    telegram: 'Telegram'
   };
   return names[provider] || provider;
 }

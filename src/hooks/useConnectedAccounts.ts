@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSessionContext } from '@supabase/auth-helpers-react';
 import type { Provider as SupabaseProvider } from '@supabase/supabase-js';
 
-export type Provider = 'github' | 'twitter' | 'reddit' | 'stack';
+export type Provider = 'github' | 'twitter' | 'reddit' | 'stack' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch' | 'telegram';
 
 interface ConnectedAccount {
   id: string;
@@ -63,7 +63,7 @@ export function useConnectedAccounts() {
       console.log('Redirect URL:', redirectTo);
       
       // Map our provider types to Supabase OAuth provider types
-      let oauthProvider: 'github' | 'google' | 'twitter';
+      let oauthProvider: 'github' | 'google' | 'twitter' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch';
       switch (provider) {
         case 'github':
           oauthProvider = 'github';
@@ -71,14 +71,35 @@ export function useConnectedAccounts() {
         case 'twitter':
           oauthProvider = 'twitter';
           break;
+        case 'azure':
+          oauthProvider = 'azure';
+          break;
+        case 'discord':
+          oauthProvider = 'discord';
+          break;
+        case 'gitlab':
+          oauthProvider = 'gitlab';
+          break;
+        case 'linkedin':
+          oauthProvider = 'linkedin';
+          break;
+        case 'notion':
+          oauthProvider = 'notion';
+          break;
+        case 'twitch':
+          oauthProvider = 'twitch';
+          break;
         case 'reddit':
           // Reddit OAuth needs to be handled via custom redirect
-          // For now, show an error message
           setConnecting(null);
           throw new Error('Reddit OAuth coming soon! Please use GitHub or Twitter for now.');
         case 'stack':
           oauthProvider = 'google'; // Stack Overflow uses Google OAuth
           break;
+        case 'telegram':
+          // Telegram OAuth needs special handling
+          setConnecting(null);
+          throw new Error('Telegram OAuth coming soon! Please use other providers for now.');
         default:
           setConnecting(null);
           throw new Error(`Unsupported provider: ${provider}`);
@@ -153,9 +174,16 @@ export function useConnectedAccounts() {
   const getProviderScopes = (provider: Provider): string => {
     const scopes = {
       github: 'read:user,repo,user:email',
-      twitter: 'read,write',
+      twitter: 'tweet.read,users.read,like.read',
       reddit: 'read,history,identity',
-      stack: 'read_inbox,no_expiry'
+      stack: 'read_inbox,no_expiry',
+      azure: 'openid,profile,email',
+      discord: 'identify,email',
+      gitlab: 'read_user,read_repository',
+      linkedin: 'r_liteprofile,r_emailaddress',
+      notion: 'read',
+      twitch: 'user:read:email',
+      telegram: 'read'
     };
     return scopes[provider] || '';
   };

@@ -323,7 +323,7 @@ Please provide:
 
 Keep the summary engaging and informative.`;
 
-      const result = await generateText(prompt, selectedModel);
+        const result = await generateText(prompt, selectedModel);
       setSummary(result.text);
       } catch (error) {
       console.error('Error generating summary:', error);

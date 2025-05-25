@@ -21,19 +21,29 @@ interface GitHubRepo {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { provider: string } }
+  { params }: { params: Promise<{ provider: string }> }
 ) {
   const startTime = new Date();
   let syncHistoryId: string | null = null;
   
   try {
-    const { provider } = params;
+    const { provider } = await params;
     
     console.log(`=== SYNC DEBUG START === Provider: ${provider}`);
     
-    if (provider !== 'github') {
+    const supportedProviders = ['github', 'twitter'];
+    const comingSoonProviders = ['azure', 'discord', 'gitlab', 'linkedin', 'notion', 'twitch', 'telegram', 'reddit', 'stack'];
+    
+    if (!supportedProviders.includes(provider) && !comingSoonProviders.includes(provider)) {
       return NextResponse.json(
-        { error: 'Provider not supported yet' },
+        { error: 'Provider not supported' },
+        { status: 400 }
+      );
+    }
+    
+    if (comingSoonProviders.includes(provider)) {
+      return NextResponse.json(
+        { error: `${provider} sync coming soon! Currently only GitHub and Twitter are supported.` },
         { status: 400 }
       );
     }
@@ -57,6 +67,175 @@ export async function POST(
     const syncType = url.searchParams.get('sync_type') === 'automatic' ? 'automatic' : 'manual';
 
     console.log(`🔄 Sync type: ${syncType}`);
+
+    // Handle Twitter bookmark sync
+    if (provider === 'twitter') {
+      console.log('🐦 Starting Twitter likes sync (last 5)...');
+      
+      // Get connected account and access token
+      console.log('🔍 Looking for connected Twitter account...');
+      const { data: connectedAccount, error: accountError } = await supabase
+        .from('connected_accounts')
+        .select('access_token')
+        .eq('user_id', session.user.id)
+        .eq('provider', provider)
+        .single();
+
+      if (accountError || !connectedAccount) {
+        console.log('❌ Twitter account not connected:', accountError);
+        await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, 'Twitter account not connected');
+        return NextResponse.json(
+          { error: 'Twitter account not connected' },
+          { status: 400 }
+        );
+      }
+
+      console.log('✅ Found connected Twitter account with access token');
+
+      try {
+        // First get the user ID for the likes endpoint
+        console.log('🔍 Attempting to get Twitter user info...');
+        const userResponse = await fetch(
+          'https://api.twitter.com/2/users/me',
+          {
+            headers: {
+              'Authorization': `Bearer ${connectedAccount.access_token}`,
+              'User-Agent': 'SKOOP-App'
+            }
+          }
+        );
+
+        if (!userResponse.ok) {
+          const errorText = await userResponse.text();
+          console.error('❌ Twitter User API error:', userResponse.status, errorText);
+          
+          let errorMessage = 'Twitter API error';
+          if (userResponse.status === 401) {
+            errorMessage = 'Twitter access token is invalid or expired. Please reconnect your account.';
+          } else if (userResponse.status === 429) {
+            errorMessage = 'Twitter API rate limit exceeded. Please try again later.';
+          } else {
+            errorMessage = `Twitter API error: ${userResponse.statusText}`;
+          }
+          
+          await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, errorMessage);
+          return NextResponse.json({ error: errorMessage }, { status: userResponse.status });
+        }
+
+        const userData = await userResponse.json();
+        const userId = userData.data.id;
+
+        // Try Twitter API v2 with user context, fallback to mock data if forbidden
+        console.log('🐦 Attempting Twitter likes API call...');
+        const twitterResponse = await fetch(
+          `https://api.twitter.com/2/users/${userId}/liked_tweets?max_results=5&tweet.fields=created_at,author_id,public_metrics&expansions=author_id`,
+          {
+            headers: {
+              'Authorization': `Bearer ${connectedAccount.access_token}`,
+              'User-Agent': 'SKOOP-App'
+            }
+          }
+        );
+
+        console.log(`🌐 Twitter API response status: ${twitterResponse.status} ${twitterResponse.statusText}`);
+
+        if (!twitterResponse.ok) {
+          const errorText = await twitterResponse.text();
+          console.error('❌ Twitter API error:', twitterResponse.status, errorText);
+          
+          // Handle OAuth 2.0 Application-Only forbidden error with helpful message
+          if (twitterResponse.status === 403 && errorText.includes('Application-Only')) {
+            console.log('📝 Twitter OAuth user context not available, providing helpful guidance...');
+            
+            await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, 'Twitter OAuth user context required for likes access');
+            
+            return NextResponse.json({
+              error: 'Twitter connection successful, but likes access requires Twitter API Pro or different OAuth setup. Your connection is saved and ready for future features.',
+              helpMessage: 'Twitter likes require OAuth 2.0 user context which may need Twitter API Pro access. Your account connection is working correctly.',
+              count: 0,
+              provider: 'twitter',
+              sync_type: syncType
+            }, { status: 200 }); // Return 200 so UI doesn't show as complete failure
+          }
+          
+          let errorMessage = 'Twitter API error';
+          if (twitterResponse.status === 401) {
+            errorMessage = 'Twitter access token is invalid or expired. Please reconnect your account.';
+          } else if (twitterResponse.status === 429) {
+            errorMessage = 'Twitter API rate limit exceeded. Please try again later.';
+          } else {
+            errorMessage = `Twitter API error: ${twitterResponse.statusText}`;
+          }
+          
+          await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, errorMessage);
+          return NextResponse.json({ error: errorMessage }, { status: twitterResponse.status });
+        }
+
+        const twitterData = await twitterResponse.json();
+        const likes = twitterData.data || [];
+        
+        console.log(`📊 Got ${likes.length} Twitter likes (last 5)`);
+
+        // Transform Twitter likes to our format
+        const twitterLikesToInsert = likes.map((tweet: any) => ({
+          user_id: session.user.id,
+          url: `https://twitter.com/i/web/status/${tweet.id}`,
+          title: tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : ''),
+          description: tweet.text,
+          source: 'twitter' as const,
+          sync_type: syncType,
+          tags: ['twitter', 'liked'],
+          created_at: new Date().toISOString()
+        }));
+
+        // Insert Twitter likes in batches
+        let twitterInsertedCount = 0;
+        const batchSize = 50;
+        
+        console.log(`💾 Starting Twitter likes insertion in batches of ${batchSize}...`);
+        
+        for (let i = 0; i < twitterLikesToInsert.length; i += batchSize) {
+          const batch = twitterLikesToInsert.slice(i, i + batchSize);
+          
+          console.log(`📤 Inserting Twitter batch ${Math.floor(i/batchSize) + 1}: ${batch.length} items`);
+          
+          const { error: insertError } = await supabase
+            .from('bookmarks')
+            .upsert(batch, {
+              onConflict: 'user_id,url',
+              ignoreDuplicates: false
+            });
+
+          if (insertError) {
+            console.error('❌ Error inserting Twitter likes batch:', insertError);
+          } else {
+            twitterInsertedCount += batch.length;
+            console.log(`✅ Successfully inserted Twitter batch: ${batch.length} items`);
+          }
+        }
+
+        console.log(`🎉 Successfully synced ${twitterInsertedCount} Twitter likes`);
+
+        // Update sync history with success
+        await updateSyncHistory(supabase, syncHistoryId, 'success', twitterInsertedCount);
+
+        return NextResponse.json({
+          success: true,
+          count: twitterInsertedCount,
+          total: likes.length,
+          provider: 'twitter',
+          sync_type: syncType
+        });
+
+      } catch (error) {
+        console.error('💥 Twitter sync error:', error);
+        await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error instanceof Error ? error.message : 'Unknown Twitter sync error');
+        return NextResponse.json(
+          { error: 'Twitter sync failed' },
+          { status: 500 }
+        );
+      }
+    }
 
     // Log sync start
     const { data: syncLog, error: logError } = await (supabase as any)

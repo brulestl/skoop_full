@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle, CreditCard } from "lucide-react";
+import { CheckCircle, CreditCard, Edit2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,22 @@ import OAuthConnectButtons from "@/components/auth/oauth-connect-buttons";
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
   const { user } = useAuth();
+  
+  // Username editing state
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [editedUsername, setEditedUsername] = useState('');
+  const [savedUsername, setSavedUsername] = useState('');
+
+  // Initialize username from email (part before @) or saved username
+  useEffect(() => {
+    if (user?.email) {
+      const defaultUsername = user.email.split('@')[0];
+      // Try to get saved username from localStorage or use email prefix
+      const stored = localStorage.getItem(`username_${user.id}`) || defaultUsername;
+      setSavedUsername(stored);
+      setEditedUsername(stored);
+    }
+  }, [user]);
 
   // Handle URL parameters for success messages
   useEffect(() => {
@@ -69,7 +85,7 @@ export default function Profile() {
     }, 5000);
   };
 
-  // Get user initials for avatar
+  // Get user initials for avatar (always from email)
   const getUserInitials = (email: string | undefined) => {
     if (!email) return 'U';
     const nameParts = email.split('@')[0].split('.');
@@ -77,6 +93,33 @@ export default function Profile() {
       return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
     }
     return email[0].toUpperCase();
+  };
+
+  // Handle username editing
+  const handleEditUsername = () => {
+    setIsEditingUsername(true);
+  };
+
+  const handleSaveUsername = () => {
+    if (editedUsername.trim() && user?.id) {
+      setSavedUsername(editedUsername.trim());
+      localStorage.setItem(`username_${user.id}`, editedUsername.trim());
+      setIsEditingUsername(false);
+      showToast('Username updated successfully!', 'success');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditedUsername(savedUsername);
+    setIsEditingUsername(false);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveUsername();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
   };
 
   return <div data-unique-id="480f98f8-3a19-4ace-b03f-38d7d23d7482" data-file-name="components/dashboard/profile.tsx" data-dynamic-text="true">
@@ -100,9 +143,47 @@ export default function Profile() {
             {getUserInitials(user?.email)}
           </div>
           <div data-unique-id="73a91b44-3745-4e82-83c6-7d813dc9461a" data-file-name="components/dashboard/profile.tsx">
-            <h2 className="text-xl font-semibold" data-unique-id="da7fddc0-e95a-49d0-9960-760fc87f6f00" data-file-name="components/dashboard/profile.tsx">
-              {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
-            </h2>
+            {/* Editable Username */}
+            <div className="flex items-center gap-2 mb-1">
+              {isEditingUsername ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editedUsername}
+                    onChange={(e) => setEditedUsername(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    className="text-xl font-semibold bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveUsername}
+                    className="p-1 text-green-600 hover:bg-green-100 rounded"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="p-1 text-red-600 hover:bg-red-100 rounded"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-semibold" data-unique-id="da7fddc0-e95a-49d0-9960-760fc87f6f00" data-file-name="components/dashboard/profile.tsx">
+                    {savedUsername || 'User'}
+                  </h2>
+                  <button
+                    onClick={handleEditUsername}
+                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {/* Email (always from login credentials) */}
             <p className="text-muted-foreground" data-unique-id="bb076531-e068-4ad8-b175-d2e2b694c9f5" data-file-name="components/dashboard/profile.tsx">
               {user?.email || 'No email available'}
             </p>
