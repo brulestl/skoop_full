@@ -4,13 +4,15 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
 
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { transformBookmarksForUI, createMockBookmarkData, UIBookmark } from '@/utils/transformBookmarks';
+import { useCollections, useCollectionOperations } from '@/hooks/useCollections';
+import { analyzeBookmarksForCollection, SemanticSuggestion, SemanticAnalysisResult } from '@/services/semanticAnalysis';
 
 // Source icon mapping
 const SourceIcon = ({ source }: { source: string }) => {
@@ -28,12 +30,18 @@ const SaveCard = ({
   save,
   onShowAISummary,
   onAddToCollection,
-  onDelete
+  onDelete,
+  bulkSelectionMode = false,
+  isSelected = false,
+  onSelect
 }: {
   save: UIBookmark;
   onShowAISummary: (save: UIBookmark) => void;
   onAddToCollection: (save: UIBookmark) => void;
   onDelete: (save: UIBookmark) => void;
+  bulkSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: (bookmarkId: string | number) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -63,9 +71,14 @@ const SaveCard = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="group relative bg-card rounded-lg border border-border hover:border-primary/20 transition-all duration-200"
+      className={cn(
+        "group relative bg-card rounded-lg border border-border hover:border-primary/20 transition-all duration-200",
+        bulkSelectionMode && isSelected && "ring-2 ring-primary bg-primary/5",
+        bulkSelectionMode && "cursor-pointer"
+      )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={() => bulkSelectionMode && onSelect?.(save.id)}
     >
       {save.image && (
         <div className="relative w-full h-48 overflow-hidden rounded-t-lg">
@@ -81,11 +94,20 @@ const SaveCard = ({
             <span className="capitalize">{save.source}</span>
         </div>
           <div className="absolute top-3 right-3 flex items-center space-x-2">
+            {bulkSelectionMode && (
+              <div className={cn(
+                "w-5 h-5 rounded border-2 flex items-center justify-center bg-white/90 backdrop-blur-sm",
+                isSelected ? "border-primary bg-primary" : "border-white"
+              )}>
+                {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+              </div>
+            )}
             {save.starred && (
               <div className="p-1.5 bg-amber-500 rounded-full">
                 <Star className="h-3 w-3 text-white fill-current" />
               </div>
             )}
+            {!bulkSelectionMode && (
             <Button
               variant="ghost"
               size="sm"
@@ -98,6 +120,7 @@ const SaveCard = ({
             >
               <Trash2 className="h-3 w-3" />
             </Button>
+            )}
           </div>
         </div>
       )}
@@ -110,7 +133,16 @@ const SaveCard = ({
               <span className="capitalize">{save.source}</span>
             </div>
             <div className="flex items-center space-x-2">
+              {bulkSelectionMode && (
+                <div className={cn(
+                  "w-4 h-4 rounded border-2 flex items-center justify-center",
+                  isSelected ? "border-primary bg-primary" : "border-muted-foreground"
+                )}>
+                  {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                </div>
+              )}
               {save.starred && <Star className="h-4 w-4 text-amber-500 fill-current" />}
+              {!bulkSelectionMode && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -123,6 +155,7 @@ const SaveCard = ({
               >
                 <Trash2 className="h-3 w-3" />
               </Button>
+              )}
             </div>
           </div>
         )}
@@ -208,12 +241,18 @@ const SaveListItem = ({
   save,
   onShowAISummary,
   onAddToCollection,
-  onDelete
+  onDelete,
+  bulkSelectionMode = false,
+  isSelected = false,
+  onSelect
 }: {
   save: UIBookmark;
   onShowAISummary: (save: UIBookmark) => void;
   onAddToCollection: (save: UIBookmark) => void;
   onDelete: (save: UIBookmark) => void;
+  bulkSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: (bookmarkId: string | number) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -243,9 +282,14 @@ const SaveListItem = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="group relative bg-card rounded-lg border border-border hover:border-primary/20 transition-all duration-200 p-4"
+      className={cn(
+        "group relative bg-card rounded-lg border border-border hover:border-primary/20 transition-all duration-200 p-4",
+        bulkSelectionMode && isSelected && "ring-2 ring-primary bg-primary/5",
+        bulkSelectionMode && "cursor-pointer"
+      )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={() => bulkSelectionMode && onSelect?.(save.id)}
     >
       <div className="flex items-start space-x-4">
         {save.image && (
@@ -262,8 +306,17 @@ const SaveListItem = ({
               {save.starred && <Star className="h-4 w-4 text-amber-500 fill-current" />}
             </div>
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              {bulkSelectionMode && (
+                <div className={cn(
+                  "w-4 h-4 rounded border-2 flex items-center justify-center",
+                  isSelected ? "border-primary bg-primary" : "border-muted-foreground"
+                )}>
+                  {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                </div>
+              )}
               <Calendar className="h-4 w-4" />
               <span>{format(save.savedAt, 'MMM d, yyyy')}</span>
+              {!bulkSelectionMode && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -276,6 +329,7 @@ const SaveListItem = ({
               >
                 <Trash2 className="h-3 w-3" />
               </Button>
+              )}
             </div>
           </div>
           
@@ -444,7 +498,7 @@ const AISummaryPanel = ({
   );
 };
 
-// Collection Modal placeholder
+// Collection Modal - fully functional
 const AddToCollectionModal = ({
   isOpen,
   onClose,
@@ -454,7 +508,140 @@ const AddToCollectionModal = ({
   onClose: () => void;
   save: UIBookmark | null;
 }) => {
+  const { collections, loading: collectionsLoading, createCollection } = useCollections();
+  const { addToCollection } = useCollectionOperations();
+  
+  const [selectedCollections, setSelectedCollections] = useState<Set<string>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCreateNew, setShowCreateNew] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [newCollectionColor, setNewCollectionColor] = useState<'primary' | 'accent' | 'destructive' | 'secondary'>('primary');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [semanticAnalysis, setSemanticAnalysis] = useState<SemanticAnalysisResult | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<SemanticSuggestion | null>(null);
+  const [showSemanticSuggestions, setShowSemanticSuggestions] = useState(false);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedCollections(new Set());
+      setShowCreateNew(false);
+      setNewCollectionName('');
+      setNewCollectionColor('primary');
+      setError(null);
+      setSuccess(null);
+      setSelectedSuggestion(null);
+      setShowSemanticSuggestions(false);
+      
+      // Perform semantic analysis on the single bookmark
+      if (save) {
+        const analysis = analyzeBookmarksForCollection([save]);
+        setSemanticAnalysis(analysis);
+        
+        // Auto-show suggestions if confidence is decent
+        if (analysis.suggestions.length > 0 && analysis.suggestions[0].confidence > 0.4) {
+          setShowSemanticSuggestions(true);
+        }
+      }
+    } else {
+      // Reset all state when modal closes
+      setSelectedCollections(new Set());
+      setShowCreateNew(false);
+      setNewCollectionName('');
+      setNewCollectionColor('primary');
+      setError(null);
+      setSuccess(null);
+      setSelectedSuggestion(null);
+      setShowSemanticSuggestions(false);
+      setSemanticAnalysis(null);
+    }
+  }, [isOpen, save]);
+
   if (!isOpen || !save) return null;
+
+  const handleCollectionToggle = (collectionId: string) => {
+    const newSelected = new Set(selectedCollections);
+    if (newSelected.has(collectionId)) {
+      newSelected.delete(collectionId);
+    } else {
+      newSelected.add(collectionId);
+    }
+    setSelectedCollections(newSelected);
+  };
+
+  const handleCreateNewCollection = async () => {
+    if (!newCollectionName.trim()) return;
+    
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      const result = await createCollection({
+        name: newCollectionName.trim(),
+        color: newCollectionColor,
+        type: 'manual'
+      });
+
+      if (result.success && result.data) {
+        // Add the new collection to selected collections
+        setSelectedCollections(prev => new Set([...prev, result.data!.id]));
+        setShowCreateNew(false);
+        setNewCollectionName('');
+        setSuccess(`Created collection "${result.data.name}"`);
+      } else {
+        setError(result.error || 'Failed to create collection');
+      }
+    } catch (err) {
+      setError('Failed to create collection');
+      console.error('Error creating collection:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddToCollections = async () => {
+    if (selectedCollections.size === 0) {
+      setError('Please select at least one collection');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const promises = Array.from(selectedCollections).map(collectionId =>
+        addToCollection({
+          collectionId,
+          bookmarkIds: [save.id.toString()]
+        })
+      );
+
+      const results = await Promise.all(promises);
+      const failedResults = results.filter(result => !result.success);
+
+      if (failedResults.length > 0) {
+        setError(`Failed to add to ${failedResults.length} collection(s)`);
+      } else {
+        setSuccess(`Added to ${selectedCollections.size} collection(s)`);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      }
+    } catch (err) {
+      setError('Failed to add to collections');
+      console.error('Error adding to collections:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const colorOptions = [
+    { value: 'primary' as const, label: 'Blue', class: 'bg-primary' },
+    { value: 'accent' as const, label: 'Orange', class: 'bg-accent' },
+    { value: 'destructive' as const, label: 'Red', class: 'bg-destructive' },
+    { value: 'secondary' as const, label: 'Gray', class: 'bg-secondary' }
+  ];
 
   return (
     <AnimatePresence>
@@ -469,22 +656,807 @@ const AddToCollectionModal = ({
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-background rounded-lg border border-border max-w-md w-full p-6"
+          className="bg-background rounded-lg border border-border max-w-lg w-full max-h-[80vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between mb-4">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-border">
+            <div>
             <h2 className="text-lg font-semibold">Add to Collection</h2>
-            <Button variant="ghost" size="sm" onClick={onClose}>
+              <p className="text-sm text-muted-foreground mt-1">
+                {save.title.length > 50 ? `${save.title.substring(0, 50)}...` : save.title}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} disabled={isSubmitting}>
               <X className="h-4 w-4" />
             </Button>
           </div>
           
-          <p className="text-sm text-muted-foreground mb-4">
-            Collection feature coming soon! You'll be able to organize your bookmarks into custom collections.
-          </p>
-          
-          <div className="flex justify-end">
-            <Button onClick={onClose}>Close</Button>
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[60vh]">
+            {/* Status Messages */}
+            {error && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-700">{success}</p>
+              </div>
+            )}
+
+            {/* Smart Collection Suggestions for Single Bookmark */}
+            {semanticAnalysis && semanticAnalysis.suggestions.length > 0 && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-primary/5 to-accent/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <h3 className="font-medium">Smart Collection Suggestions</h3>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSemanticSuggestions(!showSemanticSuggestions)}
+                    disabled={isSubmitting}
+                  >
+                    {showSemanticSuggestions ? 'Hide' : 'Show'} Suggestions
+                  </Button>
+                </div>
+                
+                {showSemanticSuggestions && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Based on this bookmark's content, here are some intelligent collection suggestions:
+                    </p>
+                    
+                    <div className="grid gap-2 max-h-32 overflow-y-auto">
+                      {semanticAnalysis.suggestions.slice(0, 3).map((suggestion, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/50 bg-background transition-all"
+                        >
+                          <div className="flex items-start space-x-3 flex-1">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <p className="font-medium text-sm">{suggestion.name}</p>
+                                <span className={cn(
+                                  "px-1.5 py-0.5 rounded-full text-xs font-medium",
+                                  suggestion.confidence > 0.7 ? "bg-green-100 text-green-700" :
+                                  suggestion.confidence > 0.5 ? "bg-yellow-100 text-yellow-700" :
+                                  "bg-gray-100 text-gray-700"
+                                )}>
+                                  {Math.round(suggestion.confidence * 100)}%
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{suggestion.reasoning}</p>
+                            </div>
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedSuggestion(suggestion);
+                              setNewCollectionName(suggestion.name);
+                              setShowCreateNew(true);
+                                                    }}
+                        className="ml-3 h-8"
+                        disabled={isSubmitting}
+                      >
+                        <FolderPlus className="h-3 w-3 mr-1" />
+                        Create
+                      </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Collections List */}
+            {collectionsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : collections.length === 0 ? (
+              <div className="text-center py-8">
+                <FolderPlus className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground mb-4">No collections yet</p>
+                <Button 
+                  onClick={() => setShowCreateNew(true)} 
+                  variant="outline"
+                  disabled={isSubmitting}
+                >
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Create Your First Collection
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Select Collections</h3>
+                  <Button 
+                    onClick={() => setShowCreateNew(true)} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isSubmitting}
+                  >
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    New Collection
+                  </Button>
+                </div>
+
+                <div className="grid gap-2 max-h-60 overflow-y-auto">
+                  {collections.map(collection => (
+                    <div
+                      key={collection.id}
+                      className={cn(
+                        "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
+                        selectedCollections.has(collection.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50",
+                        isSubmitting && "opacity-50 cursor-not-allowed"
+                      )}
+                      onClick={() => !isSubmitting && handleCollectionToggle(collection.id)}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded border-2 flex items-center justify-center",
+                        selectedCollections.has(collection.id)
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground"
+                      )}>
+                        {selectedCollections.has(collection.id) && (
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        )}
+                      </div>
+                      
+                      <div className={cn(
+                        "w-6 h-6 rounded flex items-center justify-center",
+                        collection.color === 'primary' && 'bg-primary',
+                        collection.color === 'accent' && 'bg-accent',
+                        collection.color === 'destructive' && 'bg-destructive',
+                        collection.color === 'secondary' && 'bg-secondary'
+                      )}>
+                        <FolderIcon className="h-3 w-3 text-white" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{collection.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {collection.count} items
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Create New Collection Form */}
+            {showCreateNew && (
+              <div className="mt-6 p-4 border border-border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Create New Collection</h4>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowCreateNew(false)}
+                    disabled={isSubmitting}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium block mb-1">Collection Name</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                      placeholder="Enter collection name"
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium block mb-1">Color</label>
+                    <div className="flex space-x-2">
+                      {colorOptions.map(option => (
+                        <button
+                          key={option.value}
+                          className={cn(
+                            "w-8 h-8 rounded-full border-2 transition-all",
+                            option.class,
+                            newCollectionColor === option.value
+                              ? "border-foreground scale-110"
+                              : "border-border hover:border-foreground/50"
+                          )}
+                          onClick={() => setNewCollectionColor(option.value)}
+                          disabled={isSubmitting}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleCreateNewCollection}
+                    disabled={!newCollectionName.trim() || isSubmitting}
+                    className="w-full"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <FolderPlus className="h-4 w-4 mr-2" />
+                        Create Collection
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddToCollections}
+              disabled={selectedCollections.size === 0 || isSubmitting}
+              className="skoop-button-primary"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Add to {selectedCollections.size} Collection{selectedCollections.size !== 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+// Bulk Add to Collection Modal
+const BulkAddToCollectionModal = ({
+  isOpen,
+  onClose,
+  selectedBookmarks,
+  bookmarks
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedBookmarks: Set<string | number>;
+  bookmarks: UIBookmark[];
+}) => {
+  const { collections, loading: collectionsLoading, createCollection } = useCollections();
+  const { addToCollection } = useCollectionOperations();
+  
+  const [selectedCollections, setSelectedCollections] = useState<Set<string>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCreateNew, setShowCreateNew] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [newCollectionColor, setNewCollectionColor] = useState<'primary' | 'accent' | 'destructive' | 'secondary'>('primary');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [semanticAnalysis, setSemanticAnalysis] = useState<SemanticAnalysisResult | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<SemanticSuggestion | null>(null);
+  const [showSemanticSuggestions, setShowSemanticSuggestions] = useState(false);
+
+  const selectedBookmarksList = useMemo(() => 
+    bookmarks.filter(bookmark => selectedBookmarks.has(bookmark.id)), 
+    [bookmarks, selectedBookmarks]
+  );
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedCollections(new Set());
+      setShowCreateNew(false);
+      setNewCollectionName('');
+      setNewCollectionColor('primary');
+      setError(null);
+      setSuccess(null);
+      setSelectedSuggestion(null);
+      setShowSemanticSuggestions(false);
+      
+      // Perform semantic analysis on selected bookmarks
+      if (selectedBookmarksList.length > 0) {
+        const analysis = analyzeBookmarksForCollection(selectedBookmarksList);
+        setSemanticAnalysis(analysis);
+        
+        // Auto-show suggestions if confidence is decent
+        if (analysis.suggestions.length > 0 && analysis.suggestions[0].confidence > 0.4) {
+          setShowSemanticSuggestions(true);
+        }
+      }
+    } else {
+      // Reset all state when modal closes
+      setSelectedCollections(new Set());
+      setShowCreateNew(false);
+      setNewCollectionName('');
+      setNewCollectionColor('primary');
+      setError(null);
+      setSuccess(null);
+      setSelectedSuggestion(null);
+      setShowSemanticSuggestions(false);
+      setSemanticAnalysis(null);
+    }
+  }, [isOpen, selectedBookmarksList]); // Now safe to include selectedBookmarksList since it's memoized
+
+  if (!isOpen || selectedBookmarks.size === 0) return null;
+
+  const handleCollectionToggle = (collectionId: string) => {
+    const newSelected = new Set(selectedCollections);
+    if (newSelected.has(collectionId)) {
+      newSelected.delete(collectionId);
+    } else {
+      newSelected.add(collectionId);
+    }
+    setSelectedCollections(newSelected);
+  };
+
+  const handleCreateNewCollection = async () => {
+    if (!newCollectionName.trim()) return;
+    
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      const result = await createCollection({
+        name: newCollectionName.trim(),
+        color: newCollectionColor,
+        type: 'manual'
+      });
+
+      if (result.success && result.data) {
+        setSelectedCollections(prev => new Set([...prev, result.data!.id]));
+        setShowCreateNew(false);
+        setNewCollectionName('');
+        setSuccess(`Created collection "${result.data.name}"`);
+      } else {
+        setError(result.error || 'Failed to create collection');
+      }
+    } catch (err) {
+      setError('Failed to create collection');
+      console.error('Error creating collection:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateFromSuggestion = async (suggestion: SemanticSuggestion) => {
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      // Determine color based on suggestion category
+      const getColorFromCategory = (category: string): 'primary' | 'accent' | 'destructive' | 'secondary' => {
+        switch (category.toLowerCase()) {
+          case 'technology': return 'primary';
+          case 'framework': return 'accent';
+          case 'language': return 'destructive';
+          default: return 'secondary';
+        }
+      };
+
+      const result = await createCollection({
+        name: suggestion.name,
+        color: getColorFromCategory(suggestion.category),
+        type: 'manual'
+      });
+
+      if (result.success && result.data) {
+        setSelectedCollections(prev => new Set([...prev, result.data!.id]));
+        setSuccess(`Created collection "${result.data.name}" from smart suggestion`);
+        
+        // Hide suggestions after successful creation
+        setShowSemanticSuggestions(false);
+      } else {
+        setError(result.error || 'Failed to create collection');
+      }
+    } catch (err) {
+      setError('Failed to create collection');
+      console.error('Error creating collection from suggestion:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddToCollections = async () => {
+    if (selectedCollections.size === 0) {
+      setError('Please select at least one collection');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const bookmarkIds = Array.from(selectedBookmarks).map(id => id.toString());
+      const promises = Array.from(selectedCollections).map(collectionId =>
+        addToCollection({
+          collectionId,
+          bookmarkIds
+        })
+      );
+
+      const results = await Promise.all(promises);
+      const failedResults = results.filter(result => !result.success);
+
+      if (failedResults.length > 0) {
+        setError(`Failed to add to ${failedResults.length} collection(s)`);
+      } else {
+        setSuccess(`Added ${selectedBookmarks.size} bookmarks to ${selectedCollections.size} collection(s)`);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      }
+    } catch (err) {
+      setError('Failed to add to collections');
+      console.error('Error adding to collections:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const colorOptions = [
+    { value: 'primary' as const, label: 'Blue', class: 'bg-primary' },
+    { value: 'accent' as const, label: 'Orange', class: 'bg-accent' },
+    { value: 'destructive' as const, label: 'Red', class: 'bg-destructive' },
+    { value: 'secondary' as const, label: 'Gray', class: 'bg-secondary' }
+  ];
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          className="bg-background rounded-lg border border-border max-w-lg w-full max-h-[80vh] overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-border">
+            <div>
+              <h2 className="text-lg font-semibold">Add {selectedBookmarks.size} Bookmarks to Collection</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Selected {selectedBookmarks.size} bookmark{selectedBookmarks.size !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} disabled={isSubmitting}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[60vh]">
+            {/* Status Messages */}
+            {error && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <p className="text-sm text-green-700">{success}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Selected Bookmarks Preview */}
+            <div className="mb-6">
+              <h3 className="font-medium mb-2">Selected Bookmarks</h3>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {selectedBookmarksList.slice(0, 5).map(bookmark => (
+                  <div key={bookmark.id} className="flex items-center space-x-2 text-sm">
+                    <SourceIcon source={bookmark.source} />
+                    <span className="truncate">{bookmark.title}</span>
+                  </div>
+                ))}
+                {selectedBookmarksList.length > 5 && (
+                  <p className="text-sm text-muted-foreground">
+                    ...and {selectedBookmarksList.length - 5} more
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Smart Collection Suggestions */}
+            {semanticAnalysis && semanticAnalysis.suggestions.length > 0 && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-primary/5 to-accent/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <h3 className="font-medium">Smart Collection Suggestions</h3>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSemanticSuggestions(!showSemanticSuggestions)}
+                    disabled={isSubmitting}
+                  >
+                    {showSemanticSuggestions ? 'Hide' : 'Show'} Suggestions
+                  </Button>
+                </div>
+                
+                {showSemanticSuggestions && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Based on your selected bookmarks, here are some intelligent collection name suggestions. Click "Create" to instantly create and select a collection:
+                    </p>
+                    
+                    <div className="grid gap-2 max-h-40 overflow-y-auto">
+                      {semanticAnalysis.suggestions.map((suggestion, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/50 bg-background transition-all"
+                        >
+                          <div className="flex items-start space-x-3 flex-1">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <p className="font-medium text-sm">{suggestion.name}</p>
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-xs font-medium",
+                                  suggestion.confidence > 0.8 ? "bg-green-100 text-green-700" :
+                                  suggestion.confidence > 0.6 ? "bg-yellow-100 text-yellow-700" :
+                                  "bg-gray-100 text-gray-700"
+                                )}>
+                                  {Math.round(suggestion.confidence * 100)}% match
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{suggestion.reasoning}</p>
+                              {suggestion.keywords.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {suggestion.keywords.slice(0, 3).map((keyword, i) => (
+                                    <span key={i} className="px-1.5 py-0.5 bg-secondary text-secondary-foreground text-xs rounded">
+                                      {keyword}
+                                    </span>
+                                  ))}
+                                                                {suggestion.keywords.length > 3 && (
+                                <span className="text-xs text-muted-foreground">+{suggestion.keywords.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCreateFromSuggestion(suggestion)}
+                        className="ml-3 h-8"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <FolderPlus className="h-3 w-3 mr-1" />
+                        )}
+                        {isSubmitting ? 'Creating...' : 'Create'}
+                      </Button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {semanticAnalysis.patterns.technologies.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-2">Detected patterns:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {semanticAnalysis.patterns.technologies.slice(0, 5).map((tech, i) => (
+                            <span key={i} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-md">
+                              {tech}
+                            </span>
+                          ))}
+                          {semanticAnalysis.patterns.technologies.length > 5 && (
+                            <span className="text-xs text-muted-foreground">+{semanticAnalysis.patterns.technologies.length - 5} more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Collections List */}
+            {collectionsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : collections.length === 0 ? (
+              <div className="text-center py-8">
+                <FolderPlus className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground mb-4">No collections yet</p>
+                <Button 
+                  onClick={() => setShowCreateNew(true)} 
+                  variant="outline"
+                  disabled={isSubmitting}
+                >
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Create Your First Collection
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Select Collections</h3>
+                  <Button 
+                    onClick={() => setShowCreateNew(true)} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isSubmitting}
+                  >
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    New Collection
+                  </Button>
+                </div>
+
+                <div className="grid gap-2 max-h-60 overflow-y-auto">
+                  {collections.map(collection => (
+                    <div
+                      key={collection.id}
+                      className={cn(
+                        "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
+                        selectedCollections.has(collection.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50",
+                        isSubmitting && "opacity-50 cursor-not-allowed"
+                      )}
+                      onClick={() => !isSubmitting && handleCollectionToggle(collection.id)}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded border-2 flex items-center justify-center",
+                        selectedCollections.has(collection.id)
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground"
+                      )}>
+                        {selectedCollections.has(collection.id) && (
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        )}
+                      </div>
+                      
+                      <div className={cn(
+                        "w-6 h-6 rounded flex items-center justify-center",
+                        collection.color === 'primary' && 'bg-primary',
+                        collection.color === 'accent' && 'bg-accent',
+                        collection.color === 'destructive' && 'bg-destructive',
+                        collection.color === 'secondary' && 'bg-secondary'
+                      )}>
+                        <FolderIcon className="h-3 w-3 text-white" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{collection.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {collection.count} items
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Create New Collection Form */}
+            {showCreateNew && (
+              <div className="mt-6 p-4 border border-border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Create New Collection</h4>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowCreateNew(false)}
+                    disabled={isSubmitting}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium block mb-1">Collection Name</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                      placeholder="Enter collection name"
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium block mb-1">Color</label>
+                    <div className="flex space-x-2">
+                      {colorOptions.map(option => (
+                        <button
+                          key={option.value}
+                          className={cn(
+                            "w-8 h-8 rounded-full border-2 transition-all",
+                            option.class,
+                            newCollectionColor === option.value
+                              ? "border-foreground scale-110"
+                              : "border-border hover:border-foreground/50"
+                          )}
+                          onClick={() => setNewCollectionColor(option.value)}
+                          disabled={isSubmitting}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleCreateNewCollection}
+                    disabled={!newCollectionName.trim() || isSubmitting}
+                    className="w-full"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <FolderPlus className="h-4 w-4 mr-2" />
+                        Create Collection
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddToCollections}
+              disabled={selectedCollections.size === 0 || isSubmitting}
+              className="skoop-button-primary"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Add to {selectedCollections.size} Collection{selectedCollections.size !== 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
           </div>
         </motion.div>
       </motion.div>
@@ -545,6 +1517,11 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   const [addToCollectionModalOpen, setAddToCollectionModalOpen] = useState(false);
   const [saveToAdd, setSaveToAdd] = useState<UIBookmark | null>(null);
   const [sortOption, setSortOption] = useState<'latest' | 'earliest' | 'popular'>('latest');
+  
+  // Bulk selection state
+  const [bulkSelectionMode, setBulkSelectionMode] = useState(false);
+  const [selectedBookmarks, setSelectedBookmarks] = useState<Set<string | number>>(new Set());
+  const [bulkAddToCollectionModalOpen, setBulkAddToCollectionModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -696,6 +1673,34 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     }
   };
 
+  // Bulk selection handlers
+  const handleToggleBulkSelection = () => {
+    setBulkSelectionMode(!bulkSelectionMode);
+    setSelectedBookmarks(new Set());
+  };
+
+  const handleBookmarkSelect = (bookmarkId: string | number) => {
+    const newSelected = new Set(selectedBookmarks);
+    if (newSelected.has(bookmarkId)) {
+      newSelected.delete(bookmarkId);
+    } else {
+      newSelected.add(bookmarkId);
+    }
+    setSelectedBookmarks(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedBookmarks.size === visibleSaves.length) {
+      setSelectedBookmarks(new Set());
+    } else {
+      setSelectedBookmarks(new Set(visibleSaves.map(save => save.id)));
+    }
+  };
+
+  const handleBulkAddToCollection = () => {
+    setBulkAddToCollectionModalOpen(true);
+  };
+
   const currentCount = isSearchActive && searchBookmarks.length > 0 
     ? searchBookmarks.length 
     : isUsingMockData 
@@ -772,6 +1777,27 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
           </div>
           
           <div className="flex items-center space-x-2">
+            <Button
+              variant={bulkSelectionMode ? "default" : "outline"}
+              size="sm"
+              onClick={handleToggleBulkSelection}
+              className="h-8"
+            >
+              {bulkSelectionMode ? (
+                <>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel Selection
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Select Multiple
+                </>
+              )}
+            </Button>
+            
+            {!bulkSelectionMode && (
+              <>
             <span className="text-sm text-muted-foreground">Sort by:</span>
             <div className="flex border border-border rounded-md overflow-hidden">
               <Button 
@@ -802,8 +1828,54 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                 Popular
               </Button>
             </div>
+              </>
+            )}
           </div>
         </div>
+        
+        {/* Bulk Selection Action Bar */}
+        {bulkSelectionMode && (
+          <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  className="h-8"
+                >
+                  {selectedBookmarks.size === visibleSaves.length ? (
+                    <>
+                      <X className="h-4 w-4 mr-2" />
+                      Deselect All
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Select All ({visibleSaves.length})
+                    </>
+                  )}
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {selectedBookmarks.size} bookmark{selectedBookmarks.size !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkAddToCollection}
+                  disabled={selectedBookmarks.size === 0}
+                  className="h-8 skoop-button-primary"
+                >
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Add to Collection
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-hidden">
@@ -835,6 +1907,9 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                     onShowAISummary={handleShowAISummary} 
                     onAddToCollection={handleAddToCollection}
                     onDelete={handleDelete}
+                    bulkSelectionMode={bulkSelectionMode}
+                    isSelected={selectedBookmarks.has(save.id)}
+                    onSelect={handleBookmarkSelect}
                   />
                 ))}
               </div>
@@ -847,6 +1922,9 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                     onShowAISummary={handleShowAISummary} 
                     onAddToCollection={handleAddToCollection}
                     onDelete={handleDelete}
+                    bulkSelectionMode={bulkSelectionMode}
+                    isSelected={selectedBookmarks.has(save.id)}
+                    onSelect={handleBookmarkSelect}
                   />
                 ))}
               </div>
@@ -881,6 +1959,13 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
         isOpen={addToCollectionModalOpen}
         onClose={() => setAddToCollectionModalOpen(false)}
         save={saveToAdd}
+      />
+      
+      <BulkAddToCollectionModal 
+        isOpen={bulkAddToCollectionModalOpen}
+        onClose={() => setBulkAddToCollectionModalOpen(false)}
+        selectedBookmarks={selectedBookmarks}
+        bookmarks={visibleSaves}
       />
             </div>
   );
