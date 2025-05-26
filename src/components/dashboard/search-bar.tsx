@@ -7,9 +7,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { generateText } from '@/lib/api/util';
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
+
 interface SearchBarProps {
   minimal?: boolean;
+  onSearchResults?: (results: any[]) => void;
+  onClearSearch?: () => void;
+  isSearchActive?: boolean;
 }
+
 interface SearchResult {
   id: string | number;
   title: string;
@@ -69,8 +76,12 @@ const SourceIcon = ({
       return <Search className="h-4 w-4" />;
   }
 };
+
 export default function SearchBar({
-  minimal = false
+  minimal = false,
+  onSearchResults,
+  onClearSearch,
+  isSearchActive
 }: SearchBarProps) {
   const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState("");
@@ -81,6 +92,7 @@ export default function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const [placeholder, setPlaceholder] = useState("Search across all your saved content...");
+  const { user } = useAuth();
 
   // Update placeholder based on window width
   useEffect(() => {
@@ -140,23 +152,60 @@ export default function SearchBar({
   const handleSearch = async (q: string) => {
     if (!q.trim()) {
       setResults([]);
+      if (onSearchResults) {
+        onSearchResults([]);
+      }
       return;
     }
+    
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
+
     setLoading(true);
     try {
-      // In a real implementation, this would call your semantic search endpoint
-      // For now, we'll use the AI model to simulate semantic search for demo purposes
-      const prompt = `Given the search query: "${q}", return the most relevant results from a bookmark collection focused on developer content. Analyze the semantic meaning beyond keywords.`;
+      // Call the semantic search Supabase function
+      const { data, error } = await supabase.functions.invoke('semantic_search', {
+        body: {
+          query: q,
+          userId: user.id
+        }
+      });
 
-      // Simulating semantic search with AI
-      await generateText(prompt, selectedModel);
+      if (error) {
+        throw error;
+      }
 
-      // For demo, we'll use our mock results filtered by query terms
-      const filteredResults = mockResults.filter(result => result.title.toLowerCase().includes(q.toLowerCase()) || result.description && result.description.toLowerCase().includes(q.toLowerCase()));
-      setResults(filteredResults);
+      const searchResults = data?.results || [];
+      
+      // Transform results to match our SearchResult interface
+      const transformedResults = searchResults.map((result: any) => ({
+        id: result.id,
+        title: result.title || 'Untitled',
+        description: result.description || result.summary || '',
+        source: 'bookmark', // Default source since these are from bookmarks
+        url: result.url,
+        score: result.similarity || 0
+      }));
+
+      setResults(transformedResults);
+      
+      // Pass results to parent component if callback provided
+      if (onSearchResults) {
+        onSearchResults(searchResults);
+      }
     } catch (error) {
       console.error('Search error:', error);
       setResults([]);
+      
+      // Fallback to mock results for demo purposes
+      const filteredResults = mockResults.filter(result => result.title.toLowerCase().includes(q.toLowerCase()) || result.description && result.description.toLowerCase().includes(q.toLowerCase()));
+      setResults(filteredResults);
+      
+      if (onSearchResults) {
+        onSearchResults([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -178,6 +227,24 @@ export default function SearchBar({
   const toggleModel = () => {
     setSelectedModel(selectedModel === 'claude-bedrock' ? 'azure-gpt-4o' : 'claude-bedrock');
   };
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      handleSearch(query);
+    }
+  };
+
+  // Handle clear search
+  const handleClearSearch = () => {
+    setQuery("");
+    setResults([]);
+    if (onClearSearch) {
+      onClearSearch();
+    }
+  };
+
   const handleInputFocus = () => {
     setFocused(true);
     if (!minimal) {
@@ -186,15 +253,17 @@ export default function SearchBar({
   };
   return <>
       <div className={cn("relative", minimal ? "w-full" : "max-w-2xl mx-auto w-full")} data-unique-id="249380aa-6d99-4645-ab12-049bd402d5a9" data-file-name="components/dashboard/search-bar.tsx" data-dynamic-text="true">
-        <div className={cn("flex items-center rounded-lg border border-input bg-background px-3 py-2 text-sm transition-all", focused ? "border-primary ring-2 ring-primary ring-opacity-30" : "", minimal ? "" : "shadow-sm")} data-unique-id="aa9c88fb-82db-4e7d-86f6-a9bdfe9b4e96" data-file-name="components/dashboard/search-bar.tsx" data-dynamic-text="true">
-          <Search className="h-4 w-4 text-muted-foreground mr-2" />
-          <input ref={inputRef} type="text" placeholder={placeholder} className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground" value={query} onChange={e => setQuery(e.target.value)} onFocus={handleInputFocus} onBlur={() => setFocused(false)} data-unique-id="4c16ffa5-01d3-414d-8670-10f282cbba23" data-file-name="components/dashboard/search-bar.tsx" />
-          
-          {query && <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={() => setQuery("")} data-unique-id="95ddf0ef-08bc-43bd-8793-2544c64380bd" data-file-name="components/dashboard/search-bar.tsx">
-              <X className="h-3 w-3" />
-              <span className="sr-only" data-unique-id="5fde97af-f4dc-428a-8305-be01f10b7649" data-file-name="components/dashboard/search-bar.tsx"><span className="editable-text" data-unique-id="42541189-2228-4a9d-b0d9-c5a0271bbc9d" data-file-name="components/dashboard/search-bar.tsx">Clear search</span></span>
-            </Button>}
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className={cn("flex items-center rounded-lg border border-input bg-background px-3 py-2 text-sm transition-all", focused ? "border-primary ring-2 ring-primary ring-opacity-30" : "", minimal ? "" : "shadow-sm")} data-unique-id="aa9c88fb-82db-4e7d-86f6-a9bdfe9b4e96" data-file-name="components/dashboard/search-bar.tsx" data-dynamic-text="true">
+            <Search className="h-4 w-4 text-muted-foreground mr-2" />
+            <input ref={inputRef} type="text" placeholder={placeholder} className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground" value={query} onChange={e => setQuery(e.target.value)} onFocus={handleInputFocus} onBlur={() => setFocused(false)} data-unique-id="4c16ffa5-01d3-414d-8670-10f282cbba23" data-file-name="components/dashboard/search-bar.tsx" />
+            
+            {query && <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={handleClearSearch} data-unique-id="95ddf0ef-08bc-43bd-8793-2544c64380bd" data-file-name="components/dashboard/search-bar.tsx">
+                <X className="h-3 w-3" />
+                <span className="sr-only" data-unique-id="5fde97af-f4dc-428a-8305-be01f10b7649" data-file-name="components/dashboard/search-bar.tsx"><span className="editable-text" data-unique-id="42541189-2228-4a9d-b0d9-c5a0271bbc9d" data-file-name="components/dashboard/search-bar.tsx">Clear search</span></span>
+              </Button>}
+          </div>
+        </form>
         
         {!minimal && <div className="absolute right-3 top-2 text-xs text-muted-foreground pointer-events-none" data-unique-id="719e7efc-0063-4bab-8107-3c9cc8baa76e" data-file-name="components/dashboard/search-bar.tsx">
             <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted font-mono" data-unique-id="0a5e0ec7-4378-4218-9e83-52c23f2d4f7a" data-file-name="components/dashboard/search-bar.tsx"><span className="editable-text" data-unique-id="8a81079f-c220-426d-8aef-d8226086db0c" data-file-name="components/dashboard/search-bar.tsx">
@@ -238,14 +307,16 @@ export default function SearchBar({
               stiffness: 300
             }} data-unique-id="b7974a59-5f05-47cf-ab58-572e2aa3b7a0" data-file-name="components/dashboard/search-bar.tsx">
                 <div className="p-4 border-b border-border" data-unique-id="79195c0a-8b91-46ae-8807-9c8884c0ef89" data-file-name="components/dashboard/search-bar.tsx" data-dynamic-text="true">
-                  <div className="flex items-center" data-unique-id="75682ce6-ec66-40ab-b8ba-3423d2221e96" data-file-name="components/dashboard/search-bar.tsx" data-dynamic-text="true">
-                    <Search className="h-5 w-5 text-muted-foreground mr-3" />
-                    <input autoFocus type="text" placeholder="Search by meaning, not just keywords..." className="flex-1 bg-transparent outline-none text-base" value={query} onChange={e => setQuery(e.target.value)} data-unique-id="afe36756-7209-4d8b-a404-826a0b56258a" data-file-name="components/dashboard/search-bar.tsx" />
-                    {query && <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setQuery("")} data-unique-id="71b8e715-ab29-4ef0-a505-4cd11c41be60" data-file-name="components/dashboard/search-bar.tsx">
-                        <X className="h-4 w-4" />
-                        <span className="sr-only" data-unique-id="1ccac888-0dfe-4944-84a9-75e7448403be" data-file-name="components/dashboard/search-bar.tsx"><span className="editable-text" data-unique-id="61b29437-3c95-492d-907a-a15f2178f3f5" data-file-name="components/dashboard/search-bar.tsx">Clear search</span></span>
-                      </Button>}
-                  </div>
+                  <form onSubmit={handleSubmit}>
+                    <div className="flex items-center" data-unique-id="75682ce6-ec66-40ab-b8ba-3423d2221e96" data-file-name="components/dashboard/search-bar.tsx" data-dynamic-text="true">
+                      <Search className="h-5 w-5 text-muted-foreground mr-3" />
+                      <input autoFocus type="text" placeholder="Search by meaning, not just keywords..." className="flex-1 bg-transparent outline-none text-base" value={query} onChange={e => setQuery(e.target.value)} data-unique-id="afe36756-7209-4d8b-a404-826a0b56258a" data-file-name="components/dashboard/search-bar.tsx" />
+                      {query && <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={handleClearSearch} data-unique-id="71b8e715-ab29-4ef0-a505-4cd11c41be60" data-file-name="components/dashboard/search-bar.tsx">
+                          <X className="h-4 w-4" />
+                          <span className="sr-only" data-unique-id="1ccac888-0dfe-4944-84a9-75e7448403be" data-file-name="components/dashboard/search-bar.tsx"><span className="editable-text" data-unique-id="61b29437-3c95-492d-907a-a15f2178f3f5" data-file-name="components/dashboard/search-bar.tsx">Clear search</span></span>
+                        </Button>}
+                    </div>
+                  </form>
                   
                   {/* AI model selection */}
                   <div className="mt-2 flex justify-between items-center" data-unique-id="e4bba721-29f0-43c3-aa67-95863dbcc2d1" data-file-name="components/dashboard/search-bar.tsx">

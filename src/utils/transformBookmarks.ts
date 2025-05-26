@@ -33,6 +33,44 @@ export interface UIBookmark {
  * Transform database bookmark to UI format
  */
 export function transformBookmarkForUI(bookmark: Bookmark): UIBookmark {
+  // Extract engagement metrics from metadata if available
+  const metadata = (bookmark as any).metadata || {};
+  let engagement: UIBookmark['engagement'] = { saves: 1 };
+
+  // Debug logging to see what data we're getting
+  if (bookmark.source === 'github') {
+    console.log('GitHub bookmark:', bookmark.title, 'Metadata:', metadata);
+  }
+
+  if (bookmark.source === 'github') {
+    engagement = {
+      stars: metadata.stars || 0,
+      forks: metadata.forks || 0,
+      saves: 1
+    };
+  } else if (bookmark.source === 'twitter') {
+    engagement = {
+      likes: metadata.likes || 0,
+      retweets: metadata.retweets || 0,
+      replies: metadata.replies || 0,
+      saves: 1
+    };
+  } else if (bookmark.source === 'stack') {
+    engagement = {
+      votes: metadata.votes || 0,
+      answers: metadata.answers || 0,
+      views: metadata.views || 0,
+      saves: 1
+    };
+  } else if (bookmark.source === 'reddit') {
+    engagement = {
+      upvotes: metadata.upvotes || 0,
+      comments: metadata.comments || 0,
+      awards: metadata.awards || 0,
+      saves: 1
+    };
+  }
+
   return {
     id: bookmark.id,
     title: bookmark.title || 'Untitled',
@@ -43,9 +81,7 @@ export function transformBookmarkForUI(bookmark: Bookmark): UIBookmark {
     savedAt: new Date(bookmark.created_at),
     tags: bookmark.tags || [],
     starred: false, // Can be enhanced later with user preferences
-    engagement: {
-      saves: 1 // Default engagement metrics
-    },
+    engagement,
     image: null // Can be enhanced later with metadata extraction
   };
 }

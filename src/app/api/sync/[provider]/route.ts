@@ -9,6 +9,7 @@ interface GitHubRepo {
   description: string | null;
   html_url: string;
   stargazers_count: number;
+  forks_count: number;
   language: string | null;
   topics: string[];
   created_at: string;
@@ -364,6 +365,14 @@ export async function POST(
         ...(repo.language ? [repo.language.toLowerCase()] : []),
         ...repo.topics.slice(0, 5), // Limit to 5 topics
       ].filter(Boolean),
+      metadata: {
+        stars: repo.stargazers_count,
+        language: repo.language,
+        forks: repo.forks_count || 0,
+        owner: repo.owner.login,
+        created_at: repo.created_at,
+        updated_at: repo.updated_at
+      },
       created_at: new Date().toISOString()
     }));
 

@@ -4,11 +4,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
-import { generateText } from '@/lib/api/util';
+
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { transformBookmarksForUI, createMockBookmarkData, UIBookmark } from '@/utils/transformBookmarks';
 
@@ -27,11 +27,13 @@ const SourceIcon = ({ source }: { source: string }) => {
 const SaveCard = ({
   save,
   onShowAISummary,
-  onAddToCollection
+  onAddToCollection,
+  onDelete
 }: {
   save: UIBookmark;
   onShowAISummary: (save: UIBookmark) => void;
   onAddToCollection: (save: UIBookmark) => void;
+  onDelete: (save: UIBookmark) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -43,11 +45,11 @@ const SaveCard = ({
 
   const getEngagementMetric = () => {
     switch (save.source) {
-      case 'github': return { icon: Star, value: save.engagement.stars || 0 };
-      case 'twitter': return { icon: Heart, value: save.engagement.likes || 0 };
-      case 'stackoverflow': return { icon: ArrowUp, value: save.engagement.votes || 0 };
-      case 'reddit': return { icon: ArrowUp, value: save.engagement.upvotes || 0 };
-      default: return { icon: BookmarkIcon, value: save.engagement.saves || 0 };
+      case 'github': return { icon: Star, value: save.engagement?.stars || 0 };
+      case 'twitter': return { icon: Heart, value: save.engagement?.likes || 0 };
+      case 'stackoverflow': return { icon: ArrowUp, value: save.engagement?.votes || 0 };
+      case 'reddit': return { icon: ArrowUp, value: save.engagement?.upvotes || 0 };
+      default: return { icon: BookmarkIcon, value: save.engagement?.saves || 0 };
     }
   };
 
@@ -78,11 +80,25 @@ const SaveCard = ({
             <SourceIcon source={save.source} />
             <span className="capitalize">{save.source}</span>
         </div>
-          {save.starred && (
-            <div className="absolute top-3 right-3 p-1.5 bg-amber-500 rounded-full">
-              <Star className="h-3 w-3 text-white fill-current" />
-            </div>
-          )}
+          <div className="absolute top-3 right-3 flex items-center space-x-2">
+            {save.starred && (
+              <div className="p-1.5 bg-amber-500 rounded-full">
+                <Star className="h-3 w-3 text-white fill-current" />
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(save);
+              }}
+              className="h-7 w-7 p-0 bg-red-500/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Delete bookmark"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       )}
       
@@ -90,20 +106,42 @@ const SaveCard = ({
         {!save.image && (
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-1 text-muted-foreground text-sm">
-          <SourceIcon source={save.source} />
+              <SourceIcon source={save.source} />
               <span className="capitalize">{save.source}</span>
-        </div>
-            {save.starred && <Star className="h-4 w-4 text-amber-500 fill-current" />}
-      </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {save.starred && <Star className="h-4 w-4 text-amber-500 fill-current" />}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(save);
+                }}
+                className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete bookmark"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
         )}
       
         <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
           {save.title}
         </h3>
         
-        <p className="text-muted-foreground text-sm mb-3 line-clamp-3">
-          {save.description}
-        </p>
+        <div className="mb-3">
+          <AISummary
+            title={save.title}
+            url={save.sourceUrl}
+            description={save.description}
+            content={save.content}
+            bookmarkId={save.id.toString()}
+            className="text-muted-foreground text-sm line-clamp-3"
+            showRefresh={true}
+          />
+        </div>
         
         {save.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
@@ -123,7 +161,7 @@ const SaveCard = ({
         </div>
         )}
         
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between min-h-[32px]">
           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
             <div className="flex items-center space-x-1">
               <IconComponent className="h-4 w-4" />
@@ -135,28 +173,30 @@ const SaveCard = ({
             </div>
           </div>
           
-          <AnimatePresence>
-            {isHovered && (
-              <motion.div
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="flex items-center space-x-1"
-              >
-                <Button variant="ghost" size="sm" onClick={() => onShowAISummary(save)} className="h-8 w-8 p-0">
-                  <Sparkles className="h-4 w-4" />
-            </Button>
-                <Button variant="ghost" size="sm" onClick={() => onAddToCollection(save)} className="h-8 w-8 p-0">
-                  <FolderPlus className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
-                  <a href={save.sourceUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div className="flex items-center space-x-1 min-w-[96px] justify-end">
+            <AnimatePresence>
+              {isHovered && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="flex items-center space-x-1"
+                >
+                  <Button variant="ghost" size="sm" onClick={() => onShowAISummary(save)} className="h-8 w-8 p-0">
+                    <Sparkles className="h-4 w-4" />
+              </Button>
+                  <Button variant="ghost" size="sm" onClick={() => onAddToCollection(save)} className="h-8 w-8 p-0">
+                    <FolderPlus className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
+                    <a href={save.sourceUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           </div>
         </div>
     </motion.div>
@@ -167,11 +207,13 @@ const SaveCard = ({
 const SaveListItem = ({
   save,
   onShowAISummary,
-  onAddToCollection
+  onAddToCollection,
+  onDelete
 }: {
   save: UIBookmark;
   onShowAISummary: (save: UIBookmark) => void;
   onAddToCollection: (save: UIBookmark) => void;
+  onDelete: (save: UIBookmark) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -183,11 +225,11 @@ const SaveListItem = ({
 
   const getEngagementMetric = () => {
     switch (save.source) {
-      case 'github': return { icon: Star, value: save.engagement.stars || 0 };
-      case 'twitter': return { icon: Heart, value: save.engagement.likes || 0 };
-      case 'stackoverflow': return { icon: ArrowUp, value: save.engagement.votes || 0 };
-      case 'reddit': return { icon: ArrowUp, value: save.engagement.upvotes || 0 };
-      default: return { icon: BookmarkIcon, value: save.engagement.saves || 0 };
+      case 'github': return { icon: Star, value: save.engagement?.stars || 0 };
+      case 'twitter': return { icon: Heart, value: save.engagement?.likes || 0 };
+      case 'stackoverflow': return { icon: ArrowUp, value: save.engagement?.votes || 0 };
+      case 'reddit': return { icon: ArrowUp, value: save.engagement?.upvotes || 0 };
+      default: return { icon: BookmarkIcon, value: save.engagement?.saves || 0 };
     }
   };
 
@@ -213,15 +255,27 @@ const SaveListItem = ({
         )}
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-start justify-between mb-2">
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <SourceIcon source={save.source} />
               <span className="capitalize">{save.source}</span>
               {save.starred && <Star className="h-4 w-4 text-amber-500 fill-current" />}
             </div>
-            <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
               <span>{format(save.savedAt, 'MMM d, yyyy')}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(save);
+                }}
+                className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete bookmark"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </div>
           </div>
           
@@ -229,9 +283,17 @@ const SaveListItem = ({
               {save.title}
             </h3>
           
-          <p className="text-muted-foreground text-sm mb-3 line-clamp-2">
-            {save.description}
-          </p>
+          <div className="mb-3">
+            <AISummary
+              title={save.title}
+              url={save.sourceUrl}
+              description={save.description}
+              content={save.content}
+              bookmarkId={save.id.toString()}
+              className="text-muted-foreground text-sm line-clamp-2"
+              showRefresh={true}
+            />
+          </div>
           
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -257,28 +319,30 @@ const SaveListItem = ({
         </div>
       </div>
 
-            <AnimatePresence>
-              {isHovered && (
-                <motion.div
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  className="flex items-center space-x-1"
-                >
-                  <Button variant="ghost" size="sm" onClick={() => onShowAISummary(save)} className="h-8 w-8 p-0">
-                    <Sparkles className="h-4 w-4" />
-        </Button>
-                  <Button variant="ghost" size="sm" onClick={() => onAddToCollection(save)} className="h-8 w-8 p-0">
-                    <FolderPlus className="h-4 w-4" />
-        </Button>
-                  <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
-                    <a href={save.sourceUrl} target="_blank" rel="noopener noreferrer">
-          <ExternalLink className="h-4 w-4" />
-                    </a>
-        </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div className="flex items-center space-x-1 min-w-[96px] justify-end">
+              <AnimatePresence>
+                {isHovered && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="flex items-center space-x-1"
+                  >
+                    <Button variant="ghost" size="sm" onClick={() => onShowAISummary(save)} className="h-8 w-8 p-0">
+                      <Sparkles className="h-4 w-4" />
+          </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onAddToCollection(save)} className="h-8 w-8 p-0">
+                      <FolderPlus className="h-4 w-4" />
+          </Button>
+                    <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
+                      <a href={save.sourceUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="h-4 w-4" />
+                      </a>
+          </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
       </div>
         </div>
       </div>
@@ -298,46 +362,7 @@ const AISummaryPanel = ({
   onClose: () => void;
   selectedModel: string;
 }) => {
-  const [summary, setSummary] = useState<string>('');
-  const [isGenerating, setIsGenerating] = useState(false);
-
-    const generateFullSummary = async () => {
-      if (!save) return;
-
-    setIsGenerating(true);
-    setSummary('');
-    
-    try {
-      const prompt = `Please provide a comprehensive summary of this content:
-
-Title: ${save.title}
-Description: ${save.description}
-Content: ${save.content}
-Source: ${save.source}
-
-Please provide:
-1. A brief overview (2-3 sentences)
-2. Key points or takeaways (3-5 bullet points)
-3. Who would benefit from this content
-4. Related topics or technologies mentioned
-
-Keep the summary engaging and informative.`;
-
-        const result = await generateText(prompt, selectedModel);
-      setSummary(result.text);
-      } catch (error) {
-      console.error('Error generating summary:', error);
-      setSummary('Failed to generate summary. Please try again.');
-      } finally {
-      setIsGenerating(false);
-      }
-    };
-
-  useEffect(() => {
-    if (isOpen && save) {
-      generateFullSummary();
-    }
-  }, [isOpen, save, selectedModel]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   if (!isOpen || !save) return null;
 
@@ -385,37 +410,32 @@ Keep the summary engaging and informative.`;
             <div className="border border-border rounded-lg p-4 bg-muted/20">
               <h4 className="font-medium mb-3 flex items-center">
                 <Sparkles className="h-4 w-4 mr-2 text-primary" />
-                Summary
+                Detailed AI Summary
               </h4>
               
-              {isGenerating ? (
-                <div className="flex items-center space-x-2 text-muted-foreground">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                  <span className="text-sm">Generating summary...</span>
-              </div>
-              ) : (
-                <div className="prose prose-sm max-w-none text-sm">
-                  {summary.split('\n').map((paragraph, index) => (
-                    <p key={index} className="mb-2 last:mb-0">{paragraph}</p>
-                  ))}
-            </div>
-              )}
+              <AISummary
+                key={refreshKey} // Force regeneration when key changes
+                title={save.title}
+                url={save.sourceUrl}
+                description={save.description}
+                content={save.content}
+                bookmarkId={save.id.toString()}
+                long={true}
+                showRefresh={true}
+                onRefresh={() => setRefreshKey(prev => prev + 1)}
+                className="prose prose-sm max-w-none text-sm"
+              />
+              
+              {/* Context information is already included in the AI-generated summary above */}
           </div>
           
-            <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+            <div className="flex items-center justify-center mt-6 pt-4 border-t border-border">
               <Button variant="outline" size="sm" asChild>
                 <a href={save.sourceUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4 mr-2" />
-              View Original
+                  View Original
                 </a>
               </Button>
-              
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm" onClick={generateFullSummary} disabled={isGenerating}>
-                  <RefreshCw className={cn("h-4 w-4 mr-2", isGenerating && "animate-spin")} />
-                  Regenerate
-            </Button>
-          </div>
             </div>
           </div>
         </motion.div>
@@ -473,13 +493,44 @@ const AddToCollectionModal = ({
 };
 
 // Main RecentSaves component
-export default function RecentSaves() {
-  const { bookmarks, loading, error, hasMore, loadMore, refresh, totalCount } = useBookmarks();
+interface RecentSavesProps {
+  searchResults?: any[];
+  isSearchActive?: boolean;
+  onClearSearch?: () => void;
+}
+
+export default function RecentSaves({ searchResults, isSearchActive, onClearSearch }: RecentSavesProps = {}) {
+  const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount } = useBookmarks();
   
   const mockData = useMemo(() => createMockBookmarkData(), []);
   const realBookmarks = useMemo(() => transformBookmarksForUI(bookmarks), [bookmarks]);
   
-  const isUsingMockData = realBookmarks.length === 0;
+  // Transform search results to UIBookmark format
+  const searchBookmarks = useMemo(() => {
+    if (!searchResults || searchResults.length === 0) return [];
+    
+    return searchResults.map((result: any) => ({
+      id: result.id,
+      title: result.title || 'Untitled',
+      description: result.description || result.summary || '',
+      content: result.summary || result.description || '',
+      sourceUrl: result.url,
+      image: null, // Search results might not have images
+      source: 'bookmark',
+      tags: result.tags || [],
+      savedAt: new Date(result.created_at || Date.now()),
+      starred: false,
+      engagement: {
+        saves: 0,
+        stars: 0,
+        likes: 0,
+        votes: 0,
+        upvotes: 0
+      }
+    }));
+  }, [searchResults]);
+  
+  const isUsingMockData = realBookmarks.length === 0 && !isSearchActive;
 
   const [visibleSaves, setVisibleSaves] = useState<UIBookmark[]>([]);
   const [page, setPage] = useState(1);
@@ -503,8 +554,23 @@ export default function RecentSaves() {
   }, []);
 
   const getSortedSaves = useCallback(() => {
-    const dataToSort = isUsingMockData ? mockData : realBookmarks;
+    let dataToSort: UIBookmark[];
+    
+    if (isSearchActive && searchBookmarks.length > 0) {
+      dataToSort = searchBookmarks;
+    } else if (isUsingMockData) {
+      dataToSort = mockData;
+    } else {
+      dataToSort = realBookmarks;
+    }
+    
     let sorted = [...dataToSort];
+    
+    // For search results, don't sort by popularity as they're already sorted by relevance
+    if (isSearchActive && searchBookmarks.length > 0) {
+      return sorted; // Keep search results in relevance order
+    }
+    
     switch (sortOption) {
       case 'latest':
         sorted = sorted.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
@@ -513,15 +579,43 @@ export default function RecentSaves() {
         sorted = sorted.sort((a, b) => a.savedAt.getTime() - b.savedAt.getTime());
         break;
       case 'popular':
+        console.log('Sorting by popularity, data:', sorted.map(s => ({ title: s.title, source: s.source, engagement: s.engagement })));
         sorted = sorted.sort((a, b) => {
-          const aPopularity = a.engagement?.saves || 0;
-          const bPopularity = b.engagement?.saves || 0;
+          // For GitHub repos, use stars; for other sources, use their primary metric
+          let aPopularity = 0;
+          let bPopularity = 0;
+          
+          if (a.source === 'github') {
+            aPopularity = a.engagement?.stars || 0;
+          } else if (a.source === 'twitter') {
+            aPopularity = a.engagement?.likes || 0;
+          } else if (a.source === 'stack') {
+            aPopularity = a.engagement?.votes || 0;
+          } else if (a.source === 'reddit') {
+            aPopularity = a.engagement?.upvotes || 0;
+          } else {
+            aPopularity = a.engagement?.saves || 0;
+          }
+          
+          if (b.source === 'github') {
+            bPopularity = b.engagement?.stars || 0;
+          } else if (b.source === 'twitter') {
+            bPopularity = b.engagement?.likes || 0;
+          } else if (b.source === 'stack') {
+            bPopularity = b.engagement?.votes || 0;
+          } else if (b.source === 'reddit') {
+            bPopularity = b.engagement?.upvotes || 0;
+          } else {
+            bPopularity = b.engagement?.saves || 0;
+          }
+          
+          console.log(`Comparing ${a.title} (${aPopularity}) vs ${b.title} (${bPopularity})`);
           return bPopularity - aPopularity;
         });
         break;
     }
     return sorted;
-  }, [isUsingMockData, mockData, realBookmarks, sortOption]);
+  }, [isSearchActive, searchBookmarks, isUsingMockData, mockData, realBookmarks, sortOption]);
 
   const sortedData = useMemo(() => getSortedSaves(), [getSortedSaves]);
 
@@ -571,7 +665,7 @@ export default function RecentSaves() {
 
   useEffect(() => {
     if (!isUsingMockData) {
-      setVisibleSaves(realBookmarks);
+      setVisibleSaves(sortedData);
     } else {
       setVisibleSaves(sortedData.slice(0, 6));
       setPage(2);
@@ -594,8 +688,25 @@ export default function RecentSaves() {
     setAddToCollectionModalOpen(true);
   };
 
-  const currentCount = isUsingMockData ? visibleSaves.length : realBookmarks.length;
-  const totalDisplayCount = isUsingMockData ? sortedData.length : totalCount;
+  const handleDelete = async (save: UIBookmark) => {
+    const success = await deleteBookmark(save.id.toString());
+    if (success) {
+      // Remove from visible saves for immediate UI feedback
+      setVisibleSaves(prev => prev.filter(s => s.id !== save.id));
+    }
+  };
+
+  const currentCount = isSearchActive && searchBookmarks.length > 0 
+    ? searchBookmarks.length 
+    : isUsingMockData 
+      ? visibleSaves.length 
+      : realBookmarks.length;
+  
+  const totalDisplayCount = isSearchActive && searchBookmarks.length > 0
+    ? searchBookmarks.length
+    : isUsingMockData 
+      ? sortedData.length 
+      : totalCount;
 
   return (
     <div className="flex flex-col h-full">
@@ -620,7 +731,20 @@ export default function RecentSaves() {
 
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">Recent Saves</h1>
+            <h1 className="text-2xl font-semibold">
+              {isSearchActive ? 'Search Results' : 'Recent Saves'}
+            </h1>
+            {isSearchActive && onClearSearch && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onClearSearch}
+                className="h-8"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Clear search
+              </Button>
+            )}
             <div className="flex border border-border rounded-md overflow-hidden">
               <Button 
                 variant={viewMode === 'card' ? 'secondary' : 'ghost'} 
@@ -709,7 +833,8 @@ export default function RecentSaves() {
                     key={save.id} 
                     save={save} 
                     onShowAISummary={handleShowAISummary} 
-                    onAddToCollection={handleAddToCollection} 
+                    onAddToCollection={handleAddToCollection}
+                    onDelete={handleDelete}
                   />
                 ))}
               </div>
@@ -720,7 +845,8 @@ export default function RecentSaves() {
                     key={save.id} 
                     save={save} 
                     onShowAISummary={handleShowAISummary} 
-                    onAddToCollection={handleAddToCollection} 
+                    onAddToCollection={handleAddToCollection}
+                    onDelete={handleDelete}
                   />
                 ))}
               </div>

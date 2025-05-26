@@ -13,6 +13,7 @@ export interface Bookmark {
   tags: string[] | null;
   created_at: string;
   updated_at: string;
+  metadata?: any; // JSON metadata including engagement metrics
   // Additional properties that might come from raw data
   source?: Provider;
   sourceUrl?: string;
@@ -36,6 +37,7 @@ export interface UseBookmarksResult {
   hasMore: boolean;
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
+  deleteBookmark: (bookmarkId: string) => Promise<boolean>;
   totalCount: number;
 }
 
@@ -90,7 +92,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
         savedAt: new Date(bookmark.created_at),
         sourceUrl: bookmark.url,
         starred: false, // Default value
-        engagement: {}, // Default empty engagement
+        engagement: bookmark.metadata || {}, // Use metadata for engagement data
       }));
       
       if (append) {
@@ -122,6 +124,32 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     await fetchBookmarks(0, false);
   };
 
+  const deleteBookmark = async (bookmarkId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const { error } = await (supabase as any)
+        .from('bookmarks')
+        .delete()
+        .eq('id', bookmarkId)
+        .eq('user_id', user.id); // Ensure user can only delete their own bookmarks
+
+      if (error) {
+        console.error('Error deleting bookmark:', error);
+        return false;
+      }
+
+      // Remove from local state
+      setBookmarks(prev => prev.filter(bookmark => bookmark.id !== bookmarkId));
+      setTotalCount(prev => Math.max(0, prev - 1));
+      
+      return true;
+    } catch (err) {
+      console.error('Exception deleting bookmark:', err);
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchBookmarks();
   }, [user, provider, limit]);
@@ -147,6 +175,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     hasMore,
     loadMore,
     refresh,
+    deleteBookmark,
     totalCount
   };
 }

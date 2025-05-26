@@ -25,6 +25,10 @@ export default function DashboardLayout() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, signOut, isAuthenticated } = useAuth();
+  
+  // Search state
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchActive, setIsSearchActive] = useState(false);
 
   // Ensure consistent hydration
   useEffect(() => {
@@ -59,6 +63,18 @@ export default function DashboardLayout() {
     } catch (error) {
       console.error('Error during logout:', error);
     }
+  };
+
+  // Handle search results
+  const handleSearchResults = (results: any[]) => {
+    setSearchResults(results);
+    setIsSearchActive(results.length > 0);
+  };
+
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchResults([]);
+    setIsSearchActive(false);
   };
 
   // Show consistent loading state while checking authentication or during hydration
@@ -129,7 +145,12 @@ export default function DashboardLayout() {
           <div className="flex flex-col h-full" data-unique-id="17545461-7201-4b83-ac79-3df59f74573d" data-file-name="components/dashboard/layout.tsx" data-dynamic-text="true">
             {sidebarOpen ? <>
                 <div className="p-4" data-unique-id="6a9a9b23-18b9-47ef-b4c2-b50eae4f4511" data-file-name="components/dashboard/layout.tsx">
-                  <SearchBar minimal />
+                  <SearchBar 
+                    minimal 
+                    onSearchResults={handleSearchResults}
+                    onClearSearch={handleClearSearch}
+                    isSearchActive={isSearchActive}
+                  />
                 </div>
 
                 <nav className="flex-1 px-3 py-2" data-unique-id="bf48f1e6-8e51-4db5-ad7d-dc1b4fa3a653" data-file-name="components/dashboard/layout.tsx">
@@ -195,9 +216,17 @@ export default function DashboardLayout() {
           <div className="max-w-5xl mx-auto px-6 py-8" data-unique-id="60da8a4c-6600-4861-85a7-e44a014e39c6" data-file-name="components/dashboard/layout.tsx" data-dynamic-text="true">
             {activeTab === "recent" && <>
                 <div className="sticky top-0 z-10 bg-background pt-2 pb-4" data-unique-id="03d7ced0-14b5-4de7-8f3a-e848fb991960" data-file-name="components/dashboard/layout.tsx">
-                  <SearchBar />
+                  <SearchBar 
+                    onSearchResults={handleSearchResults}
+                    onClearSearch={handleClearSearch}
+                    isSearchActive={isSearchActive}
+                  />
                 </div>
-                <RecentSaves />
+                <RecentSaves 
+                  searchResults={searchResults}
+                  isSearchActive={isSearchActive}
+                  onClearSearch={handleClearSearch}
+                />
               </>}
             
             {activeTab === "collections" && <Collections />}
