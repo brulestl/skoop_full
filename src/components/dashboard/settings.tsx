@@ -107,7 +107,7 @@ function SyncSettings() {
       autoSyncService.updateUserConfig(
         user.id,
         settings.sync_schedule,
-        settings.enabled_providers
+        settings.enabled_providers as Provider[]
       );
     }
   }, [user, settings]);
@@ -119,7 +119,7 @@ function SyncSettings() {
     try {
       const enabledProviders = Object.entries(localProviders)
         .filter(([_, enabled]) => enabled)
-        .map(([provider, _]) => provider) as Provider[];
+        .map(([provider, _]) => provider);
 
       await updateSettings({
         sync_schedule: localSchedule,
@@ -127,7 +127,7 @@ function SyncSettings() {
       });
 
       // Update auto-sync service with new settings
-      autoSyncService.updateUserConfig(user.id, localSchedule, enabledProviders);
+      autoSyncService.updateUserConfig(user.id, localSchedule, enabledProviders as Provider[]);
 
       // Show success message with auto-sync info
       const scheduleText = localSchedule === 'manual' 
@@ -404,6 +404,23 @@ function EmbeddingSettings() {
 }
 
 function PerformanceSettings() {
+  const { 
+    settings, 
+    loading, 
+    updating,
+    updateCacheSize,
+    updateCacheDuration,
+    updateBackgroundSync,
+    updateAggressivePrefetch,
+    updateDataSavingMode
+  } = useUserSettings();
+
+  if (loading) {
+    return <div className="flex items-center justify-center p-8">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>;
+  }
+
   return <div data-unique-id="f4f9a881-d4db-4343-addb-56ca1432d493" data-file-name="components/dashboard/settings.tsx">
       <h2 className="text-xl font-medium mb-4" data-unique-id="beab1ed2-c1a7-4002-a985-d0e9434f5164" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="62c657b3-c6b9-471c-8e32-783846fdc5d2" data-file-name="components/dashboard/settings.tsx">Performance Settings</span></h2>
       <p className="text-muted-foreground mb-6" data-unique-id="c1b38645-2b4e-4e7b-a199-9f5dcc037487" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="07ae56ef-db7a-4b42-82fe-57d3892d64bd" data-file-name="components/dashboard/settings.tsx">
@@ -451,7 +468,15 @@ function PerformanceSettings() {
                 <p className="text-xs text-muted-foreground" data-unique-id="27824c8c-1046-4147-add7-23b8bf6cca14" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="f344e2f7-2f17-4def-8077-51d0bfecc101" data-file-name="components/dashboard/settings.tsx">Sync when app is not in focus</span></p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer" data-unique-id="1203ce7c-d7c0-4d00-8192-0d2717a18f69" data-file-name="components/dashboard/settings.tsx">
-                <input type="checkbox" className="sr-only peer" defaultChecked data-unique-id="295319c6-412f-4ae5-9fbe-02b1d0428700" data-file-name="components/dashboard/settings.tsx" />
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={settings?.background_sync_enabled ?? true}
+                  onChange={(e) => updateBackgroundSync(e.target.checked)}
+                  disabled={updating}
+                  data-unique-id="295319c6-412f-4ae5-9fbe-02b1d0428700" 
+                  data-file-name="components/dashboard/settings.tsx" 
+                />
                 <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" data-unique-id="0df56801-a604-4e25-b4b6-f89fbd0b7043" data-file-name="components/dashboard/settings.tsx"></div>
               </label>
             </div>
@@ -462,7 +487,15 @@ function PerformanceSettings() {
                 <p className="text-xs text-muted-foreground" data-unique-id="2ec3b892-e4a1-40fa-8da3-24b1c6b708ab" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="081ce6c9-68c7-4569-a8ba-7a6e6805f3ba" data-file-name="components/dashboard/settings.tsx">Preload content you might need</span></p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer" data-unique-id="1993e6b4-3a6c-40cb-aacd-75555dc0f2e2" data-file-name="components/dashboard/settings.tsx">
-                <input type="checkbox" className="sr-only peer" data-unique-id="72c2b140-fb47-46ac-840f-596ef41fa019" data-file-name="components/dashboard/settings.tsx" />
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={settings?.aggressive_prefetch_enabled ?? false}
+                  onChange={(e) => updateAggressivePrefetch(e.target.checked)}
+                  disabled={updating}
+                  data-unique-id="72c2b140-fb47-46ac-840f-596ef41fa019" 
+                  data-file-name="components/dashboard/settings.tsx" 
+                />
                 <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" data-unique-id="0f8f866a-e384-49c9-b4b1-aab96d0825d9" data-file-name="components/dashboard/settings.tsx"></div>
               </label>
             </div>
@@ -473,7 +506,15 @@ function PerformanceSettings() {
                 <p className="text-xs text-muted-foreground" data-unique-id="d4a3bc71-0732-4cf3-8733-7c75b15f22db" data-file-name="components/dashboard/settings.tsx"><span className="editable-text" data-unique-id="7f06b0bc-ed88-41f3-97b4-24c6ffd04c63" data-file-name="components/dashboard/settings.tsx">Reduce bandwidth usage</span></p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer" data-unique-id="a3b578af-a2b3-47a0-ac39-b72754da09fd" data-file-name="components/dashboard/settings.tsx">
-                <input type="checkbox" className="sr-only peer" data-unique-id="f89d282b-d507-4291-a433-312ea2439f65" data-file-name="components/dashboard/settings.tsx" />
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={settings?.data_saving_mode_enabled ?? false}
+                  onChange={(e) => updateDataSavingMode(e.target.checked)}
+                  disabled={updating}
+                  data-unique-id="f89d282b-d507-4291-a433-312ea2439f65" 
+                  data-file-name="components/dashboard/settings.tsx" 
+                />
                 <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" data-unique-id="0da30a1c-a378-46c6-859f-e99736cba91e" data-file-name="components/dashboard/settings.tsx"></div>
               </label>
             </div>

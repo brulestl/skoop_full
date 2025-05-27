@@ -45,17 +45,57 @@ serve(async (req) => {
       throw new Error('Stack Overflow account not connected or access token not found')
     }
 
-    // TODO: Implement Stack Overflow API integration
-    // For now, return a placeholder response
-    console.log('Stack Overflow ingestion not yet implemented')
+    // Update last_sync_at timestamp
+    await supabaseAdmin
+      .from('connected_accounts')
+      .update({ 
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'stack')
 
-    return new Response(JSON.stringify({ 
-      count: 0, 
-      message: 'Stack Overflow ingestion not yet implemented - coming soon!'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
-    })
+    try {
+      // TODO: Implement Stack Overflow API integration
+      // For now, simulate a successful sync with placeholder logic
+      console.log('Stack Overflow ingestion not yet implemented - simulating success')
+
+      // Update connected_accounts with successful sync status
+      await supabaseAdmin
+        .from('connected_accounts')
+        .update({ 
+          status: 'active',
+          last_error: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'stack')
+
+      return new Response(JSON.stringify({ 
+        count: 0, 
+        message: 'Stack Overflow ingestion not yet implemented - coming soon!'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      })
+
+    } catch (apiError) {
+      console.error('Stack Overflow API call failed:', apiError)
+      
+      // Update connected_accounts with error status
+      const errorMessage = apiError.message || 'Failed to fetch data from Stack Overflow API'
+      await supabaseAdmin
+        .from('connected_accounts')
+        .update({ 
+          status: 'error',
+          last_error: errorMessage,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'stack')
+
+      throw apiError
+    }
 
   } catch (error) {
     console.error('Stack Overflow ingestion error:', error)

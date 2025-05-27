@@ -38,21 +38,55 @@ export async function GET(request: NextRequest) {
       console.log(`Storing connected account for provider: ${provider}`);
       
       try {
-        const { error: insertError } = await supabase
+        // First, check if this provider is already connected for this user
+        const { data: existingAccount, error: checkError } = await supabase
           .from('connected_accounts')
-          .upsert({
-            user_id: data.session.user.id,
-            provider: provider,
-            access_token: data.session.provider_token,
-            refresh_token: data.session.provider_refresh_token || null,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id,provider'
-          });
+          .select('user_id, provider')
+          .eq('user_id', data.session.user.id)
+          .eq('provider', provider)
+          .single();
 
-        if (insertError) {
-          console.error('Error storing connected account:', insertError);
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard?error=store_failed&tab=profile`);
+        if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error('Error checking existing account:', checkError);
+          return NextResponse.redirect(`${requestUrl.origin}/dashboard?error=check_failed&tab=profile`);
+        }
+
+        if (existingAccount) {
+          // Account already linked - update the tokens
+          const { error: updateError } = await supabase
+            .from('connected_accounts')
+            .update({
+              access_token: data.session.provider_token,
+              refresh_token: data.session.provider_refresh_token || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', data.session.user.id)
+            .eq('provider', provider);
+
+          if (updateError) {
+            console.error('Error updating connected account:', updateError);
+            return NextResponse.redirect(`${requestUrl.origin}/dashboard?error=update_failed&tab=profile`);
+          }
+
+          console.log(`Successfully updated ${provider} connection tokens`);
+        } else {
+          // New connection - insert new record
+          const { error: insertError } = await supabase
+            .from('connected_accounts')
+            .insert({
+              user_id: data.session.user.id,
+              provider: provider,
+              access_token: data.session.provider_token,
+              refresh_token: data.session.provider_refresh_token || null,
+              updated_at: new Date().toISOString()
+            });
+
+          if (insertError) {
+            console.error('Error inserting connected account:', insertError);
+            return NextResponse.redirect(`${requestUrl.origin}/dashboard?error=insert_failed&tab=profile`);
+          }
+
+          console.log(`Successfully inserted new ${provider} connection`);
         }
 
         console.log(`Successfully stored ${provider} connection`);

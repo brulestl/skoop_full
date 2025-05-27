@@ -68,23 +68,58 @@ export default function AuthCallback() {
         setMessage('Connecting your account...');
         
         try {
-          // Store the connected account
-          const { error: insertError } = await supabaseClient
+          // First, check if this provider is already connected for this user
+          const { data: existingAccount, error: checkError } = await supabaseClient
             .from('connected_accounts')
-            .upsert({
-              user_id: sessionData.user.id,
-              provider: provider,
-              access_token: sessionData.provider_token,
-              refresh_token: sessionData.provider_refresh_token || null,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'user_id,provider'
-            });
+            .select('user_id, provider')
+            .eq('user_id', sessionData.user.id)
+            .eq('provider', provider)
+            .single();
 
-          if (insertError) {
-            console.error('Error storing connected account:', insertError);
-            router.replace('/dashboard?error=store_failed');
+          if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Error checking existing account:', checkError);
+            router.replace('/dashboard?error=check_failed');
             return;
+          }
+
+          if (existingAccount) {
+            // Account already linked - update the tokens
+            const { error: updateError } = await supabaseClient
+              .from('connected_accounts')
+              .update({
+                access_token: sessionData.provider_token,
+                refresh_token: sessionData.provider_refresh_token || null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', sessionData.user.id)
+              .eq('provider', provider);
+
+            if (updateError) {
+              console.error('Error updating connected account:', updateError);
+              router.replace('/dashboard?error=update_failed');
+              return;
+            }
+
+            console.log(`Successfully updated ${provider} connection tokens`);
+          } else {
+            // New connection - insert new record
+            const { error: insertError } = await supabaseClient
+              .from('connected_accounts')
+              .insert({
+                user_id: sessionData.user.id,
+                provider: provider,
+                access_token: sessionData.provider_token,
+                refresh_token: sessionData.provider_refresh_token || null,
+                updated_at: new Date().toISOString()
+              });
+
+            if (insertError) {
+              console.error('Error inserting connected account:', insertError);
+              router.replace('/dashboard?error=insert_failed');
+              return;
+            }
+
+            console.log(`Successfully inserted new ${provider} connection`);
           }
 
           setMessage('Syncing your data...');

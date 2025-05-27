@@ -7,11 +7,13 @@ import type { Provider as SupabaseProvider } from '@supabase/supabase-js';
 export type Provider = 'github' | 'twitter' | 'reddit' | 'stack' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch' | 'telegram';
 
 interface ConnectedAccount {
-  id: string;
   user_id: string;
   provider: Provider;
   access_token: string;
   refresh_token?: string;
+  status: 'active' | 'error' | 'expired';
+  last_error?: string;
+  last_sync_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +54,11 @@ export function useConnectedAccounts() {
 
   // Connect account via OAuth
   const connectAccount = async (provider: Provider) => {
+    // Check if this provider is already connected
+    if (isConnected(provider)) {
+      throw new Error(`${provider} account is already connected. Please disconnect it first if you want to reconnect.`);
+    }
+
     setConnecting(provider);
     
     try {

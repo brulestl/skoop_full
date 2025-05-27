@@ -4,13 +4,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
 
 import { useBookmarks } from '@/hooks/useBookmarks';
-import { transformBookmarksForUI, createMockBookmarkData, UIBookmark } from '@/utils/transformBookmarks';
+import { transformBookmarksForUI, UIBookmark } from '@/utils/transformBookmarks';
 import { useCollections, useCollectionOperations } from '@/hooks/useCollections';
 import { analyzeBookmarksForCollection, SemanticSuggestion, SemanticAnalysisResult } from '@/services/semanticAnalysis';
 
@@ -1472,9 +1472,22 @@ interface RecentSavesProps {
 }
 
 export default function RecentSaves({ searchResults, isSearchActive, onClearSearch }: RecentSavesProps = {}) {
-  const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount } = useBookmarks();
+  // Add new state for sort and filter
+  const [sortBy, setSortBy] = useState<'created_at' | 'source'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [providerFilters, setProviderFilters] = useState<Set<string>>(new Set());
+
+  // Add new state for tracking filter changes
+  const [isFilterChanging, setIsFilterChanging] = useState(false);
+  const filterChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update useBookmarks call to use the new parameters
+  const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount } = useBookmarks({
+    sortBy,
+    sortOrder,
+    providers: Array.from(providerFilters)
+  });
   
-  const mockData = useMemo(() => createMockBookmarkData(), []);
   const realBookmarks = useMemo(() => transformBookmarksForUI(bookmarks), [bookmarks]);
   
   // Transform search results to UIBookmark format
@@ -1504,8 +1517,9 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   
   const isUsingMockData = realBookmarks.length === 0 && !isSearchActive;
 
-  const [visibleSaves, setVisibleSaves] = useState<UIBookmark[]>([]);
-  const [page, setPage] = useState(1);
+  // Fix: Only use mock data when there are truly no bookmarks AND no filters are applied
+  const shouldShowMockData = totalCount === 0 && !isSearchActive && providerFilters.size === 0;
+
   const [loadingMore, setLoadingMore] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -1516,12 +1530,32 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
 
   const [addToCollectionModalOpen, setAddToCollectionModalOpen] = useState(false);
   const [saveToAdd, setSaveToAdd] = useState<UIBookmark | null>(null);
-  const [sortOption, setSortOption] = useState<'latest' | 'earliest' | 'popular'>('latest');
   
   // Bulk selection state
   const [bulkSelectionMode, setBulkSelectionMode] = useState(false);
   const [selectedBookmarks, setSelectedBookmarks] = useState<Set<string | number>>(new Set());
   const [bulkAddToCollectionModalOpen, setBulkAddToCollectionModalOpen] = useState(false);
+
+  // Add state for dropdown
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setFilterDropdownOpen(false);
+      }
+    };
+
+    if (filterDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [filterDropdownOpen]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1530,100 +1564,16 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     }
   }, []);
 
-  const getSortedSaves = useCallback(() => {
-    let dataToSort: UIBookmark[];
-    
-    if (isSearchActive && searchBookmarks.length > 0) {
-      dataToSort = searchBookmarks;
-    } else if (isUsingMockData) {
-      dataToSort = mockData;
-    } else {
-      dataToSort = realBookmarks;
-    }
-    
-    let sorted = [...dataToSort];
-    
-    // For search results, don't sort by popularity as they're already sorted by relevance
-    if (isSearchActive && searchBookmarks.length > 0) {
-      return sorted; // Keep search results in relevance order
-    }
-    
-    switch (sortOption) {
-      case 'latest':
-        sorted = sorted.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
-        break;
-      case 'earliest':
-        sorted = sorted.sort((a, b) => a.savedAt.getTime() - b.savedAt.getTime());
-        break;
-      case 'popular':
-        console.log('Sorting by popularity, data:', sorted.map(s => ({ title: s.title, source: s.source, engagement: s.engagement })));
-        sorted = sorted.sort((a, b) => {
-          // For GitHub repos, use stars; for other sources, use their primary metric
-          let aPopularity = 0;
-          let bPopularity = 0;
-          
-          if (a.source === 'github') {
-            aPopularity = a.engagement?.stars || 0;
-          } else if (a.source === 'twitter') {
-            aPopularity = a.engagement?.likes || 0;
-          } else if (a.source === 'stack') {
-            aPopularity = a.engagement?.votes || 0;
-          } else if (a.source === 'reddit') {
-            aPopularity = a.engagement?.upvotes || 0;
-          } else {
-            aPopularity = a.engagement?.saves || 0;
-          }
-          
-          if (b.source === 'github') {
-            bPopularity = b.engagement?.stars || 0;
-          } else if (b.source === 'twitter') {
-            bPopularity = b.engagement?.likes || 0;
-          } else if (b.source === 'stack') {
-            bPopularity = b.engagement?.votes || 0;
-          } else if (b.source === 'reddit') {
-            bPopularity = b.engagement?.upvotes || 0;
-          } else {
-            bPopularity = b.engagement?.saves || 0;
-          }
-          
-          console.log(`Comparing ${a.title} (${aPopularity}) vs ${b.title} (${bPopularity})`);
-          return bPopularity - aPopularity;
-        });
-        break;
-    }
-    return sorted;
-  }, [isSearchActive, searchBookmarks, isUsingMockData, mockData, realBookmarks, sortOption]);
-
-  const sortedData = useMemo(() => getSortedSaves(), [getSortedSaves]);
-
   const loadMoreSaves = useCallback(async () => {
-    if (isUsingMockData) {
-      setLoadingMore(true);
-      const itemsPerPage = 6;
-      const startIndex = (page - 1) * itemsPerPage;
-      const endIndex = page * itemsPerPage;
-      
-      if (startIndex >= sortedData.length) {
-        setLoadingMore(false);
-        return;
-      }
-      
-      setTimeout(() => {
-      const newItems = sortedData.slice(0, endIndex);
-      setVisibleSaves(newItems);
-      setPage(prevPage => prevPage + 1);
-        setLoadingMore(false);
-      }, 500);
-    } else {
-      setLoadingMore(true);
-      await loadMore();
-      setLoadingMore(false);
-    }
-  }, [isUsingMockData, page, sortedData, loadMore]);
+    // Remove mock data logic from loadMoreSaves - only use real data
+    setLoadingMore(true);
+    await loadMore();
+    setLoadingMore(false);
+  }, [loadMore]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && (isUsingMockData ? visibleSaves.length < sortedData.length : hasMore) && !loadingMore) {
+      if (entries[0].isIntersecting && hasMore && !loadingMore) {
         loadMoreSaves();
       }
     }, { threshold: 0.5 });
@@ -1638,16 +1588,9 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
         observer.unobserve(currentObserverTarget);
       }
     };
-  }, [hasMore, loadingMore, visibleSaves.length, sortedData.length, loadMoreSaves, isUsingMockData]);
+  }, [hasMore, loadingMore, loadMoreSaves]);
 
-  useEffect(() => {
-    if (!isUsingMockData) {
-      setVisibleSaves(sortedData);
-    } else {
-      setVisibleSaves(sortedData.slice(0, 6));
-      setPage(2);
-    }
-  }, [realBookmarks, isUsingMockData, sortedData]);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1667,10 +1610,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
 
   const handleDelete = async (save: UIBookmark) => {
     const success = await deleteBookmark(save.id.toString());
-    if (success) {
-      // Remove from visible saves for immediate UI feedback
-      setVisibleSaves(prev => prev.filter(s => s.id !== save.id));
-    }
+    // The bookmark will be automatically removed from the list when the data refreshes
   };
 
   // Bulk selection handlers
@@ -1680,20 +1620,23 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   };
 
   const handleBookmarkSelect = (bookmarkId: string | number) => {
-    const newSelected = new Set(selectedBookmarks);
-    if (newSelected.has(bookmarkId)) {
-      newSelected.delete(bookmarkId);
-    } else {
-      newSelected.add(bookmarkId);
-    }
-    setSelectedBookmarks(newSelected);
+    setSelectedBookmarks(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(bookmarkId)) {
+        newSelected.delete(bookmarkId);
+      } else {
+        newSelected.add(bookmarkId);
+      }
+      return newSelected;
+    });
   };
 
   const handleSelectAll = () => {
-    if (selectedBookmarks.size === visibleSaves.length) {
+    const currentBookmarks = isSearchActive ? searchBookmarks : realBookmarks;
+    if (selectedBookmarks.size === currentBookmarks.length) {
       setSelectedBookmarks(new Set());
     } else {
-      setSelectedBookmarks(new Set(visibleSaves.map(save => save.id)));
+      setSelectedBookmarks(new Set(currentBookmarks.map(save => save.id)));
     }
   };
 
@@ -1701,22 +1644,109 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     setBulkAddToCollectionModalOpen(true);
   };
 
+  // Clear selection when switching modes or when data changes
+  useEffect(() => {
+    if (!bulkSelectionMode) {
+      setSelectedBookmarks(new Set());
+    }
+  }, [bulkSelectionMode]);
+
+  // Clear selection when filters change to prevent stale selections
+  useEffect(() => {
+    setSelectedBookmarks(new Set());
+  }, [providerFilters, sortBy, sortOrder]);
+
   const currentCount = isSearchActive && searchBookmarks.length > 0 
     ? searchBookmarks.length 
-    : isUsingMockData 
-      ? visibleSaves.length 
-      : realBookmarks.length;
+    : realBookmarks.length;
   
   const totalDisplayCount = isSearchActive && searchBookmarks.length > 0
     ? searchBookmarks.length
-    : isUsingMockData 
-      ? sortedData.length 
-      : totalCount;
+    : totalCount;
+
+  // Add handlers for the new sort and filter controls
+  const handleSortChange = (newSortBy: 'created_at' | 'source', newSortOrder: 'asc' | 'desc') => {
+    setIsFilterChanging(true);
+    setSortBy(newSortBy);
+    setSortOrder(newSortOrder);
+    
+    // Clear the timeout and set a new one - shorter timeout since cache handles empty results
+    if (filterChangeTimeoutRef.current) {
+      clearTimeout(filterChangeTimeoutRef.current);
+    }
+    filterChangeTimeoutRef.current = setTimeout(() => {
+      setIsFilterChanging(false);
+    }, 200); // Reduced from 500ms since cache shows empty results immediately
+  };
+
+  const handleProviderFilterToggle = (provider: string) => {
+    setIsFilterChanging(true);
+    const newFilters = new Set(providerFilters);
+    if (newFilters.has(provider)) {
+      newFilters.delete(provider);
+    } else {
+      newFilters.add(provider);
+    }
+    setProviderFilters(newFilters);
+    
+    // Clear the timeout and set a new one
+    if (filterChangeTimeoutRef.current) {
+      clearTimeout(filterChangeTimeoutRef.current);
+    }
+    filterChangeTimeoutRef.current = setTimeout(() => {
+      setIsFilterChanging(false);
+    }, 200); // Reduced timeout
+  };
+
+  const clearAllFilters = () => {
+    setIsFilterChanging(true);
+    setProviderFilters(new Set());
+    
+    // Clear the timeout and set a new one
+    if (filterChangeTimeoutRef.current) {
+      clearTimeout(filterChangeTimeoutRef.current);
+    }
+    filterChangeTimeoutRef.current = setTimeout(() => {
+      setIsFilterChanging(false);
+    }, 200); // Reduced timeout
+  };
+
+  // Available providers for filtering
+  const availableProviders = ['github', 'twitter', 'reddit', 'stackoverflow'];
+
+  // Add handler for select all in dropdown
+  const handleSelectAllProviders = () => {
+    setIsFilterChanging(true);
+    if (providerFilters.size === availableProviders.length) {
+      // If all are selected, deselect all
+      setProviderFilters(new Set());
+    } else {
+      // Select all providers
+      setProviderFilters(new Set(availableProviders));
+    }
+    
+    // Clear the timeout and set a new one
+    if (filterChangeTimeoutRef.current) {
+      clearTimeout(filterChangeTimeoutRef.current);
+    }
+    filterChangeTimeoutRef.current = setTimeout(() => {
+      setIsFilterChanging(false);
+    }, 200); // Reduced timeout
+  };
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (filterChangeTimeoutRef.current) {
+        clearTimeout(filterChangeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
       <div className="sticky top-0 z-30 bg-background pt-4 pb-4 mb-2 border-b border-border">
-        {!isUsingMockData && (
+        {!shouldShowMockData && totalCount > 0 && (
           <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center space-x-2 text-green-700 text-sm">
               <CheckCircle2 className="h-4 w-4" />
@@ -1725,7 +1755,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
           </div>
         )}
         
-        {isUsingMockData && (
+        {shouldShowMockData && (
           <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center space-x-2 text-blue-700 text-sm">
               <BookmarkIcon className="h-4 w-4" />
@@ -1798,36 +1828,129 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
             
             {!bulkSelectionMode && (
               <>
-            <span className="text-sm text-muted-foreground">Sort by:</span>
-            <div className="flex border border-border rounded-md overflow-hidden">
-              <Button 
-                variant={sortOption === 'latest' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="rounded-none text-xs py-1 h-8" 
-                onClick={() => setSortOption('latest')}
-              >
-                <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                Latest
-              </Button>
-              <Button 
-                variant={sortOption === 'earliest' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="rounded-none text-xs py-1 h-8" 
-                onClick={() => setSortOption('earliest')}
-              >
-                <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                Earliest
-              </Button>
-              <Button 
-                variant={sortOption === 'popular' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="rounded-none text-xs py-1 h-8" 
-                onClick={() => setSortOption('popular')}
-              >
-                <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-                Popular
-              </Button>
-            </div>
+                <span className="text-sm text-muted-foreground">Sort by:</span>
+                <div className="flex border border-border rounded-md overflow-hidden">
+                  <Button 
+                    variant={sortBy === 'created_at' && sortOrder === 'desc' ? 'secondary' : 'ghost'} 
+                    size="sm" 
+                    className="rounded-none text-xs py-1 h-8" 
+                    onClick={() => handleSortChange('created_at', 'desc')}
+                  >
+                    <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                    Latest
+                  </Button>
+                  <Button 
+                    variant={sortBy === 'created_at' && sortOrder === 'asc' ? 'secondary' : 'ghost'} 
+                    size="sm" 
+                    className="rounded-none text-xs py-1 h-8" 
+                    onClick={() => handleSortChange('created_at', 'asc')}
+                  >
+                    <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                    Earliest
+                  </Button>
+                  <Button 
+                    variant={sortBy === 'source' ? 'secondary' : 'ghost'} 
+                    size="sm" 
+                    className="rounded-none text-xs py-1 h-8" 
+                    onClick={() => handleSortChange('source', 'asc')}
+                  >
+                    <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+                    Source
+                  </Button>
+                </div>
+                
+                <span className="text-sm text-muted-foreground">Filter by:</span>
+                <div className="relative" ref={filterDropdownRef}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8"
+                    onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+                  >
+                    <Filter className="h-3.5 w-3.5 mr-1.5" />
+                    Platform
+                    {providerFilters.size > 0 && (
+                      <span className="ml-1 bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-xs">
+                        {providerFilters.size}
+                      </span>
+                    )}
+                    <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+                  </Button>
+                  
+                  {filterDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-50">
+                      <div className="p-2">
+                        <div className="text-sm font-medium text-foreground mb-2 px-2">Select Platforms</div>
+                        <div className="space-y-1">
+                          {/* Add Select All option at the top */}
+                          <div
+                            className="flex items-center space-x-2 px-2 py-1.5 hover:bg-muted rounded-sm cursor-pointer border-b border-border mb-1"
+                            onClick={() => {
+                              handleSelectAllProviders();
+                            }}
+                          >
+                            <div className={cn(
+                              "w-4 h-4 rounded border-2 flex items-center justify-center",
+                              providerFilters.size === availableProviders.length
+                                ? "border-primary bg-primary"
+                                : providerFilters.size > 0
+                                ? "border-primary bg-primary/20"
+                                : "border-muted-foreground"
+                            )}>
+                              {providerFilters.size === availableProviders.length && (
+                                <CheckCircle2 className="h-3 w-3 text-white" />
+                              )}
+                              {providerFilters.size > 0 && providerFilters.size < availableProviders.length && (
+                                <div className="w-2 h-2 bg-primary rounded-sm" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium">
+                              {providerFilters.size === availableProviders.length ? 'Deselect All' : 'Select All'}
+                            </span>
+                          </div>
+                          
+                          {availableProviders.map(provider => (
+                            <div
+                              key={provider}
+                              className="flex items-center space-x-2 px-2 py-1.5 hover:bg-muted rounded-sm cursor-pointer"
+                              onClick={() => {
+                                handleProviderFilterToggle(provider);
+                              }}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded border-2 flex items-center justify-center",
+                                providerFilters.has(provider)
+                                  ? "border-primary bg-primary"
+                                  : "border-muted-foreground"
+                              )}>
+                                {providerFilters.has(provider) && (
+                                  <CheckCircle2 className="h-3 w-3 text-white" />
+                                )}
+                              </div>
+                              <SourceIcon source={provider} />
+                              <span className="capitalize text-sm">{provider}</span>
+                            </div>
+                          ))}
+                          {providerFilters.size > 0 && (
+                            <>
+                              <div className="border-t border-border my-1"></div>
+                              <div
+                                className="flex items-center space-x-2 px-2 py-1.5 hover:bg-muted rounded-sm cursor-pointer text-muted-foreground"
+                                onClick={() => {
+                                  clearAllFilters();
+                                  setFilterDropdownOpen(false);
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                                <span className="text-sm">Clear All Filters</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -1844,7 +1967,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                   onClick={handleSelectAll}
                   className="h-8"
                 >
-                  {selectedBookmarks.size === visibleSaves.length ? (
+                  {selectedBookmarks.size === (isSearchActive ? searchBookmarks : realBookmarks).length ? (
                     <>
                       <X className="h-4 w-4 mr-2" />
                       Deselect All
@@ -1852,7 +1975,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Select All ({visibleSaves.length})
+                      Select All ({(isSearchActive ? searchBookmarks : realBookmarks).length})
                     </>
                   )}
                 </Button>
@@ -1879,9 +2002,20 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {loading && visibleSaves.length === 0 ? (
+        {/* Only show loading spinner if actually loading and not just filter changing */}
+        {loading && !isFilterChanging && realBookmarks.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="text-sm text-muted-foreground">Loading bookmarks...</span>
+            </div>
+          </div>
+        ) : isFilterChanging && realBookmarks.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="text-sm text-muted-foreground">Applying filters...</span>
+            </div>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -1890,17 +2024,33 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
               Try Again
             </Button>
           </div>
-        ) : visibleSaves.length === 0 ? (
+        ) : (isSearchActive ? searchBookmarks.length === 0 : realBookmarks.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <BookmarkIcon className="h-12 w-12 text-muted-foreground mb-3" />
-            <h3 className="text-lg font-semibold mb-2">No bookmarks yet</h3>
-            <p className="text-muted-foreground">Connect your accounts to start importing bookmarks</p>
+            {providerFilters.size > 0 ? (
+              <>
+                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-semibold mb-2">No bookmarks found</h3>
+                <p className="text-muted-foreground mb-4">
+                  No bookmarks match the selected platform filters: {Array.from(providerFilters).join(', ')}
+                </p>
+                <Button onClick={clearAllFilters} variant="outline" size="sm">
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+              </>
+            ) : (
+              <>
+                <BookmarkIcon className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-semibold mb-2">No bookmarks yet</h3>
+                <p className="text-muted-foreground">Connect your accounts to start importing bookmarks</p>
+              </>
+            )}
           </div>
         ) : (
           <>
             {viewMode === 'card' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {visibleSaves.map(save => (
+                {(isSearchActive ? searchBookmarks : realBookmarks).map(save => (
                   <SaveCard 
                     key={save.id} 
                     save={save} 
@@ -1915,7 +2065,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
               </div>
             ) : (
               <div className="space-y-4">
-                {visibleSaves.map(save => (
+                {(isSearchActive ? searchBookmarks : realBookmarks).map(save => (
                   <SaveListItem 
                     key={save.id} 
                     save={save} 
@@ -1940,7 +2090,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                   <span className="text-sm text-muted-foreground">Loading more...</span>
         </div>
               )}
-              {!loadingMore && (isUsingMockData ? visibleSaves.length >= sortedData.length : !hasMore) && visibleSaves.length > 0 && (
+              {!loadingMore && !hasMore && realBookmarks.length > 0 && (
                 <span className="text-sm text-muted-foreground">No more saves to load</span>
               )}
       </div>
@@ -1965,7 +2115,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
         isOpen={bulkAddToCollectionModalOpen}
         onClose={() => setBulkAddToCollectionModalOpen(false)}
         selectedBookmarks={selectedBookmarks}
-        bookmarks={visibleSaves}
+        bookmarks={isSearchActive ? searchBookmarks : realBookmarks}
       />
             </div>
   );

@@ -51,82 +51,152 @@ serve(async (req) => {
       throw new Error('Reddit account not connected or access token not found')
     }
 
+    // Update last_sync_at timestamp
+    await supabaseAdmin
+      .from('connected_accounts')
+      .update({ 
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'reddit')
+
     // Reddit API credentials
     const REDDIT_CLIENT_ID = 'ZtTUnPPm6b5qPU65KQcLLg'
     const REDDIT_CLIENT_SECRET = 'l1gq8I2TKMMkWFbPWpqe0jZzcdRM3A'
 
     // Function to refresh access token if needed
     const refreshRedditToken = async (refreshToken: string) => {
-      const refreshResponse = await fetch('https://www.reddit.com/api/v1/access_token', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`),
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'SKOOP/1.0'
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken
+      try {
+        const refreshResponse = await fetch('https://www.reddit.com/api/v1/access_token', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic ' + btoa(`${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'SKOOP/1.0'
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken
+          })
         })
-      })
 
-      if (!refreshResponse.ok) {
-        throw new Error('Failed to refresh Reddit token')
+        if (!refreshResponse.ok) {
+          const errorText = await refreshResponse.text()
+          throw new Error(`Failed to refresh Reddit token: ${refreshResponse.status} ${refreshResponse.statusText} - ${errorText}`)
+        }
+
+        const refreshData = await refreshResponse.json()
+        
+        // Update the stored access token
+        await supabaseAdmin
+          .from('connected_accounts')
+          .update({ 
+            access_token: refreshData.access_token,
+            status: 'active',
+            last_error: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'reddit')
+
+        return refreshData.access_token
+      } catch (refreshError) {
+        console.error('Reddit token refresh failed:', refreshError)
+        
+        // Update connected_accounts with error status
+        await supabaseAdmin
+          .from('connected_accounts')
+          .update({ 
+            status: 'expired',
+            last_error: refreshError.message || 'Failed to refresh Reddit token',
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'reddit')
+
+        throw refreshError
       }
-
-      const refreshData = await refreshResponse.json()
-      
-      // Update the stored access token
-      await supabaseAdmin
-        .from('connected_accounts')
-        .update({ 
-          access_token: refreshData.access_token,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id)
-        .eq('provider', 'reddit')
-
-      return refreshData.access_token
     }
 
     // Function to fetch Reddit saved items
     const fetchRedditSaved = async (accessToken: string) => {
-      const response = await fetch('https://oauth.reddit.com/user/me/saved?limit=100', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'User-Agent': 'SKOOP/1.0'
-        }
-      })
-
-      if (response.status === 401 && account.refresh_token) {
-        // Token expired, try to refresh
-        console.log('Access token expired, refreshing...')
-        const newAccessToken = await refreshRedditToken(account.refresh_token)
-        
-        // Retry with new token
-        const retryResponse = await fetch('https://oauth.reddit.com/user/me/saved?limit=100', {
+      try {
+        const response = await fetch('https://oauth.reddit.com/user/me/saved?limit=100', {
           headers: {
-            'Authorization': `Bearer ${newAccessToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'User-Agent': 'SKOOP/1.0'
           }
         })
 
-        if (!retryResponse.ok) {
-          throw new Error(`Reddit API error after refresh: ${retryResponse.status} ${retryResponse.statusText}`)
+        if (response.status === 401 && account.refresh_token) {
+          // Token expired, try to refresh
+          console.log('Access token expired, refreshing...')
+          const newAccessToken = await refreshRedditToken(account.refresh_token)
+          
+          // Retry with new token
+          const retryResponse = await fetch('https://oauth.reddit.com/user/me/saved?limit=100', {
+            headers: {
+              'Authorization': `Bearer ${newAccessToken}`,
+              'User-Agent': 'SKOOP/1.0'
+            }
+          })
+
+          if (!retryResponse.ok) {
+            const errorText = await retryResponse.text()
+            throw new Error(`Reddit API error after refresh: ${retryResponse.status} ${retryResponse.statusText} - ${errorText}`)
+          }
+
+          return retryResponse.json()
         }
 
-        return retryResponse.json()
-      }
+        if (!response.ok) {
+          const errorText = await response.text()
+          const errorMessage = `Reddit API error: ${response.status} ${response.statusText} - ${errorText}`
+          
+          // Update connected_accounts with error status
+          await supabaseAdmin
+            .from('connected_accounts')
+            .update({ 
+              status: response.status === 401 ? 'expired' : 'error',
+              last_error: errorMessage,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id)
+            .eq('provider', 'reddit')
 
-      if (!response.ok) {
-        throw new Error(`Reddit API error: ${response.status} ${response.statusText}`)
-      }
+          throw new Error(errorMessage)
+        }
 
-      return response.json()
+        return response.json()
+      } catch (apiError) {
+        console.error('Reddit API call failed:', apiError)
+        
+        // Update connected_accounts with error status if not already updated
+        if (!apiError.message.includes('after refresh')) {
+          await supabaseAdmin
+            .from('connected_accounts')
+            .update({ 
+              status: 'error',
+              last_error: apiError.message || 'Failed to fetch data from Reddit API',
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id)
+            .eq('provider', 'reddit')
+        }
+
+        throw apiError
+      }
     }
 
-    // Fetch saved items from Reddit
-    const redditData = await fetchRedditSaved(account.access_token)
+    let redditData
+    try {
+      // Fetch saved items from Reddit
+      redditData = await fetchRedditSaved(account.access_token)
+    } catch (fetchError) {
+      console.error('Failed to fetch Reddit data:', fetchError)
+      throw fetchError
+    }
     
     if (!redditData?.data?.children) {
       console.log('No saved items found')
@@ -197,6 +267,17 @@ serve(async (req) => {
         // Continue processing other items
       }
     }
+
+    // Update connected_accounts with successful sync status
+    await supabaseAdmin
+      .from('connected_accounts')
+      .update({ 
+        status: 'active',
+        last_error: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'reddit')
 
     console.log(`Successfully processed ${insertedCount} Reddit items`)
 

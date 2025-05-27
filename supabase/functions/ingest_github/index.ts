@@ -51,33 +51,80 @@ serve(async (req) => {
       throw new Error('GitHub account not connected or access token not found')
     }
 
-    // Fetch starred repositories from GitHub
-    const response = await fetch('https://api.github.com/user/starred?per_page=100', {
-      headers: {
-        'Authorization': `Bearer ${account.access_token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'SKOOP/1.0'
+    // Update last_sync_at timestamp
+    await supabaseAdmin
+      .from('connected_accounts')
+      .update({ 
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'github')
+
+    let repositories = []
+    
+    try {
+      // Fetch starred repositories from GitHub with proper error handling
+      console.log('Fetching starred repositories from GitHub API...')
+      const response = await fetch('https://api.github.com/user/starred?per_page=100', {
+        headers: {
+          'Authorization': `Bearer ${account.access_token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'SKOOP/1.0'
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        const errorMessage = `GitHub API error: ${response.status} ${response.statusText} - ${errorText}`
+        console.error(errorMessage)
+        
+        // Update connected_accounts with error status
+        await supabaseAdmin
+          .from('connected_accounts')
+          .update({ 
+            status: response.status === 401 ? 'expired' : 'error',
+            last_error: errorMessage,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'github')
+
+        throw new Error(errorMessage)
       }
-    })
 
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`)
+      repositories = await response.json()
+      console.log(`Found ${repositories.length} starred GitHub repositories`)
+
+    } catch (apiError) {
+      console.error('GitHub API call failed:', apiError)
+      
+      // Update connected_accounts with error status
+      const errorMessage = apiError.message || 'Failed to fetch data from GitHub API'
+      await supabaseAdmin
+        .from('connected_accounts')
+        .update({ 
+          status: 'error',
+          last_error: errorMessage,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'github')
+
+      throw apiError
     }
-
-    const repositories = await response.json()
-    console.log(`Found ${repositories.length} starred GitHub repositories`)
 
     let insertedCount = 0
 
     // Process each starred repository
     for (const repo of repositories) {
       try {
-      // Store raw data
+        // Store raw data
         await supabaseAdmin
-        .from('bookmarks_raw')
+          .from('bookmarks_raw')
           .upsert({
             user_id: user.id,
-          source: 'github',
+            source: 'github',
             raw_json: repo,
             fetched_at: new Date().toISOString()
           }, {
@@ -94,7 +141,7 @@ serve(async (req) => {
         }
 
         await supabaseAdmin
-        .from('bookmarks')
+          .from('bookmarks')
           .upsert({
             user_id: user.id,
             url: repo.html_url,
@@ -114,6 +161,17 @@ serve(async (req) => {
       }
     }
 
+    // Update connected_accounts with successful sync status
+    await supabaseAdmin
+      .from('connected_accounts')
+      .update({ 
+        status: 'active',
+        last_error: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'github')
+
     console.log(`Successfully processed ${insertedCount} GitHub repositories`)
 
     return new Response(JSON.stringify({ 
@@ -121,7 +179,7 @@ serve(async (req) => {
       total_fetched: repositories.length,
       message: `Successfully synced ${insertedCount} GitHub starred repositories`
     }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     })
 
@@ -132,7 +190,7 @@ serve(async (req) => {
       error: error.message || 'Failed to ingest GitHub data',
       count: 0
     }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500
     })
   }

@@ -1,32 +1,37 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle, CreditCard, Edit2, Check, X } from "lucide-react";
+import { CheckCircle, CreditCard, Edit2, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { getProviderDisplayName } from "@/utils/ingest";
 import OAuthConnectButtons from "@/components/auth/oauth-connect-buttons";
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing'>('profile');
   const { user } = useAuth();
+  const { 
+    profile, 
+    loading: profileLoading, 
+    updating, 
+    error: profileError,
+    updateDisplayName,
+    displayName,
+    email 
+  } = useUserProfile();
   
   // Username editing state
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [editedUsername, setEditedUsername] = useState('');
-  const [savedUsername, setSavedUsername] = useState('');
 
-  // Initialize username from email (part before @) or saved username
+  // Initialize username from profile data
   useEffect(() => {
-    if (user?.email) {
-      const defaultUsername = user.email.split('@')[0];
-      // Try to get saved username from localStorage or use email prefix
-      const stored = localStorage.getItem(`username_${user.id}`) || defaultUsername;
-      setSavedUsername(stored);
-      setEditedUsername(stored);
+    if (profile) {
+      setEditedUsername(displayName);
     }
-  }, [user]);
+  }, [profile, displayName]);
 
   // Handle URL parameters for success messages
   useEffect(() => {
@@ -100,17 +105,20 @@ export default function Profile() {
     setIsEditingUsername(true);
   };
 
-  const handleSaveUsername = () => {
-    if (editedUsername.trim() && user?.id) {
-      setSavedUsername(editedUsername.trim());
-      localStorage.setItem(`username_${user.id}`, editedUsername.trim());
-      setIsEditingUsername(false);
-      showToast('Username updated successfully!', 'success');
+  const handleSaveUsername = async () => {
+    if (editedUsername.trim()) {
+      const success = await updateDisplayName(editedUsername.trim());
+      if (success) {
+        setIsEditingUsername(false);
+        showToast('Display name updated successfully!', 'success');
+      } else {
+        showToast('Failed to update display name. Please try again.', 'error');
+      }
     }
   };
 
   const handleCancelEdit = () => {
-    setEditedUsername(savedUsername);
+    setEditedUsername(displayName);
     setIsEditingUsername(false);
   };
 
@@ -136,11 +144,18 @@ export default function Profile() {
       </div>
       
       {activeTab === 'profile' ? <>
+          {/* Profile Error Display */}
+          {profileError && (
+            <div className="mb-6 p-3 bg-destructive/10 border border-destructive/30 text-destructive rounded-lg text-sm">
+              {profileError}
+            </div>
+          )}
+
           {/* User info */}
           <div className="skoop-card p-6 mb-8" data-unique-id="14b3b384-d714-44b1-a781-7bc511c89b36" data-file-name="components/dashboard/profile.tsx">
         <div className="flex items-center" data-unique-id="a0230fcd-f853-4a60-9c42-fe0bd8fd2b97" data-file-name="components/dashboard/profile.tsx">
           <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xl mr-4" data-unique-id="791df67d-0493-42e3-9818-5b070dd0645f" data-file-name="components/dashboard/profile.tsx">
-            {getUserInitials(user?.email)}
+            {getUserInitials(email)}
           </div>
           <div data-unique-id="73a91b44-3745-4e82-83c6-7d813dc9461a" data-file-name="components/dashboard/profile.tsx">
             {/* Editable Username */}
@@ -157,9 +172,10 @@ export default function Profile() {
                   />
                   <button
                     onClick={handleSaveUsername}
-                    className="p-1 text-green-600 hover:bg-green-100 rounded"
+                    disabled={updating}
+                    className="p-1 text-green-600 hover:bg-green-100 rounded disabled:opacity-50"
                   >
-                    <Check className="h-4 w-4" />
+                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   </button>
                   <button
                     onClick={handleCancelEdit}
@@ -171,7 +187,7 @@ export default function Profile() {
               ) : (
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-semibold" data-unique-id="da7fddc0-e95a-49d0-9960-760fc87f6f00" data-file-name="components/dashboard/profile.tsx">
-                    {savedUsername || 'User'}
+                    {displayName || 'User'}
                   </h2>
                   <button
                     onClick={handleEditUsername}
@@ -183,9 +199,9 @@ export default function Profile() {
               )}
             </div>
             
-            {/* Email (always from login credentials) */}
+            {/* Email */}
             <p className="text-muted-foreground" data-unique-id="bb076531-e068-4ad8-b175-d2e2b694c9f5" data-file-name="components/dashboard/profile.tsx">
-              {user?.email || 'No email available'}
+              {email || 'No email available'}
             </p>
             <div className="mt-2 text-sm" data-unique-id="8e5e856b-12c0-4fda-a35f-03856de9f019" data-file-name="components/dashboard/profile.tsx">
               <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full" data-unique-id="5750c9de-5eb9-4993-8ab6-b804629aa434" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="61fe20cc-2ba0-453b-a2b5-054d5c9a8984" data-file-name="components/dashboard/profile.tsx">
@@ -207,7 +223,7 @@ export default function Profile() {
           <div data-unique-id="94187fcf-a7d7-42de-9b69-243d561e8a7e" data-file-name="components/dashboard/profile.tsx">
             <div className="text-sm text-muted-foreground" data-unique-id="15e395df-c450-4737-86b6-6a4d7a2c45c0" data-file-name="components/dashboard/profile.tsx"><span className="editable-text" data-unique-id="a9fc7eac-7430-45b8-8a70-91ed4c71b1d9" data-file-name="components/dashboard/profile.tsx">Member Since</span></div>
             <div className="font-semibold" data-unique-id="f204649c-8c96-477f-a8d9-a57c7e511ab6" data-file-name="components/dashboard/profile.tsx">
-              {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}
+              {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}
             </div>
           </div>
         </div>
@@ -217,6 +233,8 @@ export default function Profile() {
           <div className="skoop-card p-6 mb-8">
             <OAuthConnectButtons />
           </div>
+
+
         </> : <BillingSection />}
     </div>;
 }

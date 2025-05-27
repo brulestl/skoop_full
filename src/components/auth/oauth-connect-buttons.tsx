@@ -102,15 +102,31 @@ const providers: Array<{
 
 export default function OAuthConnectButtons() {
   const { 
+    accounts,
     isConnected, 
     connectAccount, 
     disconnectAccount, 
     connecting, 
-    loading 
+    loading,
+    getAccount 
   } = useConnectedAccounts();
   
   const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
   const [refreshing, setRefreshing] = useState<Provider | null>(null);
+
+  // Get account status for a provider
+  const getAccountStatus = (provider: Provider) => {
+    const account = getAccount(provider);
+    return account?.status || 'active';
+  };
+
+  // Check if account has error
+  const hasError = (provider: Provider) => {
+    const status = getAccountStatus(provider);
+    return status === 'error' || status === 'expired';
+  };
+
+  // Debug logging removed - use ConnectedAccountsDebug component instead
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     // Enhanced toast implementation with better visibility
@@ -153,7 +169,15 @@ export default function OAuthConnectButtons() {
       await connectAccount(provider);
     } catch (error) {
       console.error('Failed to connect account:', error);
-      showToast(`Failed to connect ${provider}`, 'error');
+      
+      // Handle specific error messages
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('already connected')) {
+        showToast(`${provider} account is already linked. Disconnect first to reconnect.`, 'error');
+      } else {
+        showToast(`Failed to connect ${provider}: ${errorMessage}`, 'error');
+      }
     }
   };
 
@@ -240,6 +264,8 @@ export default function OAuthConnectButtons() {
           const isConnecting = connecting === provider.id;
           const isDisconnecting = disconnecting === provider.id;
           const isRefreshing = refreshing === provider.id;
+          const accountHasError = hasError(provider.id);
+          const account = getAccount(provider.id);
           const IconComponent = provider.icon;
 
           return (
@@ -247,7 +273,9 @@ export default function OAuthConnectButtons() {
               key={provider.id}
               className={cn(
                 "flex items-center justify-between p-4 rounded-lg border",
-                connected ? "bg-green-50 border-green-200" : "bg-background border-border",
+                connected && !accountHasError ? "bg-green-50 border-green-200" : 
+                connected && accountHasError ? "bg-red-50 border-red-200" :
+                "bg-background border-border",
                 provider.disabled && "opacity-50"
               )}
             >
@@ -255,11 +283,24 @@ export default function OAuthConnectButtons() {
                 <IconComponent className={cn("h-5 w-5", provider.color)} />
                 <div>
                   <p className="font-medium">{provider.name}</p>
-                  {connected && (
+                  {connected && !accountHasError && (
                     <p className="text-sm text-green-600 flex items-center">
                       <CheckCircle className="h-4 w-4 mr-1" />
                       Connected
                     </p>
+                  )}
+                  {connected && accountHasError && (
+                    <div className="space-y-1">
+                      <p className="text-sm text-red-600 flex items-center">
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        {account?.status === 'expired' ? 'Token Expired' : 'Sync Error'}
+                      </p>
+                      {account?.last_error && (
+                        <p className="text-xs text-red-500 max-w-xs truncate" title={account.last_error}>
+                          {account.last_error}
+                        </p>
+                      )}
+                    </div>
                   )}
                   {provider.disabled && (
                     <p className="text-sm text-muted-foreground">{provider.disabledReason}</p>
@@ -268,7 +309,7 @@ export default function OAuthConnectButtons() {
               </div>
 
               <div className="flex items-center space-x-2">
-                {connected && !provider.disabled && (
+                {connected && !accountHasError && !provider.disabled && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -277,6 +318,23 @@ export default function OAuthConnectButtons() {
                   >
                     <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
                     {isRefreshing ? 'Syncing...' : 'Sync Now'}
+                  </Button>
+                )}
+
+                {connected && accountHasError && !provider.disabled && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleConnect(provider.id)}
+                    disabled={isConnecting}
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    {isConnecting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                    )}
+                    {isConnecting ? 'Reconnecting...' : 'Reconnect'}
                   </Button>
                 )}
                 
