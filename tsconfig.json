@@ -8,11 +8,11 @@
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "isolatedModules": true,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
 
     /* Strictness */
     "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
     "checkJs": true,
 
     /* Bundled projects */

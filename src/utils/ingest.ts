@@ -9,13 +9,8 @@ export interface IngestResult {
 }
 
 export interface IngestResponse {
-  data: {
-    count: number;
-    items?: any[];
-  };
-  error?: {
-    message: string;
-  };
+  count: number;
+  items?: any[];
 }
 
 /**
@@ -25,23 +20,24 @@ export async function triggerIngestion(provider: Provider): Promise<IngestResult
   try {
     console.log(`Triggering ingestion for ${provider}...`);
     
-    const { data, error } = await supabase.functions.invoke(`ingest_${provider}`, {
+    const response = await supabase.functions.invoke(`ingest_${provider}`, {
       body: { 
         timestamp: new Date().toISOString(),
         force: true 
       }
-    }) as { data: IngestResponse['data'], error: IngestResponse['error'] };
+    });
 
-    if (error) {
-      console.error(`Ingestion error for ${provider}:`, error);
+    if (response.error) {
+      console.error(`Ingestion error for ${provider}:`, response.error);
       return {
         success: false,
         count: 0,
-        error: error.message || `Failed to ingest ${provider} data`,
+        error: response.error.message || `Failed to ingest ${provider} data`,
         provider
       };
     }
 
+    const data = response.data as IngestResponse;
     console.log(`Ingestion successful for ${provider}:`, data);
     return {
       success: true,

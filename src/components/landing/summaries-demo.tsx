@@ -116,7 +116,7 @@ export function SummariesDemo() {
               
               {/* Card footer with engagement metrics */}
               <div className="border-t border-border p-4 flex justify-between items-center" data-unique-id="5b724d14-1e39-46ce-8b9c-6cd701e3a2e8" data-file-name="components/landing/summaries-demo.tsx" data-dynamic-text="true">
-                {card.platform === 'twitter' && <div className="flex text-xs text-muted-foreground" data-unique-id="292948f5-fb63-4164-9b5a-4cc54c83187e" data-file-name="components/landing/summaries-demo.tsx">
+                {card.platform === 'twitter' && card.engagement && <div className="flex text-xs text-muted-foreground" data-unique-id="292948f5-fb63-4164-9b5a-4cc54c83187e" data-file-name="components/landing/summaries-demo.tsx">
                     <span className="mr-3" data-unique-id="bcca66a4-6cda-4624-9532-f757383f9f49" data-file-name="components/landing/summaries-demo.tsx" data-dynamic-text="true">{card.engagement.likes}<span className="editable-text" data-unique-id="8568a23c-dd57-4768-abd0-7d14967145b3" data-file-name="components/landing/summaries-demo.tsx"> likes</span></span>
                     <span data-unique-id="5ed9b145-c227-4a5d-a73b-2b0105086c80" data-file-name="components/landing/summaries-demo.tsx" data-dynamic-text="true">{card.engagement.replies}<span className="editable-text" data-unique-id="d5dda571-3e67-466f-a380-ec2299aebd26" data-file-name="components/landing/summaries-demo.tsx"> replies</span></span>
                   </div>}
@@ -125,7 +125,7 @@ export function SummariesDemo() {
                     <span data-unique-id="c22d20b1-0ce5-4fb8-bda2-3ea4bf0e9c53" data-file-name="components/landing/summaries-demo.tsx" data-dynamic-text="true">{card.stars}<span className="editable-text" data-unique-id="5813aa84-9f41-40d9-aa86-309b8628653c" data-file-name="components/landing/summaries-demo.tsx"> stars</span></span>
                   </div>}
                 
-                {card.platform === 'reddit' && <div className="flex text-xs text-muted-foreground" data-unique-id="ba96fb78-9718-4574-80e2-46c60e00d7d2" data-file-name="components/landing/summaries-demo.tsx">
+                {card.platform === 'reddit' && card.engagement && <div className="flex text-xs text-muted-foreground" data-unique-id="ba96fb78-9718-4574-80e2-46c60e00d7d2" data-file-name="components/landing/summaries-demo.tsx">
                     <span className="mr-3" data-unique-id="3f6f8b0a-4628-4631-af32-ec74d1d4e031" data-file-name="components/landing/summaries-demo.tsx" data-dynamic-text="true">{card.engagement.upvotes}<span className="editable-text" data-unique-id="35cb2f72-ba18-4d96-a8bf-ee8725e36eb6" data-file-name="components/landing/summaries-demo.tsx"> upvotes</span></span>
                     <span data-unique-id="e258ab9b-bf36-472c-9c31-f8da910b28c7" data-file-name="components/landing/summaries-demo.tsx" data-dynamic-text="true">{card.engagement.comments}<span className="editable-text" data-unique-id="de1e19bb-2e71-4b2c-b35a-2e849239ba81" data-file-name="components/landing/summaries-demo.tsx"> comments</span></span>
                   </div>}

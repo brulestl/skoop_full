@@ -14,9 +14,12 @@
         "typecheck": "tsc --noEmit",
         "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
         "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
-        "test": "jest",
+        "test": "vitest",
+        "test:ui": "vitest --ui",
+        "test:run": "vitest run",
+        "test:coverage": "vitest run --coverage",
         "test:types": "tsc --noEmit --pretty",
-        "test:all": "pnpm run test && pnpm run test:types",
+        "test:all": "pnpm run test:run && pnpm run test:types",
         "db:generate": "npx drizzle-kit generate && npx drizzle-kit migrate && git add . && git commit -m 'chore: update migration'"
     },
     "dependencies": {
@@ -70,5 +73,13 @@
     },
     "overrides": {
         "drizzle-orm": "0.41.0-29155cc"
+    },
+    "devDependencies": {
+        "@testing-library/jest-dom": "^6.6.3",
+        "@testing-library/react": "^16.3.0",
+        "@testing-library/user-event": "^14.6.1",
+        "@vitejs/plugin-react": "^4.5.0",
+        "jsdom": "^26.1.0",
+        "vitest": "^3.1.4"
     }
 }

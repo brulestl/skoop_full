@@ -72,7 +72,7 @@ const contentStreams = [{
     link: "https://github.com/t3dotgg/react-hooks",
     likes: 345,
     replies: 42,
-    image: null
+    image: undefined
   }, {
     id: "t2",
     author: "Sarah Dayan",
@@ -80,10 +80,10 @@ const contentStreams = [{
     avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=256&auto=format&fit=crop",
     time: "4h ago",
     content: "Here's a thread on building accessible components in React. 1/10",
-    link: null,
+    link: undefined,
     likes: 890,
     replies: 36,
-    image: null
+    image: undefined
   }] as TwitterItem[]
 }, {
   id: "github",
@@ -248,7 +248,7 @@ function transformBookmarkToTwitterItem(bookmark: any): TwitterItem {
     link: bookmark.url,
     likes: extractNumberFromText(bookmark.description) || Math.floor(Math.random() * 1000),
     replies: Math.floor(Math.random() * 100),
-    image: bookmark.image && bookmark.image !== bookmark.url ? bookmark.image : null
+    image: bookmark.image && bookmark.image !== bookmark.url ? bookmark.image : undefined
   };
 }
 
