@@ -1,66 +1,45 @@
-# OAuth Callback URL Setup for Production
+# OAuth Callback URL Setup Guide
 
 ## GitHub OAuth App Configuration
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Click on your OAuth App (or create a new one if needed)
-3. Update the **Authorization callback URL** to include both:
-   - `http://localhost:3001/api/oauth/github/callback` (for development)
-   - `https://skoop.pro/api/oauth/github/callback` (for production)
+2. Click on your OAuth App (or create a new one)
+3. Set the **Authorization callback URL** to BOTH:
+   - `https://skoop.pro/api/oauth/github/callback`
+   - `https://skoop-full.vercel.app/api/oauth/github/callback`
 
-### GitHub OAuth App Settings:
-- **Application name**: Skoop
-- **Homepage URL**: `https://skoop.pro`
-- **Authorization callback URL**: 
-  ```
-  http://localhost:3001/api/oauth/github/callback
-  https://skoop.pro/api/oauth/github/callback
-  ```
+**Note**: GitHub allows multiple callback URLs separated by newlines.
 
-## Twitter/X OAuth App Configuration
+## Twitter OAuth App Configuration
 
-1. Go to [X Developer Portal](https://developer.twitter.com/en/portal/dashboard)
-2. Navigate to your app settings
-3. Go to **Authentication settings**
-4. Update the **Callback URLs** to include both:
-   - `http://localhost:3001/api/oauth/twitter/callback` (for development)
-   - `https://skoop.pro/api/oauth/twitter/callback` (for production)
+1. Go to [Twitter Developer Portal](https://developer.twitter.com/en/portal/dashboard)
+2. Select your app and go to "App settings" → "Authentication settings"
+3. Set **Callback URI / Redirect URL** to BOTH:
+   - `https://skoop.pro/api/oauth/twitter/callback`
+   - `https://skoop-full.vercel.app/api/oauth/twitter/callback`
 
-### Twitter/X OAuth App Settings:
-- **App permissions**: Read users, Read tweets (or as needed)
-- **Type of App**: Web App
-- **Callback URLs**:
-  ```
-  http://localhost:3001/api/oauth/twitter/callback
-  https://skoop.pro/api/oauth/twitter/callback
-  ```
-- **Website URL**: `https://skoop.pro`
+**Note**: Twitter allows multiple callback URLs in the same field, separated by commas.
 
-## Environment Variables
+## Environment Variables Required
 
 Make sure these are set in your Vercel dashboard:
 
-### Required for GitHub OAuth:
-- `GITHUB_CLIENT_ID` - Your GitHub OAuth app client ID
-- `GITHUB_CLIENT_SECRET` - Your GitHub OAuth app client secret
-- `NEXT_PUBLIC_GITHUB_CLIENT_ID` - Same as GITHUB_CLIENT_ID (for client-side)
+```
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+TWITTER_CLIENT_ID=your_twitter_client_id  
+TWITTER_CLIENT_SECRET=your_twitter_client_secret
+NEXT_PUBLIC_GITHUB_CLIENT_ID=your_github_client_id
+NEXT_PUBLIC_TWITTER_CLIENT_ID=your_twitter_client_id
+```
 
-### Required for Twitter OAuth:
-- `TWITTER_CLIENT_ID` - Your Twitter OAuth app client ID  
-- `TWITTER_CLIENT_SECRET` - Your Twitter OAuth app client secret
-- `NEXT_PUBLIC_TWITTER_CLIENT_ID` - Same as TWITTER_CLIENT_ID (for client-side)
+## Testing URLs
 
-### General:
-- `NEXT_PUBLIC_SITE_URL=https://skoop.pro`
+- Production: `https://skoop.pro`
+- Vercel: `https://skoop-full.vercel.app`
+- Local: `http://localhost:3000` (for development)
 
-## Testing
-
-After updating the callback URLs:
-
-1. **Local Development**: Test OAuth flows on `http://localhost:3001`
-2. **Production**: Test OAuth flows on `https://skoop.pro`
-
-The code will automatically detect the environment and use the correct callback URL.
+Both production URLs should work with the same OAuth app configuration.
 
 ## Notes
 

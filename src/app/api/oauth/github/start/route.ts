@@ -12,10 +12,16 @@ export async function GET(request: NextRequest) {
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${protocol}://${host}`;
     
-    // Use production URL if on skoop.pro, otherwise use current host
-    const callbackUrl = host?.includes('skoop.pro') 
-      ? 'https://skoop.pro/api/oauth/github/callback'
-      : `${baseUrl}/api/oauth/github/callback`;
+    // Use the current host for callback URL to match OAuth app configuration
+    let callbackUrl;
+    if (host?.includes('skoop.pro')) {
+      callbackUrl = 'https://skoop.pro/api/oauth/github/callback';
+    } else if (host?.includes('skoop-full.vercel.app')) {
+      callbackUrl = 'https://skoop-full.vercel.app/api/oauth/github/callback';
+    } else {
+      // Fallback for local development or other domains
+      callbackUrl = `${baseUrl}/api/oauth/github/callback`;
+    }
 
     // Generate CSRF state nonce
     const state = crypto.randomBytes(32).toString('hex');
