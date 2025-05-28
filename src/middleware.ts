@@ -1,15 +1,34 @@
-import { createMiddlewareSupabaseClient } from '@supabase/auth-helpers-nextjs'
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse, NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-  const supabase = createMiddlewareSupabaseClient({ req, res })
+  const supabase = createMiddlewareClient({ req, res })
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
   if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/login', req.url))
+    // Detect the correct origin when behind a proxy (like ngrok)
+    const forwardedHost = req.headers.get('x-forwarded-host')
+    const forwardedProto = req.headers.get('x-forwarded-proto')
+    const host = req.headers.get('host')
+    
+    let origin: string
+    if (forwardedHost && forwardedProto) {
+      // Behind a proxy like ngrok
+      origin = `${forwardedProto}://${forwardedHost}`
+    } else if (host) {
+      // Direct access
+      const protocol = req.nextUrl.protocol
+      origin = `${protocol}//${host}`
+    } else {
+      // Fallback to nextUrl origin
+      origin = req.nextUrl.origin
+    }
+    
+    const redirectUrl = new URL('/login', origin)
+    return NextResponse.redirect(redirectUrl)
   }
   return res
 }

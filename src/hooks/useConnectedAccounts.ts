@@ -62,7 +62,37 @@ export function useConnectedAccounts() {
     setConnecting(provider);
     
     try {
-      // Use the current origin, but ensure we're using the right port
+      // Use custom token exchange for supported providers
+      if (provider === 'github' || provider === 'twitter') {
+        console.log(`Starting custom OAuth flow for provider: ${provider}`);
+        
+        // Open popup window for OAuth
+        const popup = window.open(
+          `/api/oauth/${provider}/start`,
+          '_blank',
+          'width=520,height=680,scrollbars=yes,resizable=yes'
+        );
+
+        if (!popup) {
+          throw new Error('Popup blocked. Please allow popups for this site.');
+        }
+
+        // Wait for popup to close or receive success message
+        const result = await waitForWindowClose(popup);
+        
+        if (result.success) {
+          // Refresh accounts list
+          await fetchAccounts();
+          console.log(`Successfully connected ${provider} account`);
+        } else {
+          throw new Error(result.error || `Failed to connect ${provider} account`);
+        }
+        
+        setConnecting(null);
+        return;
+      }
+
+      // Fallback to original Supabase OAuth for other providers
       const currentOrigin = window.location.origin;
       const redirectTo = `${currentOrigin}/auth/callback?provider=${provider}`;
       
@@ -72,12 +102,6 @@ export function useConnectedAccounts() {
       // Map our provider types to Supabase OAuth provider types
       let oauthProvider: 'github' | 'google' | 'twitter' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch';
       switch (provider) {
-        case 'github':
-          oauthProvider = 'github';
-          break;
-        case 'twitter':
-          oauthProvider = 'twitter';
-          break;
         case 'azure':
           oauthProvider = 'azure';
           break;
@@ -139,6 +163,47 @@ export function useConnectedAccounts() {
       setConnecting(null);
       throw error;
     }
+  };
+
+  // Helper function to wait for popup window to close
+  const waitForWindowClose = (popup: Window): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          resolve({ success: true });
+        }
+      }, 1000);
+
+      // Listen for messages from popup
+      const messageHandler = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'oauth_success') {
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageHandler);
+          popup.close();
+          resolve({ success: true });
+        } else if (event.data.type === 'oauth_error') {
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageHandler);
+          popup.close();
+          resolve({ success: false, error: event.data.error });
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', messageHandler);
+        if (!popup.closed) {
+          popup.close();
+        }
+        resolve({ success: false, error: 'OAuth timeout' });
+      }, 300000);
+    });
   };
 
   // Disconnect account
