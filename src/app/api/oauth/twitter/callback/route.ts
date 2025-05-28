@@ -143,6 +143,11 @@ export async function GET(request: NextRequest) {
       }),
     });
 
+    if (!tokenResponse.ok) {
+      const body = await tokenResponse.text();
+      console.error('TW token response', tokenResponse.status, body);
+    }
+
     const tokenData = await tokenResponse.json();
 
     if (tokenData.error) {
