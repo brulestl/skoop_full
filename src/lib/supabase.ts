@@ -1,12 +1,12 @@
 'use client'
-import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs'
+import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '../types/database.types'
 
 // Re-export database types for convenient access
 export type { Database, Tables, TablesInsert, TablesUpdate, Enums, CompositeTypes } from '../types/database.types'
 
 // This will both persist your session in localStorage *and* set the HTTP-only cookie
-export const supabase = createBrowserSupabaseClient<Database>({
+export const supabase = createPagesBrowserClient<Database>({
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
   supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 })

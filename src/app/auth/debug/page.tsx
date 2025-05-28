@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSessionContext } from '@supabase/auth-helpers-react';
 import { useSearchParams } from 'next/navigation';
 
-export default function AuthDebug() {
+function AuthDebugContent() {
   const { supabaseClient, session, isLoading } = useSessionContext();
   const searchParams = useSearchParams();
   const [debugInfo, setDebugInfo] = useState<any>({});
@@ -56,5 +56,13 @@ export default function AuthDebug() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function AuthDebug() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <AuthDebugContent />
+    </Suspense>
   );
 } 
