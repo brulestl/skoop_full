@@ -37,22 +37,25 @@ export async function GET(request: NextRequest) {
     const cookieStore = await cookies();
     cookieStore.set('twitter_oauth_state', state, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'lax',
+      path: '/',
       maxAge: 600, // 10 minutes
     });
     
     cookieStore.set('twitter_code_verifier', codeVerifier, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'lax',
+      path: '/',
       maxAge: 600, // 10 minutes
     });
     
     cookieStore.set('twitter_return_to', returnTo, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'lax',
+      path: '/',
       maxAge: 600, // 10 minutes
     });
 

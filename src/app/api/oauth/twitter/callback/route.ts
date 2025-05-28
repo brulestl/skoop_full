@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
     const cookieStore = await cookies();
     const storedState = cookieStore.get('twitter_oauth_state')?.value;
     const codeVerifier = cookieStore.get('twitter_code_verifier')?.value;
+    console.log('Verifier read', codeVerifier?.slice(0,8));
     const returnTo = cookieStore.get('twitter_return_to')?.value || '/dashboard';
 
     if (!storedState || storedState !== state) {
