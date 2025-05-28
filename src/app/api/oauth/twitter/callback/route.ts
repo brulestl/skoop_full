@@ -11,12 +11,54 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Twitter OAuth error:', error);
-      return NextResponse.redirect(new URL('/dashboard?error=oauth_error', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'OAuth authorization failed'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=oauth_error';
+              }
+            </script>
+            <p>OAuth authorization failed. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     if (!code || !state) {
       console.error('Missing code or state parameter');
-      return NextResponse.redirect(new URL('/dashboard?error=missing_params', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'Missing authorization parameters'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=missing_params';
+              }
+            </script>
+            <p>Missing authorization parameters. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     // Verify state parameter and get stored values
@@ -27,12 +69,54 @@ export async function GET(request: NextRequest) {
 
     if (!storedState || storedState !== state) {
       console.error('Invalid state parameter');
-      return NextResponse.redirect(new URL('/dashboard?error=invalid_state', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'Invalid state parameter'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=invalid_state';
+              }
+            </script>
+            <p>Invalid state parameter. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     if (!codeVerifier) {
       console.error('Missing code verifier');
-      return NextResponse.redirect(new URL('/dashboard?error=missing_verifier', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'Missing code verifier'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=missing_verifier';
+              }
+            </script>
+            <p>Missing code verifier. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     // Detect the correct callback URL (same logic as start route)
@@ -63,7 +147,28 @@ export async function GET(request: NextRequest) {
 
     if (tokenData.error) {
       console.error('Twitter token exchange error:', tokenData);
-      return NextResponse.redirect(new URL('/dashboard?error=token_exchange_failed', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'Token exchange failed'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=token_exchange_failed';
+              }
+            </script>
+            <p>Token exchange failed. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     // Get user info from Twitter
@@ -77,7 +182,28 @@ export async function GET(request: NextRequest) {
 
     if (!userResult.data?.id) {
       console.error('Failed to get Twitter user data:', userResult);
-      return NextResponse.redirect(new URL('/dashboard?error=user_data_failed', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'Failed to get user data'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=user_data_failed';
+              }
+            </script>
+            <p>Failed to get user data. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     const userData = userResult.data;
@@ -88,7 +214,28 @@ export async function GET(request: NextRequest) {
 
     if (!session) {
       console.error('No active session');
-      return NextResponse.redirect(new URL('/login?error=no_session', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'No active session'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/login?error=no_session';
+              }
+            </script>
+            <p>No active session. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     const { error: insertError } = await supabase
@@ -110,7 +257,28 @@ export async function GET(request: NextRequest) {
 
     if (insertError) {
       console.error('Failed to store connected account:', insertError);
-      return NextResponse.redirect(new URL('/dashboard?error=storage_failed', request.url));
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Twitter OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'twitter',
+                  error: 'Failed to store account'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=storage_failed';
+              }
+            </script>
+            <p>Failed to store account. This window should close automatically.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     // Clean up cookies
@@ -118,11 +286,66 @@ export async function GET(request: NextRequest) {
     cookieStore.delete('twitter_code_verifier');
     cookieStore.delete('twitter_return_to');
 
-    // Redirect to success page
-    return NextResponse.redirect(new URL(`${returnTo}?connected=twitter`, request.url));
+    // For popup-based OAuth, return HTML that sends message to parent window
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Twitter Connected</title>
+        </head>
+        <body>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'oauth_success',
+                provider: 'twitter'
+              }, window.location.origin);
+              window.close();
+            } else {
+              // Fallback redirect if not in popup
+              window.location.href = '${returnTo}?connected=twitter';
+            }
+          </script>
+          <p>Twitter account connected successfully. This window should close automatically.</p>
+        </body>
+      </html>
+    `;
+
+    return new NextResponse(html, {
+      headers: { 'Content-Type': 'text/html' },
+    });
 
   } catch (error) {
     console.error('Twitter OAuth callback error:', error);
-    return NextResponse.redirect(new URL('/dashboard?error=callback_error', request.url));
+    
+    // For popup-based OAuth, return HTML that sends error message to parent window
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Twitter Connection Error</title>
+        </head>
+        <body>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'oauth_error',
+                provider: 'twitter',
+                error: 'Connection failed'
+              }, window.location.origin);
+              window.close();
+            } else {
+              // Fallback redirect if not in popup
+              window.location.href = '/dashboard?error=callback_error';
+            }
+          </script>
+          <p>Failed to connect Twitter account. This window should close automatically.</p>
+        </body>
+      </html>
+    `;
+
+    return new NextResponse(html, {
+      headers: { 'Content-Type': 'text/html' },
+    });
   }
 } 
