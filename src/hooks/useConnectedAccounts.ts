@@ -74,7 +74,17 @@ export function useConnectedAccounts() {
         );
 
         if (!popup) {
-          throw new Error('Popup blocked. Please allow popups for this site.');
+          throw new Error('Popup blocked. Please allow popups for this site and try again.');
+        }
+
+        // Check if popup actually opened (some browsers return a window object even when blocked)
+        try {
+          if (popup.closed) {
+            throw new Error('Popup was blocked or failed to open. Please check your browser settings.');
+          }
+        } catch (e) {
+          // Some browsers throw an error when accessing popup.closed if blocked
+          throw new Error('Popup blocked. Please allow popups for this site and try again.');
         }
 
         // Wait for popup to close or receive success message
@@ -168,40 +178,58 @@ export function useConnectedAccounts() {
   // Helper function to wait for popup window to close
   const waitForWindowClose = (popup: Window): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
+      let resolved = false;
+      
+      const cleanup = () => {
+        if (checkClosed) clearInterval(checkClosed);
+        if (timeout) clearTimeout(timeout);
+        window.removeEventListener('message', messageHandler);
+      };
+
+      const resolveOnce = (result: { success: boolean; error?: string }) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        resolve(result);
+      };
+
       const checkClosed = setInterval(() => {
         if (popup.closed) {
-          clearInterval(checkClosed);
-          resolve({ success: true });
+          console.log('OAuth popup closed by user');
+          resolveOnce({ success: false, error: 'OAuth cancelled by user' });
         }
       }, 1000);
 
       // Listen for messages from popup
       const messageHandler = (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
+        // Validate origin for security
+        if (event.origin !== window.location.origin) {
+          console.warn('Received message from invalid origin:', event.origin);
+          return;
+        }
+        
+        console.log('Received OAuth message:', event.data);
         
         if (event.data.type === 'oauth_success') {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', messageHandler);
+          console.log(`OAuth success for provider: ${event.data.provider}`);
           popup.close();
-          resolve({ success: true });
+          resolveOnce({ success: true });
         } else if (event.data.type === 'oauth_error') {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', messageHandler);
+          console.error(`OAuth error for provider ${event.data.provider}:`, event.data.error);
           popup.close();
-          resolve({ success: false, error: event.data.error });
+          resolveOnce({ success: false, error: event.data.error });
         }
       };
 
       window.addEventListener('message', messageHandler);
 
       // Timeout after 5 minutes
-      setTimeout(() => {
-        clearInterval(checkClosed);
-        window.removeEventListener('message', messageHandler);
+      const timeout = setTimeout(() => {
+        console.warn('OAuth popup timeout after 5 minutes');
         if (!popup.closed) {
           popup.close();
         }
-        resolve({ success: false, error: 'OAuth timeout' });
+        resolveOnce({ success: false, error: 'OAuth timeout - please try again' });
       }, 300000);
     });
   };
