@@ -244,7 +244,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
-    const { error: insertError } = await supabase
+    const { error: insertErr } = await supabase
       .from('connected_accounts')
       .upsert({
         user_id: session.user.id,
@@ -261,30 +261,9 @@ export async function GET(request: NextRequest) {
         onConflict: 'user_id,provider'
       });
 
-    if (insertError) {
-      console.error('Failed to store connected account:', insertError);
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head><title>Twitter OAuth Error</title></head>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'oauth_error',
-                  provider: 'twitter',
-                  error: 'Failed to store account'
-                }, window.location.origin);
-                window.close();
-              } else {
-                window.location.href = '/dashboard?error=storage_failed';
-              }
-            </script>
-            <p>Failed to store account. This window should close automatically.</p>
-          </body>
-        </html>
-      `;
-      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
+    if (insertErr) {
+      console.error('TW insertErr', insertErr);
+      return NextResponse.json({ oauth_error: 'insert', details: insertErr }, { status: 500 });
     }
 
     // Clean up cookies
