@@ -274,7 +274,7 @@ export function useConnectedAccounts() {
   const getProviderScopes = (provider: Provider): string => {
     const scopes = {
       github: 'read:user,repo,user:email',
-      twitter: 'tweet.read,users.read,like.read',
+      twitter: 'tweet.read,users.read,like.read,bookmark.read,offline.access',
       reddit: 'read,history,identity',
       stack: 'read_inbox,no_expiry',
       azure: 'openid,profile,email',
