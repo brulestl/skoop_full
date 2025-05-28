@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${protocol}://${host}`;
     
-    // Use production URL if on skoop.pr, otherwise use current host
-    const callbackUrl = host?.includes('skoop.pr') 
-      ? 'https://skoop.pr/api/oauth/twitter/callback'
+    // Use production URL if on skoop.pro, otherwise use current host
+    const callbackUrl = host?.includes('skoop.pro') 
+      ? 'https://skoop.pro/api/oauth/twitter/callback'
       : `${baseUrl}/api/oauth/twitter/callback`;
 
     // Generate CSRF state nonce

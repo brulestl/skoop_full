@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
     const host = request.headers.get('host');
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${protocol}://${host}`;
-    const callbackUrl = host?.includes('skoop.pr') 
-      ? 'https://skoop.pr/api/oauth/twitter/callback'
+    const callbackUrl = host?.includes('skoop.pro') 
+      ? 'https://skoop.pro/api/oauth/twitter/callback'
       : `${baseUrl}/api/oauth/twitter/callback`;
 
     // Exchange code for access token using PKCE
