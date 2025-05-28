@@ -13,6 +13,14 @@ alter table public.connected_accounts
   add column if not exists status          text default 'active',
   add column if not exists last_error      text;
 
--- ensure composite PK already present
-alter table public.connected_accounts
-  add constraint if not exists uniq_provider_uid unique(provider, provider_user_id); 
+-- Add unique constraint only if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'uniq_provider_uid'
+    ) THEN
+        ALTER TABLE public.connected_accounts
+        ADD CONSTRAINT uniq_provider_uid UNIQUE(provider, provider_user_id);
+    END IF;
+END $$; 
