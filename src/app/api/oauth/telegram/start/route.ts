@@ -46,15 +46,7 @@ export async function GET(request: NextRequest) {
               border-radius: 20px;
               backdrop-filter: blur(10px);
               box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-              max-width: 500px;
-            }
-            .telegram-icon {
-              font-size: 4rem;
-              margin-bottom: 1rem;
-            }
-            h1 {
-              margin: 0 0 1rem 0;
-              font-size: 2rem;
+              max-width: 400px;
             }
             p {
               margin: 0 0 2rem 0;
@@ -80,61 +72,15 @@ export async function GET(request: NextRequest) {
               transform: translateY(-2px);
               box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
             }
-            .steps {
-              text-align: left;
-              background: rgba(255, 255, 255, 0.1);
-              padding: 1.5rem;
-              border-radius: 12px;
-              margin: 2rem 0;
-            }
-            .step {
-              margin: 0.5rem 0;
-              padding: 0.5rem 0;
-            }
-            .manual-button {
-              background: #28a745;
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 8px;
-              font-size: 16px;
-              font-weight: 500;
-              cursor: pointer;
-              text-decoration: none;
-              display: inline-block;
-              margin: 0.5rem;
-            }
-            .manual-button:hover {
-              background: #218838;
-            }
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="telegram-icon">📱</div>
-            <h1>Connect Telegram</h1>
             <p>Connect your Telegram account to sync your saved messages with Skoop</p>
             
             <a href="https://t.me/${botUsername}?start=connect_${state}" class="connect-button" target="_blank">
-              🚀 Connect via Telegram Bot
+              Connect
             </a>
-            
-            <div class="steps">
-              <h3 style="margin-top: 0;">How it works:</h3>
-              <div class="step">1. Click the button above to open Telegram</div>
-              <div class="step">2. Start a conversation with our bot</div>
-              <div class="step">3. Follow the bot's instructions</div>
-              <div class="step">4. Your account will be connected automatically</div>
-            </div>
-            
-            <p style="font-size: 0.9rem; opacity: 0.7;">
-              This will allow Skoop to access your saved messages for searching and organization.
-            </p>
-            
-            <div style="margin-top: 2rem;">
-              <a href="/dashboard" class="manual-button">Return to Dashboard</a>
-              <button onclick="window.location.reload()" class="manual-button">Refresh Page</button>
-            </div>
           </div>
           
           <script>

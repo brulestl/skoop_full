@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +17,8 @@ export async function POST(request: NextRequest) {
     const lastName = message.from.last_name;
     const text = message.text;
 
+    console.log('Telegram webhook received:', { chatId, userId, username, text });
+
     // Check if this is a connection request
     if (text.startsWith('/start connect_')) {
       const stateParam = text.replace('/start connect_', '');
@@ -26,8 +27,13 @@ export async function POST(request: NextRequest) {
         const stateData = JSON.parse(atob(stateParam));
         const skoopUserId = stateData.userId;
         
-        // Store the connection in database
-        const supabase = createRouteHandlerClient({ cookies });
+        console.log('Processing connection for Skoop user:', skoopUserId);
+        
+        // Use service role client for webhook operations
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
         
         const { error: insertError } = await supabase
           .from('connected_accounts')
@@ -51,6 +57,8 @@ export async function POST(request: NextRequest) {
           await sendTelegramMessage(chatId, '❌ Failed to connect your account. Please try again.');
           return NextResponse.json({ ok: true });
         }
+
+        console.log('Successfully stored Telegram connection for user:', skoopUserId);
 
         // Send success message to user
         await sendTelegramMessage(chatId, '✅ Successfully connected to Skoop! Your saved messages will now sync. You can return to the Skoop dashboard.');
@@ -100,6 +108,8 @@ async function sendTelegramMessage(chatId: number, text: string) {
 
     if (!response.ok) {
       console.error('Failed to send Telegram message:', await response.text());
+    } else {
+      console.log('Successfully sent Telegram message to chat:', chatId);
     }
   } catch (error) {
     console.error('Error sending Telegram message:', error);
