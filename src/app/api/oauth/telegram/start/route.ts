@@ -21,10 +21,9 @@ export async function GET(request: NextRequest) {
     }));
 
     const botUsername = process.env.TELEGRAM_BOT_USERNAME;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
     
-    // Create Telegram Login Widget page with fallback
-    const loginHtml = `
+    // Create direct Telegram connection page that actually works
+    const connectHtml = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -47,7 +46,7 @@ export async function GET(request: NextRequest) {
               border-radius: 20px;
               backdrop-filter: blur(10px);
               box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-              max-width: 400px;
+              max-width: 500px;
             }
             .telegram-icon {
               font-size: 4rem;
@@ -62,15 +61,38 @@ export async function GET(request: NextRequest) {
               font-size: 1.1rem;
               opacity: 0.9;
             }
-            .login-widget {
-              margin: 2rem 0;
-              display: flex;
-              justify-content: center;
-              min-height: 60px;
-              align-items: center;
-            }
-            .fallback-button {
+            .connect-button {
               background: #0088cc;
+              color: white;
+              border: none;
+              padding: 16px 32px;
+              border-radius: 12px;
+              font-size: 18px;
+              font-weight: 600;
+              cursor: pointer;
+              text-decoration: none;
+              display: inline-block;
+              transition: all 0.2s;
+              margin: 1rem 0;
+            }
+            .connect-button:hover {
+              background: #006699;
+              transform: translateY(-2px);
+              box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
+            }
+            .steps {
+              text-align: left;
+              background: rgba(255, 255, 255, 0.1);
+              padding: 1.5rem;
+              border-radius: 12px;
+              margin: 2rem 0;
+            }
+            .step {
+              margin: 0.5rem 0;
+              padding: 0.5rem 0;
+            }
+            .manual-button {
+              background: #28a745;
               color: white;
               border: none;
               padding: 12px 24px;
@@ -80,25 +102,10 @@ export async function GET(request: NextRequest) {
               cursor: pointer;
               text-decoration: none;
               display: inline-block;
-              transition: background 0.2s;
+              margin: 0.5rem;
             }
-            .fallback-button:hover {
-              background: #006699;
-            }
-            .debug-info {
-              margin-top: 2rem;
-              padding: 1rem;
-              background: rgba(0, 0, 0, 0.2);
-              border-radius: 8px;
-              font-size: 0.8rem;
-              opacity: 0.7;
-            }
-            .error-message {
-              background: rgba(255, 0, 0, 0.2);
-              border: 1px solid rgba(255, 0, 0, 0.3);
-              padding: 1rem;
-              border-radius: 8px;
-              margin: 1rem 0;
+            .manual-button:hover {
+              background: #218838;
             }
           </style>
         </head>
@@ -106,98 +113,45 @@ export async function GET(request: NextRequest) {
           <div class="container">
             <div class="telegram-icon">📱</div>
             <h1>Connect Telegram</h1>
-            <p>Click the button below to connect your Telegram account to Skoop</p>
+            <p>Connect your Telegram account to sync your saved messages with Skoop</p>
             
-            <div class="login-widget" id="loginWidget">
-              <!-- Telegram Login Widget will appear here -->
-              <div id="loadingMessage">Loading Telegram login...</div>
-            </div>
+            <a href="https://t.me/${botUsername}?start=connect_${state}" class="connect-button" target="_blank">
+              🚀 Connect via Telegram Bot
+            </a>
             
-            <div id="fallbackContainer" style="display: none;">
-              <div class="error-message">
-                <strong>Login widget failed to load.</strong><br>
-                This might be due to missing bot configuration.
-              </div>
-              <a href="/dashboard?error=telegram_config_missing" class="fallback-button">
-                Return to Dashboard
-              </a>
+            <div class="steps">
+              <h3 style="margin-top: 0;">How it works:</h3>
+              <div class="step">1. Click the button above to open Telegram</div>
+              <div class="step">2. Start a conversation with our bot</div>
+              <div class="step">3. Follow the bot's instructions</div>
+              <div class="step">4. Your account will be connected automatically</div>
             </div>
             
             <p style="font-size: 0.9rem; opacity: 0.7;">
               This will allow Skoop to access your saved messages for searching and organization.
             </p>
             
-            <!-- Always show debug info to help troubleshoot -->
-            <div class="debug-info">
-              <strong>Debug Info:</strong><br>
-              Bot Username: ${botUsername || 'NOT SET'}<br>
-              App URL: ${appUrl || 'NOT SET'}<br>
-              State: ${state.substring(0, 20)}...<br>
-              Environment: ${process.env.NODE_ENV || 'unknown'}
+            <div style="margin-top: 2rem;">
+              <a href="/dashboard" class="manual-button">Return to Dashboard</a>
+              <button onclick="window.location.reload()" class="manual-button">Refresh Page</button>
             </div>
           </div>
           
           <script>
-            // Check if bot username is available
-            const botUsername = '${botUsername}';
-            const appUrl = '${appUrl}';
-            
-            console.log('Telegram OAuth Debug:', {
-              botUsername: botUsername,
-              appUrl: appUrl,
-              hasUsername: !!botUsername && botUsername !== 'undefined'
-            });
-            
-            if (!botUsername || botUsername === 'undefined') {
-              console.error('TELEGRAM_BOT_USERNAME not configured');
-              document.getElementById('loadingMessage').style.display = 'none';
-              document.getElementById('fallbackContainer').style.display = 'block';
-            } else {
-              console.log('Loading Telegram widget for bot:', botUsername);
-              
-              // Load Telegram widget script
-              const script = document.createElement('script');
-              script.async = true;
-              script.src = 'https://telegram.org/js/telegram-widget.js?22';
-              script.setAttribute('data-telegram-login', botUsername);
-              script.setAttribute('data-size', 'large');
-              script.setAttribute('data-auth-url', appUrl + '/api/oauth/telegram/callback?state=${state}');
-              script.setAttribute('data-request-access', 'write');
-              
-              console.log('Widget script attributes:', {
-                'data-telegram-login': botUsername,
-                'data-auth-url': appUrl + '/api/oauth/telegram/callback?state=${state}'
-              });
-              
-              script.onload = function() {
-                console.log('Telegram widget script loaded successfully');
-                document.getElementById('loadingMessage').style.display = 'none';
-              };
-              
-              script.onerror = function() {
-                console.error('Failed to load Telegram widget script');
-                document.getElementById('loadingMessage').style.display = 'none';
-                document.getElementById('fallbackContainer').style.display = 'block';
-              };
-              
-              document.head.appendChild(script);
-              
-              // Fallback timeout
-              setTimeout(function() {
-                const loadingEl = document.getElementById('loadingMessage');
-                if (loadingEl && loadingEl.style.display !== 'none') {
-                  console.warn('Telegram widget took too long to load, showing fallback');
-                  loadingEl.style.display = 'none';
-                  document.getElementById('fallbackContainer').style.display = 'block';
-                }
-              }, 10000);
+            // Check if user came back from Telegram
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('connected') === 'true') {
+              alert('✅ Telegram connected successfully!');
+              setTimeout(() => {
+                window.location.href = '/dashboard?connected=telegram';
+              }, 1000);
             }
           </script>
         </body>
       </html>
     `;
 
-    return new NextResponse(loginHtml, {
+    return new NextResponse(connectHtml, {
       headers: { 'Content-Type': 'text/html' },
     });
 
