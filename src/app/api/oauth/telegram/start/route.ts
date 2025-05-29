@@ -97,8 +97,17 @@ const stringSession = new StringSession("");
           </div>
 
           <div class="step">
-            <h3>Step 4: Contact Support</h3>
-            <p>Due to the complexity of Telegram's authentication, please contact support to complete the setup with your session string.</p>
+            <h3>Step 4: Submit Session String</h3>
+            <p>Once you have your session string, you have two options:</p>
+            <ol>
+              <li><strong>Recommended:</strong> Use our support form at <a href="/support/telegram" target="_blank">/support/telegram</a></li>
+              <li>Contact support directly with your email and session string</li>
+            </ol>
+          </div>
+
+          <div class="step">
+            <h3>Step 5: Wait for Activation</h3>
+            <p>Our team will process your request within 24 hours and activate your Telegram connection. You'll receive an email confirmation.</p>
           </div>
 
           <script>

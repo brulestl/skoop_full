@@ -8,7 +8,11 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
+  // Protect dashboard and admin routes
+  const protectedPaths = ['/dashboard', '/admin']
+  const isProtectedPath = protectedPaths.some(path => req.nextUrl.pathname.startsWith(path))
+
+  if (!session && isProtectedPath) {
     // Detect the correct origin when behind a proxy (like ngrok)
     const forwardedHost = req.headers.get('x-forwarded-host')
     const forwardedProto = req.headers.get('x-forwarded-proto')
@@ -30,6 +34,33 @@ export async function middleware(req: NextRequest) {
     const redirectUrl = new URL('/login', origin)
     return NextResponse.redirect(redirectUrl)
   }
+
+  // Additional check for admin routes - verify admin privileges
+  if (session && req.nextUrl.pathname.startsWith('/admin')) {
+    const adminEmails = ['admin@skoop.pro', 'support@skoop.pro']
+    const userEmail = session.user.email
+    
+    if (!userEmail || !adminEmails.includes(userEmail)) {
+      // Redirect non-admin users to dashboard with error
+      const forwardedHost = req.headers.get('x-forwarded-host')
+      const forwardedProto = req.headers.get('x-forwarded-proto')
+      const host = req.headers.get('host')
+      
+      let origin: string
+      if (forwardedHost && forwardedProto) {
+        origin = `${forwardedProto}://${forwardedHost}`
+      } else if (host) {
+        const protocol = req.nextUrl.protocol
+        origin = `${protocol}//${host}`
+      } else {
+        origin = req.nextUrl.origin
+      }
+      
+      const redirectUrl = new URL('/dashboard?error=admin_access_denied', origin)
+      return NextResponse.redirect(redirectUrl)
+    }
+  }
+
   return res
 }
 
