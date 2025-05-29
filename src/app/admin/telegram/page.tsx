@@ -65,7 +65,7 @@ export default function TelegramAdminPage() {
       }
 
       // Check if user is admin (you can customize this logic)
-      const adminEmails = ['admin@skoop.pro', 'support@skoop.pro']; // Add your admin emails
+      const adminEmails = ['admin@skoop.pro', 'support@skoop.pro', 'fjankovic@gmail.com']; // Add your admin emails
       const isUserAdmin = adminEmails.includes(user.email || '');
       
       if (!isUserAdmin) {

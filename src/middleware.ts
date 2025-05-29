@@ -37,7 +37,7 @@ export async function middleware(req: NextRequest) {
 
   // Additional check for admin routes - verify admin privileges
   if (session && req.nextUrl.pathname.startsWith('/admin')) {
-    const adminEmails = ['admin@skoop.pro', 'support@skoop.pro']
+    const adminEmails = ['admin@skoop.pro', 'support@skoop.pro', 'fjankovic@gmail.com']
     const userEmail = session.user.email
     
     if (!userEmail || !adminEmails.includes(userEmail)) {
