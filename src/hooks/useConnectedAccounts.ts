@@ -63,7 +63,7 @@ export function useConnectedAccounts() {
     
     try {
       // Use custom token exchange for supported providers
-      if (provider === 'github' || provider === 'twitter' || provider === 'linkedin' || provider === 'facebook') {
+      if (provider === 'github' || provider === 'twitter' || provider === 'linkedin' || provider === 'facebook' || provider === 'telegram') {
         console.log(`Starting custom OAuth flow for provider: ${provider}`);
         
         // Open popup window for OAuth
@@ -134,10 +134,6 @@ export function useConnectedAccounts() {
         case 'stack':
           oauthProvider = 'google'; // Stack Overflow uses Google OAuth
           break;
-        case 'telegram':
-          // Telegram OAuth needs special handling
-          setConnecting(null);
-          throw new Error('Telegram OAuth coming soon! Please use other providers for now.');
         default:
           setConnecting(null);
           throw new Error(`Unsupported provider: ${provider}`);

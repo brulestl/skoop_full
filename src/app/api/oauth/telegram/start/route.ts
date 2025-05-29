@@ -1,0 +1,132 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(request: NextRequest) {
+  try {
+    // Telegram uses MTProto authentication, not OAuth
+    // Users need to generate a session string manually
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Telegram Setup Required</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+              max-width: 600px; 
+              margin: 50px auto; 
+              padding: 20px; 
+              line-height: 1.6;
+            }
+            .code-block { 
+              background: #f5f5f5; 
+              padding: 15px; 
+              border-radius: 5px; 
+              font-family: monospace; 
+              margin: 15px 0;
+              overflow-x: auto;
+            }
+            .step { 
+              margin: 20px 0; 
+              padding: 15px; 
+              border-left: 4px solid #0088cc; 
+              background: #f8f9fa;
+            }
+            .warning {
+              background: #fff3cd;
+              border-left-color: #ffc107;
+              color: #856404;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>🔵 Telegram Setup Required</h1>
+          
+          <div class="warning step">
+            <strong>⚠️ Manual Setup Required</strong><br>
+            Telegram uses MTProto authentication instead of OAuth. You need to generate a session string manually.
+          </div>
+
+          <div class="step">
+            <h3>Step 1: Get API Credentials</h3>
+            <ol>
+              <li>Go to <a href="https://my.telegram.org/apps" target="_blank">https://my.telegram.org/apps</a></li>
+              <li>Login with your phone number</li>
+              <li>Create a new application</li>
+              <li>Note down your <code>api_id</code> and <code>api_hash</code></li>
+            </ol>
+          </div>
+
+          <div class="step">
+            <h3>Step 2: Generate Session String</h3>
+            <p>Run this Node.js script locally:</p>
+            <div class="code-block">
+npm install telegram<br><br>
+// generate-session.js
+const { TelegramClient } = require("telegram");
+const { StringSession } = require("telegram/sessions");
+const input = require("input"); // npm i input
+
+const apiId = YOUR_API_ID; // Replace with your API ID
+const apiHash = "YOUR_API_HASH"; // Replace with your API hash
+const stringSession = new StringSession("");
+
+(async () => {
+  const client = new TelegramClient(stringSession, apiId, apiHash, {
+    connectionRetries: 5,
+  });
+  
+  await client.start({
+    phoneNumber: async () => await input.text("Phone number: "),
+    password: async () => await input.text("Password (if 2FA): "),
+    phoneCode: async () => await input.text("Code from Telegram: "),
+    onError: (err) => console.log(err),
+  });
+  
+  console.log("Session string:");
+  console.log(client.session.save());
+  
+  await client.disconnect();
+})();
+            </div>
+          </div>
+
+          <div class="step">
+            <h3>Step 3: Save Session String</h3>
+            <p>Copy the session string from the script output and save it securely. You'll need to manually add it to your connected account in the database.</p>
+          </div>
+
+          <div class="step">
+            <h3>Step 4: Contact Support</h3>
+            <p>Due to the complexity of Telegram's authentication, please contact support to complete the setup with your session string.</p>
+          </div>
+
+          <script>
+            // Close popup after showing instructions
+            setTimeout(() => {
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'telegram',
+                  error: 'Manual setup required - see instructions'
+                }, window.location.origin);
+                window.close();
+              }
+            }, 1000);
+          </script>
+        </body>
+      </html>
+    `;
+
+    return new NextResponse(html, {
+      headers: { 'Content-Type': 'text/html' },
+    });
+
+  } catch (error) {
+    console.error('Telegram setup error:', error);
+    return NextResponse.json(
+      { error: 'Failed to show Telegram setup instructions' },
+      { status: 500 }
+    );
+  }
+} 

@@ -82,9 +82,7 @@ const providers: Array<{
     id: 'telegram',
     name: 'Telegram',
     icon: Send,
-    color: 'text-blue-400',
-    disabled: true,
-    disabledReason: 'Coming soon'
+    color: 'text-blue-400'
   },
   {
     id: 'reddit',

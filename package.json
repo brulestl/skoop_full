@@ -68,6 +68,7 @@
         "tailwind-merge": "^2.5.5",
         "tailwindcss": "^3.4.3",
         "tailwindcss-animate": "^1.0.7",
+        "telegram": "^2.26.22",
         "ts-jest": "^29.2.5",
         "typescript": "^5.5.3",
         "zustand": "^5.0.2"
