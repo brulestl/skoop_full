@@ -4,9 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('Full webhook body:', JSON.stringify(body, null, 2));
+    
     const message = body.message;
     
     if (!message || !message.text) {
+      console.log('No message or text found');
       return NextResponse.json({ ok: true });
     }
 
@@ -17,17 +20,28 @@ export async function POST(request: NextRequest) {
     const lastName = message.from.last_name;
     const text = message.text;
 
-    console.log('Telegram webhook received:', { chatId, userId, username, text });
+    console.log('Telegram webhook received:', { 
+      chatId, 
+      userId, 
+      username, 
+      text,
+      fullText: text,
+      textLength: text.length 
+    });
 
     // Check if this is a connection request
     if (text.startsWith('/start connect_')) {
+      console.log('Connection request detected!');
       const stateParam = text.replace('/start connect_', '');
+      console.log('Extracted state param:', stateParam);
+      console.log('State param length:', stateParam.length);
       
       try {
         const stateData = JSON.parse(atob(stateParam));
         const skoopUserId = stateData.userId;
         
         console.log('Processing connection for Skoop user:', skoopUserId);
+        console.log('Decoded state data:', stateData);
         
         // Use service role client for webhook operations
         const supabase = createClient(
@@ -66,7 +80,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true });
         
       } catch (error) {
-        console.error('Error processing connection:', error);
+        console.error('Error processing connection state:', error);
+        console.error('Failed to decode state param:', stateParam);
         await sendTelegramMessage(chatId, '❌ Invalid connection request. Please try connecting again from the Skoop dashboard.');
         return NextResponse.json({ ok: true });
       }
@@ -74,7 +89,11 @@ export async function POST(request: NextRequest) {
     
     // Handle other messages
     if (text === '/start') {
+      console.log('Regular /start command received');
       await sendTelegramMessage(chatId, 'Welcome to Skoop! To connect your account, please use the "Connect Telegram" button in your Skoop dashboard.');
+    } else {
+      console.log('Unhandled message:', text);
+      await sendTelegramMessage(chatId, 'I only respond to connection requests from the Skoop dashboard. Please use the "Connect Telegram" button in your dashboard.');
     }
 
     return NextResponse.json({ ok: true });
