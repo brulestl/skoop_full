@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSessionContext } from '@supabase/auth-helpers-react';
 import type { Provider as SupabaseProvider } from '@supabase/supabase-js';
 
-export type Provider = 'github' | 'twitter' | 'reddit' | 'stack' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch' | 'telegram';
+export type Provider = 'github' | 'twitter' | 'reddit' | 'stack' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch' | 'telegram' | 'facebook';
 
 interface ConnectedAccount {
   user_id: string;
@@ -63,7 +63,7 @@ export function useConnectedAccounts() {
     
     try {
       // Use custom token exchange for supported providers
-      if (provider === 'github' || provider === 'twitter' || provider === 'linkedin') {
+      if (provider === 'github' || provider === 'twitter' || provider === 'linkedin' || provider === 'facebook') {
         console.log(`Starting custom OAuth flow for provider: ${provider}`);
         
         // Open popup window for OAuth
@@ -280,7 +280,8 @@ export function useConnectedAccounts() {
       linkedin: 'r_liteprofile,r_emailaddress',
       notion: 'read',
       twitch: 'user:read:email',
-      telegram: 'read'
+      telegram: 'read',
+      facebook: 'email'
     };
     return scopes[provider] || '';
   };

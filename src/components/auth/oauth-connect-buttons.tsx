@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2, RefreshCw, Cloud, MessageCircle, GitBranch, Linkedin, FileText, Tv, Send } from 'lucide-react';
+import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckCircle, AlertCircle, Loader2, RefreshCw, Cloud, MessageCircle, GitBranch, Linkedin, FileText, Tv, Send, Facebook } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConnectedAccounts, Provider } from '@/hooks/useConnectedAccounts';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,12 @@ const providers: Array<{
     name: 'LinkedIn',
     icon: Linkedin,
     color: 'text-blue-700'
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook',
+    icon: Facebook,
+    color: 'text-blue-600'
   },
   {
     id: 'notion',
