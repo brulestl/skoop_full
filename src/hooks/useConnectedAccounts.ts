@@ -63,7 +63,7 @@ export function useConnectedAccounts() {
     
     try {
       // Use custom token exchange for supported providers
-      if (provider === 'github' || provider === 'twitter') {
+      if (provider === 'github' || provider === 'twitter' || provider === 'linkedin') {
         console.log(`Starting custom OAuth flow for provider: ${provider}`);
         
         // Open popup window for OAuth
@@ -120,9 +120,6 @@ export function useConnectedAccounts() {
           break;
         case 'gitlab':
           oauthProvider = 'gitlab';
-          break;
-        case 'linkedin':
-          oauthProvider = 'linkedin';
           break;
         case 'notion':
           oauthProvider = 'notion';

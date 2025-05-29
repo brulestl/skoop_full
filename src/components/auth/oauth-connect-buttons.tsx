@@ -54,9 +54,7 @@ const providers: Array<{
     id: 'linkedin',
     name: 'LinkedIn',
     icon: Linkedin,
-    color: 'text-blue-700',
-    disabled: true,
-    disabledReason: 'Coming soon'
+    color: 'text-blue-700'
   },
   {
     id: 'notion',
