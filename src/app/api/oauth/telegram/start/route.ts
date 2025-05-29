@@ -59,36 +59,42 @@ export async function GET(request: NextRequest) {
 
           <div class="step">
             <h3>Step 2: Generate Session String</h3>
-            <p>Run this Node.js script locally:</p>
+            <p>Run this Node.js script locally (replace YOUR_API_ID and YOUR_API_HASH with values from Step 1):</p>
             <div class="code-block">
-npm install telegram<br><br>
+npm install telegram input<br><br>
 // generate-session.js
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
-const input = require("input"); // npm i input
+const input = require("input");
 
-const apiId = YOUR_API_ID; // Replace with your API ID
-const apiHash = "YOUR_API_HASH"; // Replace with your API hash
+const apiId = YOUR_API_ID; // Replace with your numeric API ID (e.g., 1234567)
+const apiHash = "YOUR_API_HASH"; // Replace with your API hash string
 const stringSession = new StringSession("");
 
 (async () => {
+  console.log("Starting Telegram session generation...");
+  console.log("Using API ID: " + apiId);
+  
   const client = new TelegramClient(stringSession, apiId, apiHash, {
     connectionRetries: 5,
   });
   
   await client.start({
-    phoneNumber: async () => await input.text("Phone number: "),
-    password: async () => await input.text("Password (if 2FA): "),
-    phoneCode: async () => await input.text("Code from Telegram: "),
-    onError: (err) => console.log(err),
+    phoneNumber: async () => await input.text("Phone number (with country code, e.g., +1234567890): "),
+    password: async () => await input.text("Password (if 2FA enabled): "),
+    phoneCode: async () => await input.text("Verification code from Telegram: "),
+    onError: (err) => console.log("Error:", err),
   });
   
-  console.log("Session string:");
+  console.log("\\n=== SESSION STRING ===");
   console.log(client.session.save());
+  console.log("======================\\n");
+  console.log("Copy the session string above and keep it secure!");
   
   await client.disconnect();
 })();
             </div>
+            <p><strong>Important:</strong> The API credentials are also needed on our server. Make sure to provide them when submitting your session string.</p>
           </div>
 
           <div class="step">

@@ -54,14 +54,26 @@ serve(async (req) => {
     // Note: This is a simplified version - in production you'd need to handle gramjs properly
     // For now, we'll simulate the process and return a placeholder response
     
+    // Get Telegram API credentials from environment variables
+    const apiId = Deno.env.get('TELEGRAM_API_ID')
+    const apiHash = Deno.env.get('TELEGRAM_API_HASH')
+    
+    if (!apiId || !apiHash) {
+      throw new Error('Telegram API credentials not configured. Please set TELEGRAM_API_ID and TELEGRAM_API_HASH environment variables.')
+    }
+    
     console.log('Telegram session string found, would connect with gramjs...')
+    console.log(`Using API ID: ${apiId}`)
     
     // Placeholder for gramjs implementation
     // In a real implementation, you would:
     // 1. Import { TelegramClient } from "telegram"
     // 2. Import { StringSession } from "telegram/sessions"
-    // 3. Create client with session string
-    // 4. Connect and fetch saved messages
+    // 3. Create client with session string and API credentials:
+    //    const client = new TelegramClient(new StringSession(sessionString), parseInt(apiId), apiHash)
+    // 4. Connect and fetch saved messages:
+    //    await client.connect()
+    //    const savedMessages = await client.getMessages('me', { limit: 100 })
     // 5. Process and store messages
     
     const processedItems = []

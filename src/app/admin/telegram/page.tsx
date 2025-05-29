@@ -320,6 +320,65 @@ export default function TelegramAdminPage() {
         </h2>
         <p className="text-gray-600 mb-4">Search for a user and add their Telegram session string</p>
         
+        {/* Quick Add for Current User */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded">
+          <h3 className="font-medium text-blue-900 mb-2">Quick Add for Current User</h3>
+          <p className="text-sm text-blue-700 mb-3">Add Telegram session for your own account (fjankovic@gmail.com)</p>
+          <div className="space-y-3">
+            <textarea
+              placeholder="Paste your Telegram session string here..."
+              value={sessionString}
+              onChange={(e) => setSessionString(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border rounded"
+            />
+            <Button 
+              onClick={async () => {
+                if (!sessionString.trim()) {
+                  setMessage({ type: 'error', text: 'Please enter a session string' });
+                  return;
+                }
+
+                setLoading(true);
+                try {
+                  // Get current user info
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) {
+                    throw new Error('No user found');
+                  }
+
+                  const { error } = await supabase
+                    .from('connected_accounts')
+                    .upsert({
+                      user_id: user.id,
+                      provider: 'telegram',
+                      telegram_session_string: sessionString.trim(),
+                      status: 'active',
+                      connected_at: new Date().toISOString(),
+                    }, {
+                      onConflict: 'user_id,provider'
+                    });
+
+                  if (error) throw error;
+
+                  setMessage({ type: 'success', text: 'Your Telegram session added successfully!' });
+                  setSessionString('');
+                  loadTelegramAccounts();
+                } catch (error) {
+                  console.error('Error adding session:', error);
+                  setMessage({ type: 'error', text: 'Failed to add session string' });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading || !sessionString.trim()}
+            >
+              <Key className="h-4 w-4 mr-2" />
+              Add My Session String
+            </Button>
+          </div>
+        </div>
+        
         <div className="space-y-4">
           <div className="flex gap-2">
             <input
