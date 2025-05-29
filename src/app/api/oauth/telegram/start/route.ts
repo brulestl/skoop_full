@@ -13,16 +13,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
 
-    // Generate a secure state parameter for this auth request
-    const state = btoa(JSON.stringify({
-      userId: user.id,
-      timestamp: Date.now(),
-      returnUrl: request.nextUrl.searchParams.get('returnUrl') || '/dashboard'
-    }));
-
     const botUsername = process.env.TELEGRAM_BOT_USERNAME;
     
-    // Create direct Telegram connection page that actually works
+    // Create simple connection page with instructions
     const connectHtml = `
       <!DOCTYPE html>
       <html>
@@ -46,7 +39,7 @@ export async function GET(request: NextRequest) {
               border-radius: 20px;
               backdrop-filter: blur(10px);
               box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-              max-width: 400px;
+              max-width: 500px;
             }
             p {
               margin: 0 0 2rem 0;
@@ -72,18 +65,62 @@ export async function GET(request: NextRequest) {
               transform: translateY(-2px);
               box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
             }
+            .steps {
+              text-align: left;
+              background: rgba(255, 255, 255, 0.1);
+              padding: 1.5rem;
+              border-radius: 12px;
+              margin: 2rem 0;
+              font-size: 0.95rem;
+            }
+            .step {
+              margin: 0.8rem 0;
+              padding: 0.3rem 0;
+            }
+            .step-number {
+              font-weight: bold;
+              color: #4fc3f7;
+            }
           </style>
         </head>
         <body>
           <div class="container">
             <p>Connect your Telegram account to sync your saved messages with Skoop</p>
             
-            <a href="https://t.me/${botUsername}?start=connect_${state}" class="connect-button" target="_blank">
-              Connect
+            <a href="https://t.me/${botUsername}" class="connect-button" target="_blank">
+              Open Telegram Bot
             </a>
+            
+            <div class="steps">
+              <div class="step"><span class="step-number">1.</span> Click the button above to open our Telegram bot</div>
+              <div class="step"><span class="step-number">2.</span> Send <strong>/start</strong> to the bot</div>
+              <div class="step"><span class="step-number">3.</span> Click the <strong>"Connect to Skoop"</strong> button in Telegram</div>
+              <div class="step"><span class="step-number">4.</span> Return to your Skoop dashboard</div>
+            </div>
+            
+            <p style="font-size: 0.9rem; opacity: 0.7; margin-top: 2rem;">
+              The connection will be active for 10 minutes. If it expires, just try again.
+            </p>
           </div>
           
           <script>
+            // Create a pending connection when page loads
+            fetch('/api/telegram/initiate-connection', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                telegramUserId: 'pending' // We'll handle this in the bot
+              })
+            }).then(response => {
+              if (response.ok) {
+                console.log('Pending connection created');
+              }
+            }).catch(error => {
+              console.error('Failed to create pending connection:', error);
+            });
+            
             // Check if user came back from Telegram
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('connected') === 'true') {
