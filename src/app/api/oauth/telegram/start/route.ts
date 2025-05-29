@@ -127,14 +127,14 @@ export async function GET(request: NextRequest) {
               This will allow Skoop to access your saved messages for searching and organization.
             </p>
             
-            ${process.env.NODE_ENV === 'development' ? `
+            <!-- Always show debug info to help troubleshoot -->
             <div class="debug-info">
               <strong>Debug Info:</strong><br>
               Bot Username: ${botUsername || 'NOT SET'}<br>
               App URL: ${appUrl || 'NOT SET'}<br>
-              State: ${state.substring(0, 20)}...
+              State: ${state.substring(0, 20)}...<br>
+              Environment: ${process.env.NODE_ENV || 'unknown'}
             </div>
-            ` : ''}
           </div>
           
           <script>
@@ -142,11 +142,19 @@ export async function GET(request: NextRequest) {
             const botUsername = '${botUsername}';
             const appUrl = '${appUrl}';
             
+            console.log('Telegram OAuth Debug:', {
+              botUsername: botUsername,
+              appUrl: appUrl,
+              hasUsername: !!botUsername && botUsername !== 'undefined'
+            });
+            
             if (!botUsername || botUsername === 'undefined') {
               console.error('TELEGRAM_BOT_USERNAME not configured');
               document.getElementById('loadingMessage').style.display = 'none';
               document.getElementById('fallbackContainer').style.display = 'block';
             } else {
+              console.log('Loading Telegram widget for bot:', botUsername);
+              
               // Load Telegram widget script
               const script = document.createElement('script');
               script.async = true;
@@ -156,8 +164,13 @@ export async function GET(request: NextRequest) {
               script.setAttribute('data-auth-url', appUrl + '/api/oauth/telegram/callback?state=${state}');
               script.setAttribute('data-request-access', 'write');
               
+              console.log('Widget script attributes:', {
+                'data-telegram-login': botUsername,
+                'data-auth-url': appUrl + '/api/oauth/telegram/callback?state=${state}'
+              });
+              
               script.onload = function() {
-                console.log('Telegram widget script loaded');
+                console.log('Telegram widget script loaded successfully');
                 document.getElementById('loadingMessage').style.display = 'none';
               };
               
@@ -171,9 +184,10 @@ export async function GET(request: NextRequest) {
               
               // Fallback timeout
               setTimeout(function() {
-                if (document.getElementById('loadingMessage').style.display !== 'none') {
-                  console.warn('Telegram widget took too long to load');
-                  document.getElementById('loadingMessage').style.display = 'none';
+                const loadingEl = document.getElementById('loadingMessage');
+                if (loadingEl && loadingEl.style.display !== 'none') {
+                  console.warn('Telegram widget took too long to load, showing fallback');
+                  loadingEl.style.display = 'none';
                   document.getElementById('fallbackContainer').style.display = 'block';
                 }
               }, 10000);
