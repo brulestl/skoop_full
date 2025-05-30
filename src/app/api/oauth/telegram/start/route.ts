@@ -28,27 +28,174 @@ function verifyTelegramAuth(authData: Record<string, string>, botToken: string):
     return false;
   }
   
-  // Create data check string
-  const dataCheckString = Object.keys(data)
+  if (!botToken) {
+    console.error('Telegram auth: No bot token provided');
+    return false;
+  }
+  
+  // Filter out null/undefined values and create data check string
+  // Only include fields that have actual values
+  const filteredData: Record<string, string> = {};
+  Object.keys(data).forEach(key => {
+    if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+      filteredData[key] = data[key];
+    }
+  });
+  
+  // Create data check string exactly per Telegram docs:
+  // 1. Sort all fields alphabetically (except hash)
+  // 2. Join with newline \n
+  const dataCheckString = Object.keys(filteredData)
     .sort()
-    .map(key => `${key}=${data[key]}`)
+    .map(key => `${key}=${filteredData[key]}`)
     .join('\n');
   
-  console.log('Telegram auth debug:');
-  console.log('  - Received hash:', hash);
-  console.log('  - Data check string:', dataCheckString);
-  console.log('  - Bot token length:', botToken.length);
-  
-  // Create secret key
+  // Create secret key: SHA256(bot_token)
   const secretKey = crypto.createHash('sha256').update(botToken).digest();
   
-  // Create hash
+  // Create HMAC-SHA256 hash with the secret key and encode in hex
   const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
   
-  console.log('  - Calculated hash:', calculatedHash);
-  console.log('  - Hashes match:', calculatedHash === hash);
+  // Enhanced logging for debugging
+  console.log('=== Telegram Auth Hash Verification Debug ===');
+  console.log('Received data fields:', Object.keys(data));
+  console.log('Filtered data fields:', Object.keys(filteredData));
+  console.log('Data check string:', JSON.stringify(dataCheckString));
+  console.log('Data check string length:', dataCheckString.length);
+  console.log('Received hash:', hash);
+  console.log('Received hash length:', hash.length);
+  console.log('Calculated hash:', calculatedHash);
+  console.log('Calculated hash length:', calculatedHash.length);
+  console.log('Bot token length:', botToken.length);
+  console.log('Bot token masked:', botToken.substring(0, 8) + '...' + botToken.substring(botToken.length - 8));
+  console.log('Hashes match:', calculatedHash === hash);
+  console.log('============================================');
+  
+  // Additional field-by-field logging for debugging
+  Object.keys(filteredData).forEach(key => {
+    console.log(`Field '${key}': '${filteredData[key]}' (length: ${filteredData[key].length})`);
+  });
   
   return calculatedHash === hash;
+}
+
+function createTelegramErrorPage(origin: string, errorType: string, errorMessage: string, debugInfo?: any): NextResponse {
+  const errorHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Telegram Authentication Error</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+          }
+          .container {
+            text-center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+          }
+          .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+          }
+          h1 {
+            margin: 0 0 1rem 0;
+            font-size: 2rem;
+          }
+          p {
+            margin: 0 0 1rem 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+          }
+          .error-code {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+          }
+          .back-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+          }
+          .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+          }
+          .debug-info {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: monospace;
+            font-size: 0.8rem;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="error-icon">❌</div>
+          <h1>Authentication Failed</h1>
+          <p>${errorMessage}</p>
+          <div class="error-code">Error: ${errorType}</div>
+          ${debugInfo ? `<div class="debug-info">${JSON.stringify(debugInfo, null, 2)}</div>` : ''}
+          <a href="/dashboard" class="back-button">← Back to Dashboard</a>
+          <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 2rem;">
+            If this error persists, please contact support.
+          </p>
+        </div>
+        
+        <script>
+          // If opened in popup, notify parent and close
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'oauth_error',
+              provider: 'telegram',
+              error: '${errorType}: ${errorMessage}'
+            }, window.location.origin);
+            
+            setTimeout(() => {
+              window.close();
+            }, 3000);
+          }
+        </script>
+      </body>
+    </html>
+  `;
+
+  return new NextResponse(errorHtml, {
+    status: 400,
+    headers: { 
+      'Content-Type': 'text/html',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    },
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -76,9 +223,12 @@ export async function GET(request: NextRequest) {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
         console.error('TELEGRAM_BOT_TOKEN not configured');
-        const dashboardUrl = new URL('/dashboard', origin);
-        dashboardUrl.searchParams.set('error', 'telegram_config_error');
-        return NextResponse.redirect(dashboardUrl);
+        return createTelegramErrorPage(
+          origin,
+          'TELEGRAM_BOT_TOKEN_MISSING',
+          'Telegram bot is not properly configured. Please contact the administrator.',
+          { configMissing: 'TELEGRAM_BOT_TOKEN' }
+        );
       }
       
       // Prepare auth data for verification
@@ -99,10 +249,22 @@ export async function GET(request: NextRequest) {
       if (!isValidAuth) {
         console.error('Invalid Telegram authentication hash');
         console.error('Expected hash calculation failed - auth data may be tampered');
-        const dashboardUrl = new URL('/dashboard', origin);
-        dashboardUrl.searchParams.set('error', 'telegram_auth_invalid');
-        dashboardUrl.searchParams.set('message', 'Telegram authentication failed - invalid hash');
-        return NextResponse.redirect(dashboardUrl);
+        
+        // Create detailed debug info for hash verification failure
+        const debugInfo = {
+          receivedFields: Object.keys(authData),
+          receivedHash: hash,
+          botTokenLength: botToken.length,
+          botTokenMasked: botToken.substring(0, 8) + '...' + botToken.substring(botToken.length - 8),
+          timestamp: new Date().toISOString()
+        };
+        
+        return createTelegramErrorPage(
+          origin, 
+          'HASH_VERIFICATION_FAILED', 
+          'The authentication data received from Telegram could not be verified. This may indicate the data was tampered with or there is a configuration issue.',
+          debugInfo
+        );
       }
       
       // Check if auth is not too old (within 1 hour)
@@ -110,9 +272,19 @@ export async function GET(request: NextRequest) {
       const now = Math.floor(Date.now() / 1000);
       if (now - authTimestamp > 3600) {
         console.error('Telegram auth data is too old');
-        const dashboardUrl = new URL('/dashboard', origin);
-        dashboardUrl.searchParams.set('error', 'telegram_auth_expired');
-        return NextResponse.redirect(dashboardUrl);
+        const debugInfo = {
+          authTimestamp,
+          currentTimestamp: now,
+          ageInSeconds: now - authTimestamp,
+          maxAgeSeconds: 3600
+        };
+        
+        return createTelegramErrorPage(
+          origin,
+          'AUTH_DATA_EXPIRED', 
+          'The authentication data from Telegram is too old. Please try connecting again.',
+          debugInfo
+        );
       }
       
       // Get user from encrypted token or session
@@ -200,15 +372,22 @@ export async function GET(request: NextRequest) {
         console.error('Error processing Telegram connection:', error);
         console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         
-        // For errors, still redirect to dashboard with error parameters
-        const dashboardUrl = new URL('/dashboard', origin);
-        dashboardUrl.searchParams.set('error', 'telegram_connection_failed');
-        dashboardUrl.searchParams.set('message', 'Failed to connect Telegram account. Please try again.');
+        // Create detailed error info for debugging
+        const errorObj = error as Error;
+        const debugInfo = {
+          errorType: errorObj.constructor.name,
+          errorMessage: errorObj.message,
+          timestamp: new Date().toISOString(),
+          telegramUserId,
+          userId: user?.id
+        };
         
-        console.log('Redirecting to dashboard with error parameters');
-        console.log('Error redirect URL:', dashboardUrl.toString());
-        
-        return NextResponse.redirect(dashboardUrl);
+        return createTelegramErrorPage(
+          origin,
+          'DATABASE_CONNECTION_FAILED',
+          'Failed to save your Telegram connection. Please try again or contact support if the problem persists.',
+          debugInfo
+        );
       }
     }
     
@@ -218,10 +397,12 @@ export async function GET(request: NextRequest) {
     const botUsername = process.env.TELEGRAM_BOT_USERNAME;
     if (!botUsername) {
       console.error('TELEGRAM_BOT_USERNAME not configured');
-      const dashboardUrl = new URL('/dashboard', origin);
-      dashboardUrl.searchParams.set('error', 'telegram_config_error');
-      dashboardUrl.searchParams.set('message', 'Telegram bot not configured. Please contact administrator.');
-      return NextResponse.redirect(dashboardUrl);
+      return createTelegramErrorPage(
+        origin,
+        'TELEGRAM_BOT_USERNAME_MISSING',
+        'Telegram bot username is not properly configured. Please contact the administrator.',
+        { configMissing: 'TELEGRAM_BOT_USERNAME' }
+      );
     }
     
     // Handle user authentication for widget rendering
@@ -430,12 +611,21 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Telegram OAuth start error:', error);
     
-    // Fallback: redirect to dashboard with error
+    // Use error page instead of dashboard redirect for better debugging
     const origin = new URL(request.url).origin;
-    const dashboardUrl = new URL('/dashboard', origin);
-    dashboardUrl.searchParams.set('error', 'telegram_auth_failed');
-    dashboardUrl.searchParams.set('message', 'Telegram authentication failed. Please try again.');
+    const errorObj = error as Error;
+    const debugInfo = {
+      errorType: errorObj.constructor.name,
+      errorMessage: errorObj.message,
+      timestamp: new Date().toISOString(),
+      url: request.url
+    };
     
-    return NextResponse.redirect(dashboardUrl);
+    return createTelegramErrorPage(
+      origin,
+      'UNEXPECTED_ERROR',
+      'An unexpected error occurred during Telegram authentication. Please try again.',
+      debugInfo
+    );
   }
 } 
