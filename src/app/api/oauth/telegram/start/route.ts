@@ -43,9 +43,7 @@ export async function GET(request: NextRequest) {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
         console.error('TELEGRAM_BOT_TOKEN not configured');
-        const dashboardUrl = new URL('/dashboard', request.url);
-        dashboardUrl.searchParams.set('error', 'telegram_config_error');
-        return NextResponse.redirect(dashboardUrl);
+        return createErrorResponse('Telegram configuration error. Please contact support.');
       }
       
       // Prepare auth data for verification
@@ -57,26 +55,21 @@ export async function GET(request: NextRequest) {
       if (authDate) authData.auth_date = authDate;
       if (hash) authData.hash = hash;
       
-      // Verify the hash (optional - you can skip this for testing)
+      // Verify the hash
       const isValidAuth = verifyTelegramAuth(authData, botToken);
       console.log('Telegram auth verification:', isValidAuth);
       
-      // For now, let's proceed even if verification fails (for testing)
-      // if (!isValidAuth) {
-      //   console.error('Invalid Telegram authentication hash');
-      //   const dashboardUrl = new URL('/dashboard', request.url);
-      //   dashboardUrl.searchParams.set('error', 'telegram_auth_invalid');
-      //   return NextResponse.redirect(dashboardUrl);
-      // }
+      if (!isValidAuth) {
+        console.error('Invalid Telegram authentication hash');
+        return createErrorResponse('Invalid Telegram authentication. Please try again.');
+      }
       
       // Check if auth is not too old (within 1 hour)
       const authTimestamp = parseInt(authDate);
       const now = Math.floor(Date.now() / 1000);
       if (now - authTimestamp > 3600) {
         console.error('Telegram auth data is too old');
-        const dashboardUrl = new URL('/dashboard', request.url);
-        dashboardUrl.searchParams.set('error', 'telegram_auth_expired');
-        return NextResponse.redirect(dashboardUrl);
+        return createErrorResponse('Authentication expired. Please try again.');
       }
       
       // Get the current Skoop user from session
@@ -85,11 +78,7 @@ export async function GET(request: NextRequest) {
       
       if (userError || !user) {
         console.error('User not authenticated in Skoop:', userError);
-        // User not logged in - redirect to login with return URL
-        const loginUrl = new URL('/auth/login', request.url);
-        loginUrl.searchParams.set('redirect', request.url);
-        loginUrl.searchParams.set('message', 'Please log in to Skoop first, then connect your Telegram account');
-        return NextResponse.redirect(loginUrl);
+        return createErrorResponse('Please log in to Skoop first, then connect your Telegram account.');
       }
       
       try {
@@ -116,23 +105,12 @@ export async function GET(request: NextRequest) {
 
         console.log('Successfully connected Telegram user', telegramUserId, 'to Skoop user', user.id);
         
-        // Redirect back to dashboard with success
-        const dashboardUrl = new URL('/dashboard', request.url);
-        dashboardUrl.searchParams.set('connected', 'telegram');
-        dashboardUrl.searchParams.set('success', 'true');
-        dashboardUrl.searchParams.set('message', 'Telegram account connected successfully!');
-        
-        return NextResponse.redirect(dashboardUrl);
+        // Return success page that handles popup closure
+        return createSuccessResponse();
         
       } catch (error) {
         console.error('Error processing Telegram connection:', error);
-        
-        // Redirect to dashboard with error
-        const dashboardUrl = new URL('/dashboard', request.url);
-        dashboardUrl.searchParams.set('error', 'telegram_connection_failed');
-        dashboardUrl.searchParams.set('message', 'Failed to connect Telegram account. Please try again.');
-        
-        return NextResponse.redirect(dashboardUrl);
+        return createErrorResponse('Failed to connect Telegram account. Please try again.');
       }
     }
     
@@ -265,12 +243,174 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Telegram OAuth start error:', error);
-    
-    // Fallback: redirect to dashboard with error
-    const dashboardUrl = new URL('/dashboard', request.url);
-    dashboardUrl.searchParams.set('error', 'telegram_auth_failed');
-    dashboardUrl.searchParams.set('message', 'Telegram authentication failed. Please try again.');
-    
-    return NextResponse.redirect(dashboardUrl);
+    return createErrorResponse('Telegram authentication failed. Please try again.');
   }
+}
+
+function createSuccessResponse(): NextResponse {
+  const successHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Telegram Connected Successfully</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+          }
+          .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          }
+          .success-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+          }
+          h1 {
+            margin: 0 0 1rem 0;
+            font-size: 2rem;
+          }
+          p {
+            margin: 0 0 2rem 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+          }
+          .redirect-info {
+            font-size: 0.9rem;
+            opacity: 0.7;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="success-icon">✅</div>
+          <h1>Telegram Connected!</h1>
+          <p>Your saved messages will now sync to Skoop</p>
+          <div class="redirect-info">Closing window...</div>
+        </div>
+        
+        <script>
+          console.log('Telegram OAuth success - notifying parent window');
+          
+          // If opened in popup, notify parent and close
+          if (window.opener) {
+            console.log('Sending success message to parent window');
+            window.opener.postMessage({
+              type: 'oauth_success',
+              provider: 'telegram',
+              message: 'Telegram connected successfully!'
+            }, window.location.origin);
+            
+            setTimeout(() => {
+              window.close();
+            }, 1500);
+          } else {
+            // If not in popup, redirect to dashboard
+            console.log('Not in popup, redirecting to dashboard');
+            setTimeout(() => {
+              window.location.href = '/dashboard?connected=telegram&success=true&message=Telegram account connected successfully!';
+            }, 2000);
+          }
+        </script>
+      </body>
+    </html>
+  `;
+
+  return new NextResponse(successHtml, {
+    headers: { 'Content-Type': 'text/html' },
+  });
+}
+
+function createErrorResponse(errorMessage: string): NextResponse {
+  const errorHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Telegram Connection Failed</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+          }
+          .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          }
+          .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+          }
+          h1 {
+            margin: 0 0 1rem 0;
+            font-size: 2rem;
+          }
+          p {
+            margin: 0 0 2rem 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+          }
+          .redirect-info {
+            font-size: 0.9rem;
+            opacity: 0.7;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="error-icon">❌</div>
+          <h1>Connection Failed</h1>
+          <p>${errorMessage}</p>
+          <div class="redirect-info">Closing window...</div>
+        </div>
+        
+        <script>
+          console.log('Telegram OAuth error - notifying parent window');
+          
+          // If opened in popup, notify parent and close
+          if (window.opener) {
+            console.log('Sending error message to parent window');
+            window.opener.postMessage({
+              type: 'oauth_error',
+              provider: 'telegram',
+              error: '${errorMessage}'
+            }, window.location.origin);
+            
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          } else {
+            // If not in popup, redirect to dashboard with error
+            console.log('Not in popup, redirecting to dashboard with error');
+            setTimeout(() => {
+              window.location.href = '/dashboard?error=telegram_connection_failed&message=${encodeURIComponent(errorMessage)}';
+            }, 3000);
+          }
+        </script>
+      </body>
+    </html>
+  `;
+
+  return new NextResponse(errorHtml, {
+    headers: { 'Content-Type': 'text/html' },
+  });
 } 

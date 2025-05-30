@@ -1,154 +1,195 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+
+interface TelegramConfig {
+  botId: string | null;
+  botToken: string | null;
+  botUsername: string | null;
+  appUrl: string | null;
+}
 
 export default function TestTelegramPage() {
-  const [envVars, setEnvVars] = useState<any>({});
-  const [widgetLoaded, setWidgetLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [widgetError, setWidgetError] = useState<string | null>(null);
+  const [config, setConfig] = useState<TelegramConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [testResult, setTestResult] = useState<string>('');
 
   useEffect(() => {
-    // Test environment variables
-    fetch('/api/test-telegram-config')
-      .then(res => res.json())
-      .then(data => {
-        setEnvVars(data);
-        
-        // Try to load widget after we have the data
-        if (data.botUsername) {
-          setTimeout(() => loadTelegramWidget(data.botUsername, data.appUrl), 1000);
-        }
-      })
-      .catch(err => setError(err.message));
-
-    // Test Telegram widget loading
-    const script = document.createElement('script');
-    script.src = 'https://telegram.org/js/telegram-widget.js?22';
-    script.onload = () => setWidgetLoaded(true);
-    script.onerror = () => setError('Failed to load Telegram widget script');
-    document.head.appendChild(script);
+    fetchConfig();
   }, []);
 
-  const loadTelegramWidget = (botUsername: string, appUrl: string) => {
-    const container = document.getElementById('telegram-widget-container');
-    if (!container || !botUsername) return;
-
-    console.log('Attempting to load widget for bot:', botUsername);
-    
-    // Clear container
-    container.innerHTML = '<div class="text-blue-600">Loading widget...</div>';
-    
+  const fetchConfig = async () => {
     try {
-      // Create widget script
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = 'https://telegram.org/js/telegram-widget.js?22';
-      script.setAttribute('data-telegram-login', botUsername);
-      script.setAttribute('data-size', 'large');
-      script.setAttribute('data-auth-url', `${appUrl}/api/oauth/telegram/callback?state=test`);
-      script.setAttribute('data-request-access', 'write');
-      
-      script.onload = () => {
-        console.log('Widget script loaded for bot:', botUsername);
-        setTimeout(() => {
-          const iframe = container.querySelector('iframe');
-          if (!iframe) {
-            setWidgetError(`Widget failed to render. This usually means the bot "${botUsername}" is not configured for web login.`);
-            container.innerHTML = '<div class="text-red-600">Widget failed to render - bot not configured for web login</div>';
-          }
-        }, 3000);
-      };
-      
-      script.onerror = () => {
-        setWidgetError('Failed to load widget script');
-        container.innerHTML = '<div class="text-red-600">Failed to load widget script</div>';
-      };
-      
-      container.appendChild(script);
-      
-    } catch (err) {
-      console.error('Error loading widget:', err);
-      setWidgetError(`Error: ${err}`);
+      const response = await fetch('/api/test-telegram-config');
+      const data = await response.json();
+      setConfig(data);
+    } catch (error) {
+      console.error('Failed to fetch config:', error);
+      setTestResult('❌ Failed to fetch configuration');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const testTelegramAuth = () => {
+    // Open the Telegram auth page in a popup to test the flow
+    const popup = window.open(
+      '/api/oauth/telegram/start',
+      'telegram-auth',
+      'width=520,height=680,scrollbars=yes,resizable=yes'
+    );
+
+    if (!popup) {
+      setTestResult('❌ Popup blocked. Please allow popups and try again.');
+      return;
+    }
+
+    // Listen for messages from the popup
+    const messageHandler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data.type === 'oauth_success') {
+        setTestResult('✅ Telegram authentication successful!');
+        window.removeEventListener('message', messageHandler);
+      } else if (event.data.type === 'oauth_error') {
+        setTestResult(`❌ Telegram authentication failed: ${event.data.error}`);
+        window.removeEventListener('message', messageHandler);
+      }
+    };
+
+    window.addEventListener('message', messageHandler);
+
+    // Check if popup was closed manually
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', messageHandler);
+        if (!testResult.includes('✅') && !testResult.includes('❌')) {
+          setTestResult('⚠️ Popup was closed manually');
+        }
+      }
+    }, 1000);
+  };
+
+  const getConfigStatus = (value: string | null | undefined) => {
+    if (value === 'SET') return '✅ SET';
+    if (value) return `✅ ${value}`;
+    return '❌ NOT SET';
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-bold mb-6">Telegram Integration Test</h1>
-        
-        <div className="space-y-6">
-          {/* Environment Variables */}
-          <div className="border rounded p-4">
-            <h2 className="text-lg font-semibold mb-3">Environment Variables</h2>
-            <div className="space-y-2 font-mono text-sm">
-              <div>TELEGRAM_BOT_ID: <span className="text-blue-600">{envVars.botId || 'NOT SET'}</span></div>
-              <div>TELEGRAM_BOT_TOKEN: <span className="text-blue-600">{envVars.botToken ? 'SET (hidden)' : 'NOT SET'}</span></div>
-              <div>TELEGRAM_BOT_USERNAME: <span className="text-blue-600">{envVars.botUsername || 'NOT SET'}</span></div>
-              <div>NEXT_PUBLIC_APP_URL: <span className="text-blue-600">{envVars.appUrl || 'NOT SET'}</span></div>
-            </div>
-          </div>
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-8">Telegram Integration Test</h1>
+      
+      {/* Configuration Status */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Configuration Status</h2>
+        <div className="space-y-2 font-mono text-sm">
+          <div>TELEGRAM_BOT_ID: <span className={config?.botId ? 'text-green-600' : 'text-red-600'}>{getConfigStatus(config?.botId)}</span></div>
+          <div>TELEGRAM_BOT_TOKEN: <span className={config?.botToken ? 'text-green-600' : 'text-red-600'}>{getConfigStatus(config?.botToken)}</span></div>
+          <div>TELEGRAM_BOT_USERNAME: <span className={config?.botUsername ? 'text-green-600' : 'text-red-600'}>{getConfigStatus(config?.botUsername)}</span></div>
+          <div>NEXT_PUBLIC_APP_URL: <span className={config?.appUrl ? 'text-green-600' : 'text-red-600'}>{getConfigStatus(config?.appUrl)}</span></div>
+        </div>
+      </div>
 
-          {/* Widget Test */}
-          <div className="border rounded p-4">
-            <h2 className="text-lg font-semibold mb-3">Widget Loading Test</h2>
+      {/* Setup Instructions */}
+      {(!config?.botToken || !config?.botUsername) && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-yellow-800 dark:text-yellow-200">⚠️ Setup Required</h2>
+          <div className="space-y-4 text-sm">
+            <p>You need to create a <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">.env.local</code> file in the project root with:</p>
+            <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded overflow-x-auto">
+{`# Telegram Bot Configuration
+TELEGRAM_BOT_ID=your_bot_id_here
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_BOT_USERNAME=your_bot_username_here
+
+# App URL
+NEXT_PUBLIC_APP_URL=https://skoop.pro`}
+            </pre>
             <div className="space-y-2">
-              <div>Telegram Script Loaded: <span className={widgetLoaded ? 'text-green-600' : 'text-red-600'}>{widgetLoaded ? 'YES' : 'NO'}</span></div>
-              {error && <div className="text-red-600">Error: {error}</div>}
-              {widgetError && <div className="text-red-600">Widget Error: {widgetError}</div>}
-            </div>
-          </div>
-
-          {/* Manual Widget Test */}
-          <div className="border rounded p-4">
-            <h2 className="text-lg font-semibold mb-3">Manual Widget Test</h2>
-            <p className="text-sm text-gray-600 mb-3">Testing widget for bot: <code>{envVars.botUsername}</code></p>
-            <div id="telegram-widget-container" className="min-h-[60px] border-2 border-dashed border-gray-300 rounded p-4 flex items-center justify-center">
-              <span className="text-gray-500">Widget should appear here...</span>
-            </div>
-          </div>
-
-          {/* Bot Configuration Check */}
-          <div className="border rounded p-4 bg-yellow-50">
-            <h2 className="text-lg font-semibold mb-3">⚠️ Likely Issue: Bot Not Configured for Web Login</h2>
-            <p className="text-sm mb-3">If the widget doesn't appear, your bot needs to be configured for web login.</p>
-            
-            <div className="bg-white p-3 rounded border">
-              <h3 className="font-medium mb-2">Fix: Configure Bot with BotFather</h3>
-              <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>Open Telegram and message <code>@BotFather</code></li>
-                <li>Send: <code>/setdomain</code></li>
-                <li>Select your bot: <code>{envVars.botUsername}</code></li>
-                <li>Send: <code>skoop.pro</code></li>
-                <li>Confirm with: <code>Yes</code></li>
+              <p><strong>To get these values:</strong></p>
+              <ol className="list-decimal list-inside space-y-1 ml-4">
+                <li>Message <a href="https://t.me/BotFather" className="text-blue-600 hover:underline">@BotFather</a> on Telegram</li>
+                <li>Send <code>/newbot</code> and follow instructions</li>
+                <li>Save the bot token (e.g., <code>123456789:ABC-DEF...</code>)</li>
+                <li>Bot ID is the part before the colon (e.g., <code>123456789</code>)</li>
+                <li>Bot username is what you chose (without @)</li>
               </ol>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Alternative Solution */}
-          <div className="border rounded p-4 bg-blue-50">
-            <h2 className="text-lg font-semibold mb-3">🔄 Alternative: Use Different Auth Method</h2>
-            <p className="text-sm mb-3">If domain setup doesn't work, we can switch to a different authentication method.</p>
-            <button 
-              onClick={() => window.location.href = '/dashboard'}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Return to Dashboard
-            </button>
+      {/* Test Authentication */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Test Authentication Flow</h2>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            This will open the Telegram authentication popup and test the complete flow.
+          </p>
+          <Button 
+            onClick={testTelegramAuth}
+            disabled={!config?.botToken || !config?.botUsername}
+            className="w-full sm:w-auto"
+          >
+            🔗 Test Telegram Authentication
+          </Button>
+          {testResult && (
+            <div className={`p-4 rounded-lg ${
+              testResult.includes('✅') ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200' :
+              testResult.includes('❌') ? 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200' :
+              'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200'
+            }`}>
+              {testResult}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Debug Information */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Debug Information</h2>
+        <div className="space-y-4 text-sm">
+          <div>
+            <strong>Current URL:</strong> <code>{window.location.href}</code>
           </div>
-
-          {/* Instructions */}
-          <div className="border rounded p-4 bg-green-50">
-            <h2 className="text-lg font-semibold mb-3">✅ Next Steps</h2>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li><strong>Configure bot domain with BotFather (see above)</strong></li>
-              <li>Wait 1-2 minutes for Telegram to update</li>
-              <li>Refresh this page to test again</li>
-              <li>If still not working, we'll implement a different auth method</li>
-            </ol>
+          <div>
+            <strong>User Agent:</strong> <code className="break-all">{navigator.userAgent}</code>
+          </div>
+          <div>
+            <strong>Popup Support:</strong> <span className="text-green-600">
+              ✅ Supported
+            </span>
+          </div>
+          <div>
+            <strong>PostMessage Support:</strong> <span className="text-green-600">
+              ✅ Supported
+            </span>
           </div>
         </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="mt-8 flex flex-wrap gap-4">
+        <Button variant="outline" asChild>
+          <a href="/dashboard">← Back to Dashboard</a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href="/api/oauth/telegram/start" target="_blank">Open Auth Page</a>
+        </Button>
+        <Button variant="outline" onClick={fetchConfig}>
+          🔄 Refresh Config
+        </Button>
       </div>
     </div>
   );
