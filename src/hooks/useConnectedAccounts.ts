@@ -300,6 +300,69 @@ export function useConnectedAccounts() {
     fetchAccounts();
   }, [session]);
 
+  // Listen for OAuth success messages from popup windows
+  useEffect(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      // Validate origin for security
+      if (event.origin !== window.location.origin) {
+        console.warn('Received OAuth message from invalid origin:', event.origin);
+        return;
+      }
+
+      console.log('OAuth message received:', event.data);
+
+      // Handle Telegram OAuth success
+      if (event.data?.type === 'oauth_success' && event.data?.provider === 'telegram' && event.data?.success) {
+        console.log('Telegram OAuth success message received');
+        
+        // Show success toast
+        const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+          // Remove any existing toasts first
+          const existingToasts = document.querySelectorAll('.skoop-toast');
+          existingToasts.forEach(toast => document.body.removeChild(toast));
+          
+          // Create toast element
+          const toast = document.createElement('div');
+          toast.textContent = message;
+          toast.className = `skoop-toast fixed top-4 right-4 px-6 py-4 rounded-lg text-white z-[9999] transition-all duration-300 transform translate-x-0 shadow-lg max-w-md ${
+            type === 'success' ? 'bg-green-600 border border-green-500' : 'bg-red-600 border border-red-500'
+          }`;
+          toast.style.fontSize = '14px';
+          toast.style.fontWeight = '500';
+          
+          document.body.appendChild(toast);
+          
+          // Animate in
+          setTimeout(() => {
+            toast.style.transform = 'translateX(0) scale(1)';
+          }, 10);
+          
+          // Remove after 4 seconds
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100px) scale(0.95)';
+            setTimeout(() => {
+              if (document.body.contains(toast)) {
+                document.body.removeChild(toast);
+              }
+            }, 300);
+          }, 4000);
+        };
+
+        showToast('🚀 Telegram connected successfully!', 'success');
+        
+        // Refresh connected accounts to update UI
+        fetchAccounts();
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+
+    return () => {
+      window.removeEventListener('message', handleOAuthMessage);
+    };
+  }, [fetchAccounts]);
+
   return {
     accounts,
     loading,

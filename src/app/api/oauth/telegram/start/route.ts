@@ -188,22 +188,19 @@ export async function GET(request: NextRequest) {
         console.log('Successfully connected Telegram user', telegramUserId, 'to Skoop user', user.id);
         console.log('Database upsert completed successfully');
         
-        // Redirect back to dashboard with success
-        const dashboardUrl = new URL('/dashboard', origin);
-        dashboardUrl.searchParams.set('connected', 'telegram');
-        dashboardUrl.searchParams.set('success', 'true');
-        dashboardUrl.searchParams.set('message', 'Telegram account connected successfully!');
+        // Redirect to success page instead of dashboard for proper popup handling
+        const successUrl = new URL('/oauth/telegram/success', origin);
         
-        console.log('Redirecting to dashboard with success parameters');
-        console.log('Redirect URL:', dashboardUrl.toString());
+        console.log('Redirecting to success page for popup handling');
+        console.log('Success URL:', successUrl.toString());
         
-        return NextResponse.redirect(dashboardUrl);
+        return NextResponse.redirect(successUrl);
         
       } catch (error) {
         console.error('Error processing Telegram connection:', error);
         console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         
-        // Redirect to dashboard with error
+        // For errors, still redirect to dashboard with error parameters
         const dashboardUrl = new URL('/dashboard', origin);
         dashboardUrl.searchParams.set('error', 'telegram_connection_failed');
         dashboardUrl.searchParams.set('message', 'Failed to connect Telegram account. Please try again.');
