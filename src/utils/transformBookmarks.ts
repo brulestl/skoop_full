@@ -69,6 +69,10 @@ export function transformBookmarkForUI(bookmark: Bookmark): UIBookmark {
       awards: metadata.awards || 0,
       saves: 1
     };
+  } else if (bookmark.source === 'telegram') {
+    engagement = {
+      saves: metadata.engagement?.saves || 1,
+    };
   }
 
   return {

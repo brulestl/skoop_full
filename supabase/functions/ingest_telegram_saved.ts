@@ -228,6 +228,111 @@ serve(async (req) => {
 
       insertedCount = insertedBookmarks?.length || bookmarksRaw.length;
       console.log(`✅ Successfully inserted ${insertedCount} records into bookmarks_raw`);
+      
+      // Process messages to bookmarks table immediately
+      console.log('🔄 Processing messages to bookmarks table...');
+      
+      const processedBookmarks = [];
+      const existingUrls = new Set();
+
+      for (const message of fetchedMessages) {
+        try {
+          // Create a unique URL for this Telegram message
+          const messageUrl = `tg://saved_message_${message.id}`;
+          
+          // Skip duplicates
+          if (existingUrls.has(messageUrl)) {
+            continue;
+          }
+          existingUrls.add(messageUrl);
+
+          // Create title from message content or filename
+          let title = 'Telegram Saved Message';
+          if (message.text && message.text.length > 0) {
+            title = message.text.length > 100 
+              ? message.text.substring(0, 100) + '...' 
+              : message.text;
+          } else if (message.fileName) {
+            title = message.fileName;
+          } else {
+            title = `Saved Message ${message.id}`;
+          }
+
+          // Create description and summary
+          const description = message.text || null;
+          const summary = description && description.length > 500 
+            ? description.substring(0, 500) + '...' 
+            : description;
+
+          // Generate tags based on content
+          const tags = ['telegram', 'saved-messages'];
+          
+          // Add media type tag if present
+          if (message.mediaType) {
+            tags.push('media');
+            tags.push(message.mediaType.toLowerCase());
+          }
+          
+          // Add text tag if it has text content
+          if (message.text && message.text.length > 0) {
+            tags.push('text');
+          }
+
+          // Create metadata for the bookmark
+          const bookmarkMetadata = {
+            source: 'telegram',
+            telegram_message_id: message.id,
+            message_date: message.date.toISOString(),
+            has_media: !!message.mediaType,
+            media_type: message.mediaType,
+            file_name: message.fileName,
+            file_size: message.fileSize,
+            character_count: message.text?.length || 0,
+            sync_timestamp: new Date().toISOString(),
+            engagement: {
+              saves: 1, // All saved messages have at least 1 save (the user saved it)
+            }
+          };
+
+          const processedBookmark = {
+            user_id: user.id,
+            url: messageUrl,
+            title: title.trim(),
+            description,
+            summary,
+            tags,
+            source: 'telegram',
+            metadata: bookmarkMetadata,
+          };
+
+          processedBookmarks.push(processedBookmark);
+
+        } catch (processingError) {
+          console.error('❌ Error processing message:', message.id, processingError);
+          // Continue with other messages
+        }
+      }
+
+      // Insert processed bookmarks into bookmarks table
+      if (processedBookmarks.length > 0) {
+        console.log(`💾 Inserting ${processedBookmarks.length} processed bookmarks...`);
+        
+        const { data: insertedProcessedBookmarks, error: processInsertError } = await supabaseClient
+          .from('bookmarks')
+          .upsert(processedBookmarks, {
+            onConflict: 'user_id,url',
+            ignoreDuplicates: false
+          })
+          .select();
+
+        if (processInsertError) {
+          console.error('❌ Error inserting processed bookmarks:', processInsertError);
+          // Don't throw here, as the raw data was saved successfully
+        } else {
+          const processedCount = insertedProcessedBookmarks?.length || 0;
+          console.log(`✅ Successfully processed ${processedCount} Telegram messages into bookmarks`);
+        }
+      }
     }
 
     // Update last sync time

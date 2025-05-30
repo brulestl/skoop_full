@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { useBookmarks } from '@/hooks/useBookmarks';
 import { transformBookmarksForUI, UIBookmark } from '@/utils/transformBookmarks';
 import { useCollections, useCollectionOperations } from '@/hooks/useCollections';
 import { analyzeBookmarksForCollection, SemanticSuggestion, SemanticAnalysisResult } from '@/services/semanticAnalysis';
+import SyncTelegramButton from '@/components/dashboard/sync-telegram-button';
 
 // Source icon mapping
 const SourceIcon = ({ source }: { source: string }) => {
@@ -21,6 +22,7 @@ const SourceIcon = ({ source }: { source: string }) => {
     case "twitter": return <X className="h-4 w-4" />;
     case "stackoverflow": return <StackOverflow className="h-4 w-4" />;
     case "reddit": return <Reddit className="h-4 w-4" />;
+    case "telegram": return <Send className="h-4 w-4" />;
     default: return <BookmarkIcon className="h-4 w-4" />;
   }
 };
@@ -1712,7 +1714,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   };
 
   // Available providers for filtering
-  const availableProviders = ['github', 'twitter', 'reddit', 'stackoverflow'];
+  const availableProviders = ['github', 'twitter', 'reddit', 'stackoverflow', 'telegram'];
 
   // Add handler for select all in dropdown
   const handleSelectAllProviders = () => {
@@ -1799,6 +1801,16 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
               </Button>
             </div>
           </div>
+          
+          {/* Add Telegram sync button */}
+          <SyncTelegramButton 
+            size="sm" 
+            variant="outline" 
+            onSyncComplete={() => {
+              // Refresh bookmarks when sync completes
+              refresh();
+            }}
+          />
         </div>
         
         <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between">
