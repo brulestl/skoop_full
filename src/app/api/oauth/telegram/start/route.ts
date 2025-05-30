@@ -200,8 +200,12 @@ function createTelegramErrorPage(origin: string, errorType: string, errorMessage
 
 export async function GET(request: NextRequest) {
   try {
+    // Use NEXT_PUBLIC_APP_URL if available, fallback to request origin
+    const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+    
+    console.log('Using origin for Telegram OAuth:', origin);
+    
     const url = new URL(request.url);
-    const origin = url.origin; // Dynamic origin instead of hardcoded skoop.pro
     
     // Check if this is coming from Telegram with user data (auth callback)
     const telegramUserId = url.searchParams.get('id');
