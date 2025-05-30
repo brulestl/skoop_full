@@ -99,6 +99,8 @@ serve(async (req) => {
       .eq('provider', 'telegram')
 
     let fetchedMessages: TelegramMessage[] = []
+    let totalRawMessages = 0
+    let totalUsefulMessages = 0
 
     try {
       console.log('🔌 Fetching REAL Telegram saved messages...')
@@ -161,13 +163,32 @@ serve(async (req) => {
         reverse: false,
       })
 
+      totalRawMessages = messages.length
       console.log(`📥 Retrieved ${messages.length} REAL saved messages`)
+      console.log('[TG] raw len', messages.length)
 
-      // Process and format REAL messages
-      fetchedMessages = messages.map((msg: any) => {
+      // Filter for useful messages (those with text OR caption)
+      const usefulMessages = messages.filter((msg: any) => {
+        const hasText = msg.message && msg.message.length > 0
+        const hasCaption = msg.media && msg.media.caption && msg.media.caption.length > 0
+        const hasFileName = msg.media && msg.media.document && msg.media.document.attributes?.some((attr: any) => attr.className === 'DocumentAttributeFilename')
+        
+        return hasText || hasCaption || hasFileName
+      })
+
+      totalUsefulMessages = usefulMessages.length
+      console.log(`[TG] useful messages: ${usefulMessages.length} out of ${messages.length}`)
+
+      // Process and format REAL useful messages
+      fetchedMessages = usefulMessages.map((msg: any) => {
+        // Extract text from message or media caption
+        const messageText = msg.message || ''
+        const mediaCaption = msg.media?.caption || ''
+        const combinedText = messageText || mediaCaption
+        
         return {
           id: msg.id.toString(),
-          text: msg.message || '',
+          text: combinedText,
           date: new Date(msg.date * 1000),
           mediaType: msg.media ? msg.media.className : undefined,
           fileName: msg.media && msg.media.document && msg.media.document.attributes
@@ -176,6 +197,7 @@ serve(async (req) => {
           fileSize: msg.media && msg.media.document ? Number(msg.media.document.size) : undefined,
           fromUserId: 'self',
           fromUserName: 'Saved Messages',
+          mediaCaption: mediaCaption, // Store caption separately for debugging
         }
       })
 
@@ -225,9 +247,12 @@ serve(async (req) => {
                 file_name: message.fileName,
                 file_size: message.fileSize,
                 media_url: message.mediaUrl,
+                media_caption: message.mediaCaption,
                 sync_timestamp: new Date().toISOString(),
                 has_media: !!message.mediaType,
+                has_caption: !!(message.mediaCaption && message.mediaCaption.length > 0),
                 character_count: message.text?.length || 0,
+                total_text_length: (message.text?.length || 0) + (message.mediaCaption?.length || 0),
               },
               original_message: {
                 id: message.id,
@@ -249,7 +274,7 @@ serve(async (req) => {
         // Extract and store processed bookmark data (like GitHub)
         const messageUrl = `tg://saved_message_${message.id}`
         
-        // Create title from REAL message content or filename
+        // Create title from REAL message content, caption, or filename
         let title = 'Telegram Saved Message'
         if (message.text && message.text.length > 0) {
           title = message.text.length > 100 
@@ -270,9 +295,14 @@ serve(async (req) => {
           tags.push(message.mediaType.toLowerCase())
         }
         
-        // Add text tag if it has text content
+        // Add text tag if it has text content or caption
         if (message.text && message.text.length > 0) {
           tags.push('text')
+        }
+        
+        // Add caption tag if media has caption
+        if (message.mediaCaption && message.mediaCaption.length > 0) {
+          tags.push('caption')
         }
 
         await supabaseAdmin
@@ -319,12 +349,14 @@ serve(async (req) => {
       .eq('provider', 'telegram')
 
     console.log(`Successfully processed ${insertedCount} REAL Telegram messages`)
+    console.log(`[TG] Final stats: ${totalRawMessages} raw → ${totalUsefulMessages} useful → ${insertedCount} inserted`)
 
     // Return response in same format as GitHub
     return new Response(JSON.stringify({ 
       count: insertedCount, 
-      total_fetched: fetchedMessages.length,
-      message: `Successfully synced ${insertedCount} Telegram saved messages`
+      total_fetched: totalRawMessages,
+      useful_messages: totalUsefulMessages,
+      message: `Successfully synced ${insertedCount} Telegram saved messages (${totalUsefulMessages} useful out of ${totalRawMessages} total)`
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
