@@ -17,40 +17,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { createHmac } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { encryptUserData, decryptUserData } from '@/lib/auth/crypto';
 
-function isValidTelegramHash(q: Record<string, string>, botToken: string): boolean {
-  if (!q.hash || !botToken) {
+function isValidTelegramHash(allParams: Record<string, string>, botToken: string): boolean {
+  if (!allParams.hash || !botToken) {
     console.error('Telegram auth: Missing hash or bot token');
     return false;
   }
 
-  // Create data check string: sort fields (except hash) and join with newlines
-  const dataCheck = Object.keys(q)
-    .filter(k => k !== 'hash' && q[k] !== null && q[k] !== undefined && q[k] !== '')
+  // Filter only Telegram parameters (exclude user_token and other non-Telegram params)
+  const telegramParams: Record<string, string> = {};
+  const knownTelegramFields = ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date'];
+  
+  for (const field of knownTelegramFields) {
+    if (allParams[field] && allParams[field] !== '') {
+      telegramParams[field] = allParams[field];
+    }
+  }
+
+  // Create data check string: sort Telegram fields and join with newlines
+  const dataCheck = Object.keys(telegramParams)
     .sort()
-    .map(k => `${k}=${q[k]}`)
+    .map(k => `${k}=${telegramParams[k]}`)
     .join('\n');
 
-  // Create secret using WebAppData method per Telegram specification
-  const secret = createHmac('sha256', 'WebAppData')
-    .update(botToken)
-    .digest();
+  // Create secret key using SHA256(bot_token) per Telegram Login Widget docs
+  const secretKey = createHash('sha256').update(botToken).digest();
 
-  // Calculate hash using the secret
-  const calc = createHmac('sha256', secret)
+  // Calculate hash using HMAC-SHA256 with the secret key
+  const calculatedHash = createHmac('sha256', secretKey)
     .update(dataCheck)
     .digest('hex');
 
-  console.log('Telegram hash verification:', { 
-    fieldsCount: Object.keys(q).filter(k => k !== 'hash').length,
-    receivedHash: q.hash.substring(0, 8) + '***',
-    calculatedHash: calc.substring(0, 8) + '***',
-    isValid: calc === q.hash 
-  });
+  const receivedHash = allParams.hash;
+  const isValid = calculatedHash === receivedHash;
 
-  return calc === q.hash;
+  // TELEG_DEBUG: Comprehensive debugging (remove after success)
+  console.log('🔍 TELEG_DEBUG =================');
+  console.log('All URL params:', Object.keys(allParams));
+  console.log('Filtered Telegram params:', Object.keys(telegramParams));
+  console.log('Data check string:', JSON.stringify(dataCheck));
+  console.log('Data check length:', dataCheck.length);
+  console.log('Bot token length:', botToken.length);
+  console.log('Bot token first 8 chars:', botToken.substring(0, 8) + '***');
+  console.log('Received hash:', receivedHash);
+  console.log('Calculated hash:', calculatedHash);
+  console.log('Hashes match:', isValid);
+  console.log('Raw data for hash:');
+  Object.keys(telegramParams).sort().forEach(key => {
+    console.log(`  ${key}="${telegramParams[key]}" (len=${telegramParams[key].length})`);
+  });
+  console.log('================================');
+
+  return isValid;
 }
 
 function createTelegramErrorPage(origin: string, errorType: string, errorMessage: string, debugInfo?: any): NextResponse {
@@ -203,20 +223,15 @@ export async function GET(request: NextRequest) {
         throw new Error('TELEGRAM_BOT_TOKEN environment variable is not configured');
       }
       
-      // Prepare auth data for verification
-      const authData: Record<string, string> = {};
-      if (telegramUserId) authData.id = telegramUserId;
-      if (firstName) authData.first_name = firstName;
-      if (lastName) authData.last_name = lastName;
-      if (username) authData.username = username;
-      if (authDate) authData.auth_date = authDate;
-      if (hash) authData.hash = hash;
+      // Convert all URL search params to object for hash verification
+      const allParams: Record<string, string> = {};
+      url.searchParams.forEach((value, key) => {
+        allParams[key] = value;
+      });
       
-      // Verify the hash
-      const isValidAuth = isValidTelegramHash(authData, botToken);
+      // Verify the hash using all URL parameters (function will filter Telegram params)
+      const isValidAuth = isValidTelegramHash(allParams, botToken);
       console.log('Telegram auth verification result:', isValidAuth);
-      console.log('Auth data for verification:', authData);
-      console.log('Bot token configured:', !!botToken);
       
       if (!isValidAuth) {
         console.error('Invalid Telegram authentication hash');
