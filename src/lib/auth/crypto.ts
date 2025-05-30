@@ -10,6 +10,28 @@ export interface EncryptedToken {
 }
 
 /**
+ * Convert base64 to base64url format
+ */
+function toBase64Url(base64: string): string {
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/**
+ * Convert base64url to base64 format
+ */
+function fromBase64Url(base64url: string): string {
+  // Add padding if needed
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return base64;
+}
+
+/**
  * Encrypt user ID and other sensitive data for OAuth state management
  */
 export function encryptUserData(data: { userId: string; timestamp?: number; returnUrl?: string }): string {
@@ -34,7 +56,9 @@ export function encryptUserData(data: { userId: string; timestamp?: number; retu
       tag: tag.toString('hex')
     };
     
-    return Buffer.from(JSON.stringify(result)).toString('base64url');
+    // Convert to base64url format manually
+    const base64 = Buffer.from(JSON.stringify(result)).toString('base64');
+    return toBase64Url(base64);
   } catch (error) {
     console.error('Encryption failed:', error);
     throw new Error('Failed to encrypt user data');
@@ -46,7 +70,9 @@ export function encryptUserData(data: { userId: string; timestamp?: number; retu
  */
 export function decryptUserData(encryptedData: string): { userId: string; timestamp: number; returnUrl?: string } | null {
   try {
-    const tokenData: EncryptedToken = JSON.parse(Buffer.from(encryptedData, 'base64url').toString());
+    // Convert from base64url to base64 format
+    const base64 = fromBase64Url(encryptedData);
+    const tokenData: EncryptedToken = JSON.parse(Buffer.from(base64, 'base64').toString());
     
     const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
     decipher.setAuthTag(Buffer.from(tokenData.tag, 'hex'));

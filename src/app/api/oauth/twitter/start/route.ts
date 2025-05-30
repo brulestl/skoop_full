@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 
+/**
+ * Convert base64 to base64url format
+ */
+function toBase64Url(base64: string): string {
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -27,11 +37,11 @@ export async function GET(request: NextRequest) {
     const state = crypto.randomBytes(32).toString('hex');
     
     // Generate PKCE verifier and challenge
-    const codeVerifier = crypto.randomBytes(32).toString('base64url');
-    const codeChallenge = crypto
+    const codeVerifier = toBase64Url(crypto.randomBytes(32).toString('base64'));
+    const codeChallenge = toBase64Url(crypto
       .createHash('sha256')
       .update(codeVerifier)
-      .digest('base64url');
+      .digest('base64'));
 
     // Store state, verifier, and returnTo in HTTP-only cookies
     const cookieStore = await cookies();
