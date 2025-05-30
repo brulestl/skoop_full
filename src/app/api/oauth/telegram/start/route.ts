@@ -17,66 +17,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
+import { createHmac } from 'crypto';
 import { encryptUserData, decryptUserData } from '@/lib/auth/crypto';
 
-function verifyTelegramAuth(authData: Record<string, string>, botToken: string): boolean {
-  const { hash, ...data } = authData;
-  
-  if (!hash) {
-    console.error('Telegram auth: No hash provided');
+function isValidTelegramHash(q: Record<string, string>, botToken: string): boolean {
+  if (!q.hash || !botToken) {
+    console.error('Telegram auth: Missing hash or bot token');
     return false;
   }
-  
-  if (!botToken) {
-    console.error('Telegram auth: No bot token provided');
-    return false;
-  }
-  
-  // Filter out null/undefined values and create data check string
-  // Only include fields that have actual values
-  const filteredData: Record<string, string> = {};
-  Object.keys(data).forEach(key => {
-    if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
-      filteredData[key] = data[key];
-    }
-  });
-  
-  // Create data check string exactly per Telegram docs:
-  // 1. Sort all fields alphabetically (except hash)
-  // 2. Join with newline \n
-  const dataCheckString = Object.keys(filteredData)
+
+  // Create data check string: sort fields (except hash) and join with newlines
+  const dataCheck = Object.keys(q)
+    .filter(k => k !== 'hash' && q[k] !== null && q[k] !== undefined && q[k] !== '')
     .sort()
-    .map(key => `${key}=${filteredData[key]}`)
+    .map(k => `${k}=${q[k]}`)
     .join('\n');
-  
-  // Create secret key: SHA256(bot_token)
-  const secretKey = crypto.createHash('sha256').update(botToken).digest();
-  
-  // Create HMAC-SHA256 hash with the secret key and encode in hex
-  const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-  
-  // Enhanced logging for debugging
-  console.log('=== Telegram Auth Hash Verification Debug ===');
-  console.log('Received data fields:', Object.keys(data));
-  console.log('Filtered data fields:', Object.keys(filteredData));
-  console.log('Data check string:', JSON.stringify(dataCheckString));
-  console.log('Data check string length:', dataCheckString.length);
-  console.log('Received hash:', hash);
-  console.log('Received hash length:', hash.length);
-  console.log('Calculated hash:', calculatedHash);
-  console.log('Calculated hash length:', calculatedHash.length);
-  console.log('Bot token length:', botToken.length);
-  console.log('Bot token masked:', botToken.substring(0, 8) + '...' + botToken.substring(botToken.length - 8));
-  console.log('Hashes match:', calculatedHash === hash);
-  console.log('============================================');
-  
-  // Additional field-by-field logging for debugging
-  Object.keys(filteredData).forEach(key => {
-    console.log(`Field '${key}': '${filteredData[key]}' (length: ${filteredData[key].length})`);
+
+  // Create secret using WebAppData method per Telegram specification
+  const secret = createHmac('sha256', 'WebAppData')
+    .update(botToken)
+    .digest();
+
+  // Calculate hash using the secret
+  const calc = createHmac('sha256', secret)
+    .update(dataCheck)
+    .digest('hex');
+
+  console.log('Telegram hash verification:', { 
+    fieldsCount: Object.keys(q).filter(k => k !== 'hash').length,
+    receivedHash: q.hash.substring(0, 8) + '***',
+    calculatedHash: calc.substring(0, 8) + '***',
+    isValid: calc === q.hash 
   });
-  
-  return calculatedHash === hash;
+
+  return calc === q.hash;
 }
 
 function createTelegramErrorPage(origin: string, errorType: string, errorMessage: string, debugInfo?: any): NextResponse {
@@ -226,13 +200,7 @@ export async function GET(request: NextRequest) {
       // Verify the authentication data
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (!botToken) {
-        console.error('TELEGRAM_BOT_TOKEN not configured');
-        return createTelegramErrorPage(
-          origin,
-          'TELEGRAM_BOT_TOKEN_MISSING',
-          'Telegram bot is not properly configured. Please contact the administrator.',
-          { configMissing: 'TELEGRAM_BOT_TOKEN' }
-        );
+        throw new Error('TELEGRAM_BOT_TOKEN environment variable is not configured');
       }
       
       // Prepare auth data for verification
@@ -245,7 +213,7 @@ export async function GET(request: NextRequest) {
       if (hash) authData.hash = hash;
       
       // Verify the hash
-      const isValidAuth = verifyTelegramAuth(authData, botToken);
+      const isValidAuth = isValidTelegramHash(authData, botToken);
       console.log('Telegram auth verification result:', isValidAuth);
       console.log('Auth data for verification:', authData);
       console.log('Bot token configured:', !!botToken);
@@ -254,20 +222,9 @@ export async function GET(request: NextRequest) {
         console.error('Invalid Telegram authentication hash');
         console.error('Expected hash calculation failed - auth data may be tampered');
         
-        // Create detailed debug info for hash verification failure
-        const debugInfo = {
-          receivedFields: Object.keys(authData),
-          receivedHash: hash,
-          botTokenLength: botToken.length,
-          botTokenMasked: botToken.substring(0, 8) + '...' + botToken.substring(botToken.length - 8),
-          timestamp: new Date().toISOString()
-        };
-        
-        return createTelegramErrorPage(
-          origin, 
-          'HASH_VERIFICATION_FAILED', 
-          'The authentication data received from Telegram could not be verified. This may indicate the data was tampered with or there is a configuration issue.',
-          debugInfo
+        return NextResponse.json(
+          { error: 'HASH_VERIFICATION_FAILED' },
+          { status: 400 }
         );
       }
       
@@ -364,8 +321,13 @@ export async function GET(request: NextRequest) {
         console.log('Successfully connected Telegram user', telegramUserId, 'to Skoop user', user.id);
         console.log('Database upsert completed successfully');
         
-        // Redirect to success page instead of dashboard for proper popup handling
-        const successUrl = new URL('/oauth/telegram/success', origin);
+        // Redirect to success page using NEXT_PUBLIC_APP_URL
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        if (!appUrl) {
+          throw new Error('NEXT_PUBLIC_APP_URL not configured');
+        }
+        
+        const successUrl = new URL('/oauth/telegram/success', appUrl);
         
         console.log('Redirecting to success page for popup handling');
         console.log('Success URL:', successUrl.toString());
