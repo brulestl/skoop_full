@@ -265,7 +265,7 @@ export async function GET(request: NextRequest) {
       
       // Get user from encrypted token or session
       let user = null;
-      let supabase = null;
+      let supabase = createRouteHandlerClient({ cookies });
       
       if (userToken) {
         // Try to decrypt user token first
@@ -274,8 +274,7 @@ export async function GET(request: NextRequest) {
           if (decryptedData) {
             console.log('Decrypted user data from token:', decryptedData);
             
-            // Create supabase client and verify user exists
-            supabase = createRouteHandlerClient({ cookies });
+            // Get user from session to ensure proper authentication context
             const { data: userData, error: userError } = await supabase.auth.getUser();
             
             if (!userError && userData.user && userData.user.id === decryptedData.userId) {
@@ -289,8 +288,7 @@ export async function GET(request: NextRequest) {
       }
       
       // Fallback to session-based user lookup
-      if (!user || !supabase) {
-        supabase = createRouteHandlerClient({ cookies });
+      if (!user) {
         const { data: { user: sessionUser }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !sessionUser) {
@@ -304,12 +302,38 @@ export async function GET(request: NextRequest) {
         user = sessionUser;
       }
       
+      // Ensure we have a valid authenticated Supabase client
+      if (!user) {
+        console.error('No authenticated user found for database operation');
+        throw new Error('User authentication required for database operations');
+      }
+      
+      console.log('Authenticated user for database operations:', {
+        userId: user.id,
+        email: user.email,
+        role: user.role
+      });
+      
       try {
         console.log('Starting database upsert for Telegram connection...');
         console.log('Skoop user ID:', user.id);
         console.log('Telegram user ID:', telegramUserId);
         console.log('Username:', username);
         console.log('Display name:', `${firstName || ''} ${lastName || ''}`.trim() || null);
+        
+        // Test RLS permissions by checking if we can query connected_accounts
+        console.log('Testing RLS permissions...');
+        const { data: existingAccounts, error: queryError } = await supabase
+          .from('connected_accounts')
+          .select('provider')
+          .eq('user_id', user.id);
+          
+        if (queryError) {
+          console.error('RLS Query test failed:', queryError);
+          console.error('This indicates a permissions issue with the database connection');
+        } else {
+          console.log('RLS Query test passed. Existing providers:', existingAccounts?.map(a => a.provider) || []);
+        }
         
         // Store the Telegram connection in database
         const { error: insertError } = await supabase
@@ -328,8 +352,22 @@ export async function GET(request: NextRequest) {
           });
 
         if (insertError) {
-          console.error('Error storing Telegram connection:', insertError);
-          console.error('Insert error details:', JSON.stringify(insertError, null, 2));
+          console.error('Database upsert failed:');
+          console.error('Error code:', insertError.code);
+          console.error('Error message:', insertError.message);
+          console.error('Error details:', insertError.details);
+          console.error('Error hint:', insertError.hint);
+          console.error('Full error:', JSON.stringify(insertError, null, 2));
+          console.error('Data being inserted:', {
+            user_id: user.id,
+            provider: 'telegram',
+            provider_user_id: telegramUserId,
+            username: username || null,
+            display_name: `${firstName || ''} ${lastName || ''}`.trim() || null,
+            status: 'active',
+            connected_at: new Date().toISOString(),
+            access_token: 'telegram_connected',
+          });
           throw insertError;
         }
 
