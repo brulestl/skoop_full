@@ -1492,7 +1492,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   const filterChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update useBookmarks call to use the new parameters
-  const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount } = useBookmarks({
+  const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount, isEmpty } = useBookmarks({
     sortBy,
     sortOrder,
     providers: Array.from(providerFilters)
@@ -1525,10 +1525,11 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     }));
   }, [searchResults]);
   
-  const isUsingMockData = realBookmarks.length === 0 && !isSearchActive;
+  // Use isEmpty flag from hook instead of manual calculation
+  const isUsingMockData = isEmpty && !isSearchActive;
 
   // Fix: Only use mock data when there are truly no bookmarks AND no filters are applied
-  const shouldShowMockData = totalCount === 0 && !isSearchActive && providerFilters.size === 0;
+  const shouldShowMockData = isEmpty && !isSearchActive && (providerFilters.size === 0 || providerFilters.has('all'));
 
   const [loadingMore, setLoadingMore] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -1763,20 +1764,41 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   return (
     <div className="flex flex-col h-full">
       <div className="sticky top-0 z-30 bg-background pt-4 pb-4 mb-2 border-b border-border">
-        {!shouldShowMockData && totalCount > 0 && (
+        {/* Show status messages based on isEmpty flag and current state */}
+        {!isEmpty && totalCount > 0 && !isSearchActive && (
           <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center space-x-2 text-green-700 text-sm">
               <CheckCircle2 className="h-4 w-4" />
-              <span>Showing your real bookmarks ({totalCount} total)</span>
+              <span>Showing your bookmarks ({totalCount} total)</span>
             </div>
           </div>
         )}
         
-        {shouldShowMockData && (
+        {isEmpty && !isSearchActive && !loading && !error && (
           <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center space-x-2 text-blue-700 text-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-blue-700 text-sm">
+                <BookmarkIcon className="h-4 w-4" />
+                <span>
+                  {providerFilters.size > 0 && !providerFilters.has('all') 
+                    ? `No bookmarks found for selected platforms`
+                    : 'No bookmarks yet - connect your accounts to start importing'
+                  }
+                </span>
+              </div>
+              <Button onClick={refresh} variant="ghost" size="sm" className="text-blue-700 hover:bg-blue-100">
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isSearchActive && searchBookmarks.length > 0 && (
+          <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center space-x-2 text-amber-700 text-sm">
               <BookmarkIcon className="h-4 w-4" />
-              <span>No bookmarks yet - connect your GitHub account in Profile to sync your starred repositories</span>
+              <span>Found {searchBookmarks.length} search result{searchBookmarks.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
         )}
@@ -2029,15 +2051,15 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {/* Only show loading spinner if actually loading and not just filter changing */}
-        {loading && !isFilterChanging && realBookmarks.length === 0 ? (
+        {/* Improved loading and empty state logic using isEmpty flag */}
+        {loading && !isFilterChanging && isEmpty && !realBookmarks.length ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               <span className="text-sm text-muted-foreground">Loading bookmarks...</span>
             </div>
           </div>
-        ) : isFilterChanging && realBookmarks.length === 0 ? (
+        ) : isFilterChanging ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -2051,19 +2073,31 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
               Try Again
             </Button>
           </div>
-        ) : (isSearchActive ? searchBookmarks.length === 0 : realBookmarks.length === 0) ? (
+        ) : (isSearchActive ? searchBookmarks.length === 0 : isEmpty) ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            {providerFilters.size > 0 && !providerFilters.has('all') ? (
+            {isSearchActive ? (
+              <>
+                <BookmarkIcon className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-semibold mb-2">No search results</h3>
+                <p className="text-muted-foreground">No bookmarks match your search query</p>
+              </>
+            ) : providerFilters.size > 0 && !providerFilters.has('all') ? (
               <>
                 <Filter className="h-12 w-12 text-muted-foreground mb-3" />
                 <h3 className="text-lg font-semibold mb-2">No bookmarks found</h3>
                 <p className="text-muted-foreground mb-4">
-                  No bookmarks match the selected platform filters: {Array.from(providerFilters).filter(p => p !== 'all').join(', ')}
+                  No bookmarks match the selected platform filters: {Array.from(providerFilters).filter(p => p !== 'all').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}
                 </p>
-                <Button onClick={clearAllFilters} variant="outline" size="sm">
-                  <X className="h-4 w-4 mr-2" />
-                  Show All Platforms
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={clearAllFilters} variant="outline" size="sm">
+                    <X className="h-4 w-4 mr-2" />
+                    Show All Platforms
+                  </Button>
+                  <Button onClick={refresh} variant="outline" size="sm">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                </div>
               </>
             ) : providerFilters.size === 0 ? (
               <>
@@ -2081,7 +2115,13 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
               <>
                 <BookmarkIcon className="h-12 w-12 text-muted-foreground mb-3" />
                 <h3 className="text-lg font-semibold mb-2">No bookmarks yet</h3>
-                <p className="text-muted-foreground">Connect your accounts to start importing bookmarks</p>
+                <p className="text-muted-foreground mb-4">Connect your accounts to start importing bookmarks</p>
+                <div className="flex gap-2">
+                  <Button onClick={refresh} variant="outline" size="sm">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Check for Updates
+                  </Button>
+                </div>
               </>
             )}
           </div>

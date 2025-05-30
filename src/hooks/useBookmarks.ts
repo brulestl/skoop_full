@@ -42,11 +42,13 @@ export interface UseBookmarksResult {
   refresh: () => Promise<void>;
   deleteBookmark: (bookmarkId: string) => Promise<boolean>;
   totalCount: number;
+  isEmpty: boolean; // Flag to indicate if the current filter combination has no results
 }
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_DELAY = 300; // 300ms debounce
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+const AUTO_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes for auto-sync (increased from 15 to reduce spam)
 
 // Cache for storing query results and their timestamps
 interface CacheEntry {
@@ -54,6 +56,7 @@ interface CacheEntry {
   totalCount: number;
   timestamp: number;
   isEmpty: boolean; // Track if this query returned 0 results
+  queryKey: string; // Store the query key for debugging
 }
 
 const queryCache = new Map<string, CacheEntry>();
@@ -68,11 +71,13 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentOffset, setCurrentOffset] = useState(0);
+  const [isEmpty, setIsEmpty] = useState(false);
   
-  // Add debouncing
+  // Add debouncing and sync management
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastQueryRef = useRef<string>('');
   const autoSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAutoSyncRef = useRef<number>(0); // Track last auto-sync time
 
   // Create a stable query key for caching/debouncing
   const createQueryKey = useCallback(() => {
@@ -98,6 +103,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     }
     // Remove expired cache entry
     if (cached) {
+      console.log('Removing expired cache entry for:', queryKey);
       queryCache.delete(queryKey);
     }
     return null;
@@ -105,17 +111,41 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
 
   // Store data in cache
   const setCachedData = (queryKey: string, data: Bookmark[], totalCount: number) => {
-    queryCache.set(queryKey, {
+    const cacheEntry: CacheEntry = {
       data,
       totalCount,
       timestamp: Date.now(),
-      isEmpty: totalCount === 0
-    });
+      isEmpty: totalCount === 0,
+      queryKey
+    };
+    
+    queryCache.set(queryKey, cacheEntry);
+    console.log(`Cached data for query: ${queryKey} (${totalCount} items, isEmpty: ${cacheEntry.isEmpty})`);
+  };
+
+  // Check if we should throttle auto-sync based on empty results
+  const shouldThrottleAutoSync = (queryKey: string): boolean => {
+    const cached = getCachedData(queryKey);
+    const now = Date.now();
+    
+    // If we have empty results cached, throttle auto-sync more aggressively
+    if (cached && cached.isEmpty) {
+      const timeSinceLastSync = now - lastAutoSyncRef.current;
+      const throttleTime = AUTO_SYNC_INTERVAL * 2; // Double the interval for empty results
+      
+      if (timeSinceLastSync < throttleTime) {
+        console.log(`Throttling auto-sync for empty results. Last sync: ${timeSinceLastSync}ms ago, need: ${throttleTime}ms`);
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   const fetchBookmarks = async (offset = 0, append = false, force = false) => {
     if (!user) {
       setLoading(false);
+      setIsEmpty(false);
       return;
     }
 
@@ -125,19 +155,22 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     if (offset === 0 && !force) {
       const cached = getCachedData(queryKey);
       if (cached) {
-        console.log('Using cached data for query:', queryKey);
+        console.log('Using cached data for query:', queryKey, `(${cached.data.length} items, isEmpty: ${cached.isEmpty})`);
         setBookmarks(cached.data);
         setTotalCount(cached.totalCount);
         setHasMore(cached.data.length === limit && !cached.isEmpty);
         setCurrentOffset(cached.data.length);
         setLoading(false);
+        setError(null);
+        setIsEmpty(cached.isEmpty);
         lastQueryRef.current = queryKey;
         return;
       }
     }
     
-    // Skip if same query and not forced (but not cached)
+    // Skip if same query and not forced (prevent duplicate requests)
     if (!force && queryKey === lastQueryRef.current && offset === 0) {
+      console.log('Skipping duplicate query:', queryKey);
       return;
     }
 
@@ -147,7 +180,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
         setLoading(true);
       }
 
-      console.log('Making database query for:', queryKey);
+      console.log('Making database query for:', queryKey, `(offset: ${offset}, append: ${append}, force: ${force})`);
 
       // Build the query using any type to avoid TypeScript issues temporarily
       let query = (supabase as any)
@@ -179,12 +212,16 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
       if (error) {
         console.error('Error fetching bookmarks:', error);
         setError(error.message);
+        setIsEmpty(false);
         return;
       }
 
       // Treat empty data as valid result, not an error
       const bookmarkData = data || [];
-      console.log(`Query returned ${bookmarkData.length} bookmarks (count: ${count || 0})`);
+      const resultCount = count || 0;
+      const isEmptyResult = resultCount === 0;
+      
+      console.log(`Query returned ${bookmarkData.length} bookmarks (count: ${resultCount}, isEmpty: ${isEmptyResult})`);
 
       const newBookmarks = bookmarkData.map((bookmark: any) => ({
         ...bookmark,
@@ -196,28 +233,32 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
       
       if (append) {
         setBookmarks(prev => [...prev, ...newBookmarks]);
+        setCurrentOffset(offset + newBookmarks.length);
       } else {
         setBookmarks(newBookmarks);
-        // Cache the initial query result - empty results are valid and cacheable
+        setCurrentOffset(newBookmarks.length);
+        
+        // Always cache the initial query result - empty results are valid and important to cache
         if (offset === 0) {
-          setCachedData(queryKey, newBookmarks, count || 0);
+          setCachedData(queryKey, newBookmarks, resultCount);
         }
       }
 
-      setTotalCount(count || 0);
-      setHasMore(newBookmarks.length === limit);
-      setCurrentOffset(offset + newBookmarks.length);
+      setTotalCount(resultCount);
+      setHasMore(newBookmarks.length === limit && !isEmptyResult);
+      setIsEmpty(isEmptyResult);
       lastQueryRef.current = queryKey;
 
     } catch (err) {
       console.error('Exception fetching bookmarks:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch bookmarks');
+      setIsEmpty(false);
     } finally {
       setLoading(false);
     }
   };
 
-  // Debounced fetch function
+  // Debounced fetch function with improved empty result handling
   const debouncedFetch = useCallback(() => {
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
@@ -225,44 +266,54 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
 
     const queryKey = createQueryKey();
     
-    // If we have cached data that shows this query returns 0 results, show immediately
-    // Empty results are valid and should be displayed, not treated as errors
+    // If we have cached data (including empty results), show it immediately
     const cached = getCachedData(queryKey);
-    if (cached && cached.isEmpty) {
-      console.log('Query known to return empty results, showing cached empty result immediately');
-      setBookmarks([]);
-      setTotalCount(0);
-      setHasMore(false);
-      setCurrentOffset(0);
+    if (cached) {
+      console.log('Using cached data from debounced fetch:', queryKey, `(isEmpty: ${cached.isEmpty})`);
+      setBookmarks(cached.data);
+      setTotalCount(cached.totalCount);
+      setHasMore(cached.data.length === limit && !cached.isEmpty);
+      setCurrentOffset(cached.data.length);
       setLoading(false);
-      setError(null); // Clear any previous errors
+      setError(null);
+      setIsEmpty(cached.isEmpty);
       lastQueryRef.current = queryKey;
       return;
     }
 
+    // Debounce new queries
     debounceTimeoutRef.current = setTimeout(() => {
       setCurrentOffset(0);
       fetchBookmarks(0, false, true);
     }, DEBOUNCE_DELAY);
   }, [user, provider, sortBy, sortOrder, providers]);
 
-  // Setup auto-sync every 15 minutes
+  // Setup auto-sync with improved throttling for empty results
   const setupAutoSync = useCallback(() => {
     if (autoSyncIntervalRef.current) {
       clearInterval(autoSyncIntervalRef.current);
     }
 
     autoSyncIntervalRef.current = setInterval(() => {
+      const queryKey = createQueryKey();
+      
+      // Check if we should throttle auto-sync for empty results
+      if (shouldThrottleAutoSync(queryKey)) {
+        return;
+      }
+      
       console.log('Auto-sync: Refreshing bookmarks...');
-      // Clear cache to force fresh data
-      queryCache.clear();
+      lastAutoSyncRef.current = Date.now();
+      
+      // For auto-sync, only invalidate the current query's cache, not all caches
+      queryCache.delete(queryKey);
       setCurrentOffset(0);
       fetchBookmarks(0, false, true);
-    }, CACHE_DURATION);
-  }, []);
+    }, AUTO_SYNC_INTERVAL);
+  }, [user, provider, sortBy, sortOrder, providers]);
 
   const loadMore = async () => {
-    if (!loading && hasMore) {
+    if (!loading && hasMore && !isEmpty) {
       await fetchBookmarks(currentOffset, true);
     }
   };
@@ -271,6 +322,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     // Clear cache for this query to force fresh data
     const queryKey = createQueryKey();
     queryCache.delete(queryKey);
+    console.log('Manual refresh - cleared cache for:', queryKey);
     setCurrentOffset(0);
     await fetchBookmarks(0, false, true);
   };
@@ -291,8 +343,26 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
       }
 
       // Remove from local state
-      setBookmarks(prev => prev.filter(bookmark => bookmark.id !== bookmarkId));
-      setTotalCount(prev => Math.max(0, prev - 1));
+      setBookmarks(prev => {
+        const newBookmarks = prev.filter(bookmark => bookmark.id !== bookmarkId);
+        // Update isEmpty flag based on new count
+        setIsEmpty(newBookmarks.length === 0);
+        return newBookmarks;
+      });
+      setTotalCount(prev => {
+        const newCount = Math.max(0, prev - 1);
+        setIsEmpty(newCount === 0);
+        return newCount;
+      });
+      
+      // Update cache to reflect the deletion
+      const queryKey = createQueryKey();
+      const cached = getCachedData(queryKey);
+      if (cached) {
+        const updatedData = cached.data.filter(bookmark => bookmark.id !== bookmarkId);
+        const updatedCount = Math.max(0, cached.totalCount - 1);
+        setCachedData(queryKey, updatedData, updatedCount);
+      }
       
       return true;
     } catch (err) {
@@ -305,6 +375,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
   useEffect(() => {
     if (!user) {
       setLoading(false);
+      setIsEmpty(false);
       return;
     }
 
@@ -321,6 +392,9 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     } else {
       // For subsequent changes, use debounced fetch
       debouncedFetch();
+      
+      // Restart auto-sync with new parameters
+      setupAutoSync();
     }
 
     return () => {
@@ -344,6 +418,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     const handleBookmarksUpdated = () => {
       console.log('Bookmarks updated event received, clearing cache and refreshing...');
       queryCache.clear(); // Clear all cache when bookmarks are updated
+      lastAutoSyncRef.current = Date.now(); // Reset auto-sync timer
       refresh();
     };
 
@@ -362,7 +437,8 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     loadMore,
     refresh,
     deleteBookmark,
-    totalCount
+    totalCount,
+    isEmpty
   };
 }
 

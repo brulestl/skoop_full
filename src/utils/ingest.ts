@@ -93,7 +93,8 @@ export function getProviderDisplayName(provider: Provider): string {
     linkedin: 'LinkedIn',
     notion: 'Notion',
     twitch: 'Twitch',
-    telegram: 'Telegram'
+    telegram: 'Telegram',
+    facebook: 'Facebook'
   };
   return names[provider] || provider;
 }
