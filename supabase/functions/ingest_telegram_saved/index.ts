@@ -60,24 +60,23 @@ serve(async (req) => {
 
     console.log(`Starting Telegram ingestion for user: ${user.id}`)
 
-    // Get Telegram connected account
-    const { data: account, error: accountError } = await supabaseAdmin
+    // Get Telegram connected account - only select the session string field
+    const { data: acct, error } = await supabaseAdmin
       .from('connected_accounts')
-      .select('*')
+      .select('telegram_session_string')
       .eq('user_id', user.id)
       .eq('provider', 'telegram')
       .single()
 
-    if (accountError || !account) {
-      throw new Error('Telegram account not connected. Please connect your Telegram account first.')
+    if (error) throw error
+
+    const session = acct?.telegram_session_string
+    if (!session) {
+      console.log('[Telegram] No session string; skipping sync.')
+      return new Response(null, { status: 204 })
     }
 
-    const sessionString = account.telegram_session_string
-    if (!sessionString) {
-      throw new Error('No Telegram session string found. Please re-authenticate with Telegram.')
-    }
-
-    console.log('✅ Found Telegram session for user');
+    console.log('✅ Found Telegram session for user')
     
     // Get Telegram API credentials from environment variables
     const apiId = Deno.env.get('TELEGRAM_API_ID')
@@ -87,7 +86,7 @@ serve(async (req) => {
       throw new Error('Telegram API credentials not configured. Please set TELEGRAM_API_ID and TELEGRAM_API_HASH environment variables.')
     }
 
-    console.log('✅ Telegram API credentials validated');
+    console.log('✅ Telegram API credentials validated')
 
     // Update last_sync_at timestamp (like GitHub)
     await supabaseAdmin
@@ -99,70 +98,70 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .eq('provider', 'telegram')
 
-    let fetchedMessages: TelegramMessage[] = [];
+    let fetchedMessages: TelegramMessage[] = []
 
     try {
-      console.log('🔌 Fetching REAL Telegram saved messages...');
+      console.log('🔌 Fetching REAL Telegram saved messages...')
       
       // Import telegram client dynamically
-      let TelegramClient: any, StringSession: any, Api: any;
+      let TelegramClient: any, StringSession: any, Api: any
       
       try {
-        console.log('📦 Loading Telegram client...');
-        const telegramModule = await import('https://esm.sh/telegram@2.22.2');
-        TelegramClient = telegramModule.TelegramClient;
+        console.log('📦 Loading Telegram client...')
+        const telegramModule = await import('https://esm.sh/telegram@2.22.2')
+        TelegramClient = telegramModule.TelegramClient
         
-        const sessionsModule = await import('https://esm.sh/telegram@2.22.2/sessions');
-        StringSession = sessionsModule.StringSession;
+        const sessionsModule = await import('https://esm.sh/telegram@2.22.2/sessions')
+        StringSession = sessionsModule.StringSession
         
-        const tlModule = await import('https://esm.sh/telegram@2.22.2/tl');
-        Api = tlModule.Api;
+        const tlModule = await import('https://esm.sh/telegram@2.22.2/tl')
+        Api = tlModule.Api
         
-        console.log('✅ Telegram modules loaded successfully');
+        console.log('✅ Telegram modules loaded successfully')
       } catch (importError) {
-        console.error('❌ Failed to import Telegram modules:', importError);
-        throw new Error(`Telegram client import failed: ${importError.message}`);
+        console.error('❌ Failed to import Telegram modules:', importError)
+        throw new Error(`Telegram client import failed: ${importError.message}`)
       }
 
-      const apiId = parseInt(Deno.env.get('TELEGRAM_API_ID') || '0');
-      const apiHash = Deno.env.get('TELEGRAM_API_HASH') || '';
+      const apiId = parseInt(Deno.env.get('TELEGRAM_API_ID') || '0')
+      const apiHash = Deno.env.get('TELEGRAM_API_HASH') || ''
 
       if (!apiId || !apiHash) {
-        throw new Error('Missing TELEGRAM_API_ID or TELEGRAM_API_HASH environment variables');
+        throw new Error('Missing TELEGRAM_API_ID or TELEGRAM_API_HASH environment variables')
       }
 
-      console.log('🔐 Creating Telegram client with session...');
+      console.log('🔐 Creating Telegram client with session...')
       
       // Create session from stored session string
-      const session = new StringSession(sessionString);
+      const stringSession = new StringSession(session)
       
       // Initialize client
-      const client = new TelegramClient(session, apiId, apiHash, {
+      const client = new TelegramClient(stringSession, apiId, apiHash, {
         connectionRetries: 3,
         timeout: 20000,
         useWSS: true,
-      });
+      })
 
-      console.log('📡 Connecting to Telegram...');
-      await client.connect();
+      console.log('📡 Connecting to Telegram...')
+      await client.connect()
 
       // Check if client is authorized
-      const isAuthorized = await client.checkAuthorization();
+      const isAuthorized = await client.checkAuthorization()
       if (!isAuthorized) {
-        await client.disconnect();
-        throw new Error('Telegram session expired. Please reconnect your Telegram account.');
+        await client.disconnect()
+        throw new Error('Telegram session expired. Please reconnect your Telegram account.')
       }
 
-      console.log('✅ Telegram client authorized');
+      console.log('✅ Telegram client authorized')
 
       // Fetch saved messages (messages with yourself) - REAL DATA like GitHub API
-      console.log('📨 Fetching REAL saved messages...');
+      console.log('📨 Fetching REAL saved messages...')
       const messages = await client.getMessages('me', {
         limit: 50, // Get more messages like GitHub gets up to 1000 stars
         reverse: false,
-      });
+      })
 
-      console.log(`📥 Retrieved ${messages.length} REAL saved messages`);
+      console.log(`📥 Retrieved ${messages.length} REAL saved messages`)
 
       // Process and format REAL messages
       fetchedMessages = messages.map((msg: any) => {
@@ -177,17 +176,17 @@ serve(async (req) => {
           fileSize: msg.media && msg.media.document ? Number(msg.media.document.size) : undefined,
           fromUserId: 'self',
           fromUserName: 'Saved Messages',
-        };
-      });
+        }
+      })
 
-      console.log(`✅ Processed ${fetchedMessages.length} REAL saved messages`);
+      console.log(`✅ Processed ${fetchedMessages.length} REAL saved messages`)
 
       // Disconnect from Telegram
-      await client.disconnect();
-      console.log('✅ Disconnected from Telegram');
+      await client.disconnect()
+      console.log('✅ Disconnected from Telegram')
 
     } catch (telegramError) {
-      console.error('❌ Telegram connection error:', telegramError);
+      console.error('❌ Telegram connection error:', telegramError)
       
       // Update connected_accounts with error status (like GitHub)
       const errorMessage = telegramError.message || 'Failed to fetch Telegram saved messages'
@@ -248,32 +247,32 @@ serve(async (req) => {
           })
 
         // Extract and store processed bookmark data (like GitHub)
-        const messageUrl = `tg://saved_message_${message.id}`;
+        const messageUrl = `tg://saved_message_${message.id}`
         
         // Create title from REAL message content or filename
-        let title = 'Telegram Saved Message';
+        let title = 'Telegram Saved Message'
         if (message.text && message.text.length > 0) {
           title = message.text.length > 100 
             ? message.text.substring(0, 100) + '...' 
-            : message.text;
+            : message.text
         } else if (message.fileName) {
-          title = message.fileName;
+          title = message.fileName
         } else {
-          title = `Saved Message ${message.id}`;
+          title = `Saved Message ${message.id}`
         }
 
         // Generate tags based on REAL content (like GitHub)
-        const tags = ['telegram', 'saved-messages'];
+        const tags = ['telegram', 'saved-messages']
         
         // Add media type tag if present
         if (message.mediaType) {
-          tags.push('media');
-          tags.push(message.mediaType.toLowerCase());
+          tags.push('media')
+          tags.push(message.mediaType.toLowerCase())
         }
         
         // Add text tag if it has text content
         if (message.text && message.text.length > 0) {
-          tags.push('text');
+          tags.push('text')
         }
 
         await supabaseAdmin
