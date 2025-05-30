@@ -3,8 +3,51 @@
 import { useState, useEffect } from 'react';
 import { useSessionContext } from '@supabase/auth-helpers-react';
 import type { Provider as SupabaseProvider } from '@supabase/supabase-js';
+import { type Source, isSourceSupported, getBackendProvider } from '@/constants/sources';
 
 export type Provider = 'github' | 'twitter' | 'reddit' | 'stack' | 'azure' | 'discord' | 'gitlab' | 'linkedin' | 'notion' | 'twitch' | 'telegram' | 'facebook';
+
+/**
+ * Convert a source to a provider for OAuth connections
+ */
+export function sourceToProvider(source: Source): Provider {
+  // Map frontend sources to OAuth provider names
+  const mapping: Record<Source, Provider> = {
+    github: 'github',
+    twitter: 'twitter', 
+    reddit: 'reddit',
+    stackoverflow: 'stack',
+    telegram: 'telegram',
+    linkedin: 'linkedin',
+    facebook: 'facebook',
+    medium: 'twitter', // Medium doesn't have OAuth, use Twitter for now
+    substack: 'twitter' // Substack doesn't have OAuth, use Twitter for now
+  };
+  
+  return mapping[source];
+}
+
+/**
+ * Convert a provider back to source for UI display
+ */
+export function providerToSource(provider: Provider): Source | null {
+  const mapping: Record<Provider, Source | null> = {
+    github: 'github',
+    twitter: 'twitter',
+    reddit: 'reddit', 
+    stack: 'stackoverflow',
+    telegram: 'telegram',
+    linkedin: 'linkedin',
+    facebook: 'facebook',
+    azure: null, // Not a source type
+    discord: null, // Not a source type  
+    gitlab: null, // Not a source type
+    notion: null, // Not a source type
+    twitch: null // Not a source type
+  };
+  
+  return mapping[provider];
+}
 
 interface ConnectedAccount {
   user_id: string;

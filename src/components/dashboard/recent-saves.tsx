@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown, Send } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown, Send, Linkedin, Facebook, FileText, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ import { transformBookmarksForUI, UIBookmark } from '@/utils/transformBookmarks'
 import { useCollections, useCollectionOperations } from '@/hooks/useCollections';
 import { analyzeBookmarksForCollection, SemanticSuggestion, SemanticAnalysisResult } from '@/services/semanticAnalysis';
 import SyncTelegramButton from '@/components/dashboard/sync-telegram-button';
+import { SUPPORTED_SOURCES, getSourceDisplayName, type Source, type SupportedSource } from '@/constants/sources';
 
 // Source icon mapping
 const SourceIcon = ({ source }: { source: string }) => {
@@ -23,6 +24,10 @@ const SourceIcon = ({ source }: { source: string }) => {
     case "stackoverflow": return <StackOverflow className="h-4 w-4" />;
     case "reddit": return <Reddit className="h-4 w-4" />;
     case "telegram": return <Send className="h-4 w-4" />;
+    case "linkedin": return <Linkedin className="h-4 w-4" />;
+    case "facebook": return <Facebook className="h-4 w-4" />;
+    case "medium": return <FileText className="h-4 w-4" />;
+    case "substack": return <Mail className="h-4 w-4" />;
     default: return <BookmarkIcon className="h-4 w-4" />;
   }
 };
@@ -1479,7 +1484,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   // Default providerFilters to include all available providers including telegram
-  const availableProviders = ['github', 'twitter', 'reddit', 'stackoverflow', 'telegram'];
+  const availableProviders: readonly SupportedSource[] = SUPPORTED_SOURCES;
   const [providerFilters, setProviderFilters] = useState<Set<string>>(new Set(availableProviders));
 
   // Add new state for tracking filter changes
@@ -1499,14 +1504,14 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   const searchBookmarks = useMemo(() => {
     if (!searchResults || searchResults.length === 0) return [];
     
-    return searchResults.map((result: any) => ({
+    return searchResults.map((result: any): UIBookmark => ({
       id: result.id,
       title: result.title || 'Untitled',
       description: result.description || result.summary || '',
       content: result.summary || result.description || '',
       sourceUrl: result.url,
       image: null, // Search results might not have images
-      source: 'bookmark',
+      source: 'github' as Source, // Default to github for search results
       tags: result.tags || [],
       savedAt: new Date(result.created_at || Date.now()),
       starred: false,

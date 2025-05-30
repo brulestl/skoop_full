@@ -1,12 +1,13 @@
 import { Bookmark } from '@/hooks/useBookmarks';
 import { Provider } from '@/hooks/useConnectedAccounts';
+import { type Source } from '@/constants/sources';
 
 export interface UIBookmark {
   id: string | number;
   title: string;
   description: string;
   content: string;
-  source: string;
+  source: Source;
   sourceUrl: string;
   savedAt: Date;
   tags: string[];
@@ -75,12 +76,26 @@ export function transformBookmarkForUI(bookmark: Bookmark): UIBookmark {
     };
   }
 
+  // Map backend provider to frontend source  
+  const mapProviderToSource = (provider: Provider | string): Source => {
+    switch (provider) {
+      case 'stack': return 'stackoverflow';
+      case 'github': return 'github';
+      case 'twitter': return 'twitter';
+      case 'reddit': return 'reddit';
+      case 'telegram': return 'telegram';
+      case 'linkedin': return 'linkedin';
+      case 'facebook': return 'facebook';
+      default: return 'github'; // fallback
+    }
+  };
+
   return {
     id: bookmark.id,
     title: bookmark.title || 'Untitled',
     description: bookmark.description || '',
     content: bookmark.summary || bookmark.description || '',
-    source: bookmark.source || 'web',
+    source: mapProviderToSource(bookmark.source || 'github'),
     sourceUrl: bookmark.url,
     savedAt: new Date(bookmark.created_at),
     tags: bookmark.tags || [],
