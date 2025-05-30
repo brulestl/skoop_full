@@ -162,9 +162,16 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
         query = query.eq('source', provider);
       }
 
-      // Filter by multiple providers if specified
-      if (providers && providers.length > 0) {
+      // Filter by multiple providers if specified - HARDENED LOGIC
+      // Skip .in() filter in these cases:
+      // 1. providers is empty array (would cause Supabase 400 error) 
+      // 2. providers includes 'all' (means fetch all sources)
+      // 3. providers is null/undefined
+      if (providers && providers.length > 0 && !providers.includes('all')) {
+        console.log('Applying source filter:', providers);
         query = query.in('source', providers);
+      } else {
+        console.log('Skipping source filter - fetching all sources. Providers:', providers);
       }
 
       const { data, error, count } = await query;
@@ -175,7 +182,11 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
         return;
       }
 
-      const newBookmarks = (data || []).map((bookmark: any) => ({
+      // Treat empty data as valid result, not an error
+      const bookmarkData = data || [];
+      console.log(`Query returned ${bookmarkData.length} bookmarks (count: ${count || 0})`);
+
+      const newBookmarks = bookmarkData.map((bookmark: any) => ({
         ...bookmark,
         savedAt: new Date(bookmark.created_at),
         sourceUrl: bookmark.url,
@@ -187,7 +198,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
         setBookmarks(prev => [...prev, ...newBookmarks]);
       } else {
         setBookmarks(newBookmarks);
-        // Cache the initial query result
+        // Cache the initial query result - empty results are valid and cacheable
         if (offset === 0) {
           setCachedData(queryKey, newBookmarks, count || 0);
         }
@@ -214,15 +225,17 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
 
     const queryKey = createQueryKey();
     
-    // If we have cached data that shows this query returns 0 results, don't debounce - show immediately
+    // If we have cached data that shows this query returns 0 results, show immediately
+    // Empty results are valid and should be displayed, not treated as errors
     const cached = getCachedData(queryKey);
     if (cached && cached.isEmpty) {
-      console.log('Query known to be empty, showing cached empty result immediately');
+      console.log('Query known to return empty results, showing cached empty result immediately');
       setBookmarks([]);
       setTotalCount(0);
       setHasMore(false);
       setCurrentOffset(0);
       setLoading(false);
+      setError(null); // Clear any previous errors
       lastQueryRef.current = queryKey;
       return;
     }

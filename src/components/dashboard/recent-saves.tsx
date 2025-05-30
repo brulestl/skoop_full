@@ -1687,6 +1687,10 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   const handleProviderFilterToggle = (provider: string) => {
     setIsFilterChanging(true);
     const newFilters = new Set(providerFilters);
+    
+    // Remove 'all' if it exists when toggling specific providers
+    newFilters.delete('all');
+    
     if (newFilters.has(provider)) {
       newFilters.delete(provider);
     } else {
@@ -1705,7 +1709,8 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
 
   const clearAllFilters = () => {
     setIsFilterChanging(true);
-    setProviderFilters(new Set());
+    // Set to 'all' instead of empty set for better UX  
+    setProviderFilters(new Set(['all']));
     
     // Clear the timeout and set a new one
     if (filterChangeTimeoutRef.current) {
@@ -1719,12 +1724,17 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   // Add handler for select all in dropdown
   const handleSelectAllProviders = () => {
     setIsFilterChanging(true);
-    if (providerFilters.size === availableProviders.length) {
-      // If all are selected, deselect all
+    
+    // Check if all individual providers are selected OR if 'all' is selected
+    const hasAllProviders = availableProviders.every(provider => providerFilters.has(provider));
+    const hasAllOption = providerFilters.has('all');
+    
+    if (hasAllProviders || hasAllOption) {
+      // If all are selected, clear filters (which will show nothing until user selects)
       setProviderFilters(new Set());
     } else {
-      // Select all providers
-      setProviderFilters(new Set(availableProviders));
+      // Select 'all' for better performance and clearer intent
+      setProviderFilters(new Set(['all']));
     }
     
     // Clear the timeout and set a new one
@@ -1903,21 +1913,21 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                           >
                             <div className={cn(
                               "w-4 h-4 rounded border-2 flex items-center justify-center",
-                              providerFilters.size === availableProviders.length
+                              (availableProviders.every(provider => providerFilters.has(provider)) || providerFilters.has('all'))
                                 ? "border-primary bg-primary"
                                 : providerFilters.size > 0
                                 ? "border-primary bg-primary/20"
                                 : "border-muted-foreground"
                             )}>
-                              {providerFilters.size === availableProviders.length && (
+                              {(availableProviders.every(provider => providerFilters.has(provider)) || providerFilters.has('all')) && (
                                 <CheckCircle2 className="h-3 w-3 text-white" />
                               )}
-                              {providerFilters.size > 0 && providerFilters.size < availableProviders.length && (
+                              {providerFilters.size > 0 && !providerFilters.has('all') && !availableProviders.every(provider => providerFilters.has(provider)) && (
                                 <div className="w-2 h-2 bg-primary rounded-sm" />
                               )}
                             </div>
                             <span className="text-sm font-medium">
-                              {providerFilters.size === availableProviders.length ? 'Deselect All' : 'Select All'}
+                              {(availableProviders.every(provider => providerFilters.has(provider)) || providerFilters.has('all')) ? 'Deselect All' : 'Select All'}
                             </span>
                           </div>
                           
@@ -2038,16 +2048,28 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
           </div>
         ) : (isSearchActive ? searchBookmarks.length === 0 : realBookmarks.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            {providerFilters.size > 0 ? (
+            {providerFilters.size > 0 && !providerFilters.has('all') ? (
               <>
                 <Filter className="h-12 w-12 text-muted-foreground mb-3" />
                 <h3 className="text-lg font-semibold mb-2">No bookmarks found</h3>
                 <p className="text-muted-foreground mb-4">
-                  No bookmarks match the selected platform filters: {Array.from(providerFilters).join(', ')}
+                  No bookmarks match the selected platform filters: {Array.from(providerFilters).filter(p => p !== 'all').join(', ')}
                 </p>
                 <Button onClick={clearAllFilters} variant="outline" size="sm">
                   <X className="h-4 w-4 mr-2" />
-                  Clear Filters
+                  Show All Platforms
+                </Button>
+              </>
+            ) : providerFilters.size === 0 ? (
+              <>
+                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-semibold mb-2">No platform selected</h3>
+                <p className="text-muted-foreground mb-4">
+                  Please select at least one platform to view bookmarks
+                </p>
+                <Button onClick={() => setProviderFilters(new Set(['all']))} variant="outline" size="sm">
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Show All Platforms
                 </Button>
               </>
             ) : (
