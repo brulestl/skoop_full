@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       if (user.id !== stateData.userId) {
         console.error("User ID mismatch:", { sessionUserId: user.id, stateUserId: stateData.userId });
         throw new Error('User authentication failed - ID mismatch');
-      }
+    }
     }
 
     console.log("✅ User authentication successful:", { 
