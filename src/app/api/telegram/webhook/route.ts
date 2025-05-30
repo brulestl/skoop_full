@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     if (text === '/start') {
       console.log('/start command received');
       
-      // Show connection button with URL
+      // Show URL button that goes to the login widget page
       await sendTelegramMessageWithUrlButton(
         chatId, 
         '🔗 Welcome to Skoop!\n\nTo connect your Telegram account and sync your saved messages, click the button below:',
