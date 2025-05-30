@@ -580,6 +580,7 @@ export async function GET(request: NextRequest) {
               script.src = 'https://telegram.org/js/telegram-widget.js?22';
               script.setAttribute('data-telegram-login', '${botUsername}');
               script.setAttribute('data-size', 'large');
+              script.setAttribute('data-userpic', 'false');
               script.setAttribute('data-auth-url', '${authCallbackUrl}');
               script.setAttribute('data-request-access', 'write');
               
@@ -589,6 +590,7 @@ export async function GET(request: NextRequest) {
               
               console.log('Telegram widget loaded with bot:', '${botUsername}');
               console.log('Auth URL:', '${authCallbackUrl}');
+              console.log('Domain used:', '${origin}');
             }
             
             // Load widget when DOM is ready
