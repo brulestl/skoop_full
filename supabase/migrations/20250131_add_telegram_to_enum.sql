@@ -13,5 +13,6 @@ BEGIN
     END;
 END $$;
 
--- Verify the enum now includes telegram
-SELECT 'telegram'::provider_type as telegram_enum_test; 
+-- Note: New enum values must be committed before they can be used in queries
+-- To verify this worked, run this in a separate query after the migration:
+-- SELECT 'telegram'::provider_type; 
