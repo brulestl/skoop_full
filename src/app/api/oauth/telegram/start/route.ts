@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
+import { encryptUserData } from '@/lib/auth/crypto';
 
 function verifyTelegramAuth(authData: Record<string, string>, botToken: string): boolean {
   const { hash, ...data } = authData;
@@ -273,7 +274,7 @@ export async function GET(request: NextRequest) {
               <script async src="https://telegram.org/js/telegram-widget.js?22" 
                       data-telegram-login="${botUsername}" 
                       data-size="large" 
-                      data-auth-url="https://skoop.pro/api/oauth/telegram/start"
+                      data-auth-url="https://skoop.pro/api/oauth/telegram/start?user_token=${encryptUserData({ userId: user.id, returnUrl: '/dashboard' })}"
                       data-request-access="write">
               </script>
             </div>

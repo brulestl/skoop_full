@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
+import { getSession } from '@/lib/auth/getSession';
+import { decryptUserData } from '@/lib/auth/crypto';
 
 export async function GET(request: NextRequest) {
   try {
+    // Task 2: Verify session cookie is present
+    console.log("Incoming cookies:", request.headers.get("cookie"));
+    
     const supabase = createRouteHandlerClient({ cookies });
     const url = new URL(request.url);
     
@@ -38,18 +43,64 @@ export async function GET(request: NextRequest) {
       throw new Error('Invalid Telegram authentication');
     }
 
-    // Get the user from our database
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Task 1: Confirm getSession() returns user in callback
+    const { user } = await getSession(request);
     
-    if (userError || !user || user.id !== stateData.userId) {
-      throw new Error('User authentication failed');
+    console.log("OAuth callback - session user:", user);
+    
+    // Task 4: Edge function fallback - if session cannot be retrieved
+    let authenticatedUserId: string;
+    
+    if (!user) {
+      console.warn("No user found in session, attempting encrypted token fallback");
+      
+      // Try to decrypt user ID from state if session failed
+      const encryptedToken = url.searchParams.get('user_token');
+      if (encryptedToken) {
+        console.log("Attempting to decrypt user token from URL parameter");
+        const decryptedData = decryptUserData(encryptedToken);
+        
+        if (decryptedData && decryptedData.userId) {
+          console.log("✅ Successfully decrypted user ID from token:", decryptedData.userId);
+          authenticatedUserId = decryptedData.userId;
+          
+          // Verify that decrypted user ID matches the state data
+          if (decryptedData.userId !== stateData.userId) {
+            console.error("User ID mismatch between token and state:", { 
+              tokenUserId: decryptedData.userId, 
+              stateUserId: stateData.userId 
+            });
+            throw new Error('User authentication failed - token/state ID mismatch');
+          }
+        } else {
+          console.error("Failed to decrypt user token or token expired");
+          throw new Error("No authenticated user found in session and token decryption failed");
+        }
+      } else {
+        console.error("No user in session and no encrypted token provided");
+        throw new Error("No authenticated user found in session.");
+      }
+    } else {
+      console.log("✅ User found in session");
+      authenticatedUserId = user.id;
+      
+      if (user.id !== stateData.userId) {
+        console.error("User ID mismatch:", { sessionUserId: user.id, stateUserId: stateData.userId });
+        throw new Error('User authentication failed - ID mismatch');
+      }
     }
 
-    // Store the Telegram connection
+    console.log("✅ User authentication successful:", { 
+      userId: authenticatedUserId, 
+      email: user?.email || 'unknown',
+      method: user ? 'session' : 'encrypted_token'
+    });
+
+    // Store the Telegram connection using the authenticated user ID
     const { error: insertError } = await supabase
       .from('connected_accounts')
       .upsert({
-        user_id: user.id,
+        user_id: authenticatedUserId,
         provider: 'telegram',
         provider_user_id: telegramData.id,
         username: telegramData.username,
