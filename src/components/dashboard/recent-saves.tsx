@@ -1477,7 +1477,10 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   // Add new state for sort and filter
   const [sortBy, setSortBy] = useState<'created_at' | 'source'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [providerFilters, setProviderFilters] = useState<Set<string>>(new Set());
+  
+  // Default providerFilters to include all available providers including telegram
+  const availableProviders = ['github', 'twitter', 'reddit', 'stackoverflow', 'telegram'];
+  const [providerFilters, setProviderFilters] = useState<Set<string>>(new Set(availableProviders));
 
   // Add new state for tracking filter changes
   const [isFilterChanging, setIsFilterChanging] = useState(false);
@@ -1712,9 +1715,6 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
       setIsFilterChanging(false);
     }, 200); // Reduced timeout
   };
-
-  // Available providers for filtering
-  const availableProviders = ['github', 'twitter', 'reddit', 'stackoverflow', 'telegram'];
 
   // Add handler for select all in dropdown
   const handleSelectAllProviders = () => {

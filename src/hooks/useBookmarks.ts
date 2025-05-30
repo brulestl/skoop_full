@@ -44,7 +44,7 @@ export interface UseBookmarksResult {
   totalCount: number;
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 const DEBOUNCE_DELAY = 300; // 300ms debounce
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 
