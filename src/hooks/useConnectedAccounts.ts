@@ -66,9 +66,22 @@ export function useConnectedAccounts() {
       if (provider === 'github' || provider === 'twitter' || provider === 'linkedin' || provider === 'facebook' || provider === 'telegram') {
         console.log(`Starting custom OAuth flow for provider: ${provider}`);
         
+        let oauthUrl = `/api/oauth/${provider}/start`;
+        
+        // For Telegram, we need to pass user token for proper widget rendering
+        if (provider === 'telegram' && session?.user?.id) {
+          // Import and use the encryption function
+          const { encryptUserData } = await import('@/lib/auth/crypto');
+          const userToken = encryptUserData({ 
+            userId: session.user.id, 
+            returnUrl: '/dashboard' 
+          });
+          oauthUrl += `?user_token=${encodeURIComponent(userToken)}`;
+        }
+        
         // Open popup window for OAuth
         const popup = window.open(
-          `/api/oauth/${provider}/start`,
+          oauthUrl,
           '_blank',
           'width=520,height=680,scrollbars=yes,resizable=yes'
         );
