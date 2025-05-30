@@ -332,22 +332,16 @@ export async function GET(request: NextRequest) {
           console.error('RLS Query test failed:', queryError);
           console.error('This indicates a permissions issue with the database connection');
           
-          // TEMPORARY: Return RLS error details for debugging
-          return NextResponse.json({
-            error: 'RLS_PERMISSION_ERROR',
-            message: 'Row-Level Security permission denied',
-            queryError: {
-              code: queryError.code,
-              message: queryError.message,
-              details: queryError.details,
-              hint: queryError.hint
-            },
-            userData: {
-              userId: user.id,
-              userEmail: user.email,
-              userRole: user.role
+          return createTelegramErrorPage(
+            origin,
+            'RLS_PERMISSION_ERROR',
+            'Database permission denied. Please try logging out and back in, then try connecting Telegram again.',
+            {
+              errorType: queryError.constructor?.name || 'Unknown',
+              errorMessage: queryError.message,
+              userId: user?.id
             }
-          }, { status: 403 });
+          );
         } else {
           console.log('RLS Query test passed. Existing providers:', existingAccounts?.map(a => a.provider) || []);
         }
@@ -386,21 +380,7 @@ export async function GET(request: NextRequest) {
             access_token: 'telegram_connected',
           });
           
-          // TEMPORARY: Return detailed error for debugging
-          return NextResponse.json({
-            error: 'DATABASE_ERROR_DETAILS',
-            code: insertError.code,
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint,
-            userData: {
-              userId: user.id,
-              userEmail: user.email,
-              telegramUserId,
-              username,
-              displayName: `${firstName || ''} ${lastName || ''}`.trim() || null
-            }
-          }, { status: 400 });
+          throw insertError;
         }
 
         console.log('Successfully connected Telegram user', telegramUserId, 'to Skoop user', user.id);
