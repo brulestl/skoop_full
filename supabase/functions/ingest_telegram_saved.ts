@@ -417,6 +417,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Telegram ingest error:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     
     // Determine error type for better user feedback
     let errorType = 'unknown_error';
@@ -434,6 +437,9 @@ serve(async (req) => {
     } else if (error.message.includes('not authenticated')) {
       errorType = 'authentication_failed';
       userMessage = 'Telegram authentication failed. Please re-connect your account.';
+    } else if (error.message.includes('import')) {
+      errorType = 'import_error';
+      userMessage = 'Telegram library loading failed. This is a technical issue on our end.';
     }
     
     return new Response(
@@ -442,14 +448,15 @@ serve(async (req) => {
         error: userMessage,
         error_type: errorType,
         timestamp: new Date().toISOString(),
-        details: {
+        debug_info: {
           original_error: error.message,
-          stack: error.stack?.split('\n').slice(0, 3), // Limited stack trace
+          error_name: error.name,
+          stack_preview: error.stack?.split('\n').slice(0, 3), // Limited stack trace
         }
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500,
       }
     )
   }
