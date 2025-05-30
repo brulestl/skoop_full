@@ -87,45 +87,96 @@ serve(async (req) => {
 
     console.log('✅ Telegram API credentials validated');
 
-    // TEMPORARY: Generate mock Telegram messages while debugging import issues
     let fetchedMessages: TelegramMessage[] = [];
 
     try {
-      console.log('🔄 Generating mock Telegram messages (temporary implementation)...');
+      console.log('🔌 Attempting to fetch real Telegram saved messages...');
       
-      // Generate 3 mock saved messages
-      fetchedMessages = [
-        {
-          id: `msg_${Date.now()}_1`,
-          text: 'Check out this amazing TypeScript guide I found! Really helpful for advanced patterns.',
-          date: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-          fromUserId: 'self',
-          fromUserName: 'Saved Messages',
-        },
-        {
-          id: `msg_${Date.now()}_2`,
-          text: 'Remember to review the new API documentation for the project.',
-          date: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
-          fromUserId: 'self',
-          fromUserName: 'Saved Messages',
-        },
-        {
-          id: `msg_${Date.now()}_3`,
-          text: 'Great article about React performance optimization techniques.',
-          date: new Date(Date.now() - 1000 * 60 * 60 * 72), // 3 days ago
-          mediaType: 'document',
-          fileName: 'react-performance-guide.pdf',
-          fileSize: 2048000,
-          fromUserId: 'self',
-          fromUserName: 'Saved Messages',
-        }
-      ];
+      // Import telegram client dynamically to avoid import issues
+      let TelegramClient: any, StringSession: any, Api: any;
+      
+      try {
+        console.log('📦 Loading Telegram client...');
+        const telegramModule = await import('https://esm.sh/telegram@2.22.2');
+        TelegramClient = telegramModule.TelegramClient;
+        
+        const sessionsModule = await import('https://esm.sh/telegram@2.22.2/sessions');
+        StringSession = sessionsModule.StringSession;
+        
+        const tlModule = await import('https://esm.sh/telegram@2.22.2/tl');
+        Api = tlModule.Api;
+        
+        console.log('✅ Telegram modules loaded successfully');
+      } catch (importError) {
+        console.error('❌ Failed to import Telegram modules:', importError);
+        throw new Error(`Telegram client import failed: ${importError.message}`);
+      }
 
-      console.log(`✅ Generated ${fetchedMessages.length} mock messages`);
+      const apiId = parseInt(Deno.env.get('TELEGRAM_API_ID') || '0');
+      const apiHash = Deno.env.get('TELEGRAM_API_HASH') || '';
+
+      if (!apiId || !apiHash) {
+        throw new Error('Missing TELEGRAM_API_ID or TELEGRAM_API_HASH environment variables');
+      }
+
+      console.log('🔐 Creating Telegram client with session...');
+      
+      // Create session from stored session string
+      const session = new StringSession(sessionString);
+      
+      // Initialize client
+      const client = new TelegramClient(session, apiId, apiHash, {
+        connectionRetries: 3,
+        timeout: 20000,
+        useWSS: true,
+      });
+
+      console.log('📡 Connecting to Telegram...');
+      await client.connect();
+
+      // Check if client is authorized
+      const isAuthorized = await client.checkAuthorization();
+      if (!isAuthorized) {
+        await client.disconnect();
+        throw new Error('Telegram session expired. Please reconnect your Telegram account.');
+      }
+
+      console.log('✅ Telegram client authorized');
+
+      // Fetch saved messages (messages with yourself)
+      console.log('📨 Fetching saved messages...');
+      const messages = await client.getMessages('me', {
+        limit: 20,
+        reverse: false,
+      });
+
+      console.log(`📥 Retrieved ${messages.length} saved messages`);
+
+      // Process and format messages
+      fetchedMessages = messages.map((msg: any) => {
+        return {
+          id: msg.id.toString(),
+          text: msg.message || '',
+          date: new Date(msg.date * 1000),
+          mediaType: msg.media ? msg.media.className : undefined,
+          fileName: msg.media && msg.media.document && msg.media.document.attributes
+            ? msg.media.document.attributes.find((attr: any) => attr.className === 'DocumentAttributeFilename')?.fileName
+            : undefined,
+          fileSize: msg.media && msg.media.document ? Number(msg.media.document.size) : undefined,
+          fromUserId: 'self',
+          fromUserName: 'Saved Messages',
+        };
+      });
+
+      console.log(`✅ Processed ${fetchedMessages.length} real saved messages`);
+
+      // Disconnect from Telegram
+      await client.disconnect();
+      console.log('✅ Disconnected from Telegram');
 
     } catch (telegramError) {
-      console.error('❌ Mock message generation error:', telegramError);
-      throw new Error(`Failed to generate mock messages: ${telegramError.message}`);
+      console.error('❌ Telegram connection error:', telegramError);
+      throw new Error(`Failed to fetch Telegram saved messages: ${telegramError.message}`);
     }
 
     // Map messages to bookmarks_raw schema (actual database schema)
