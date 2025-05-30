@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createTelegramClientWithSession, TelegramClientManager } from './lib/telegramClient.ts'
+// Temporarily commenting out telegram import while debugging
+// import { createTelegramClientWithSession, TelegramClientManager } from './lib/telegramClient.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,73 +87,45 @@ serve(async (req) => {
 
     console.log('✅ Telegram API credentials validated');
 
-    let telegramClient: TelegramClientManager | undefined;
+    // TEMPORARY: Generate mock Telegram messages while debugging import issues
     let fetchedMessages: TelegramMessage[] = [];
 
     try {
-      // Create Telegram client with session string
-      console.log('🔌 Creating Telegram client with session...');
-      telegramClient = createTelegramClientWithSession(sessionString);
+      console.log('🔄 Generating mock Telegram messages (temporary implementation)...');
       
-      // Connect to Telegram
-      console.log('📡 Connecting to Telegram...');
-      const connectionResult = await telegramClient.connect();
-      
-      if (!connectionResult.success) {
-        throw new Error(`Failed to connect to Telegram: ${connectionResult.error}`);
-      }
-
-      console.log('✅ Connected to Telegram successfully');
-
-      // Check if client is authenticated
-      const isConnected = await telegramClient.isConnected();
-      if (!isConnected) {
-        throw new Error('Telegram client is not authenticated. Session may be expired.');
-      }
-
-      console.log('✅ Telegram client authenticated');
-
-      // Fetch saved messages (messages with yourself)
-      console.log('📨 Fetching saved messages (last 20)...');
-      const messages = await telegramClient.getSavedMessages(20);
-      
-      console.log(`📥 Retrieved ${messages.length} saved messages`);
-
-      // Process and format messages
-      fetchedMessages = messages.map(msg => {
-        const formatted = TelegramClientManager.formatMessage(msg);
-        return {
-          id: formatted.id,
-          text: formatted.text || '',
-          date: formatted.date,
-          mediaType: formatted.mediaType,
-          fileName: formatted.fileName,
-          fileSize: formatted.fileSize,
-          mediaUrl: undefined, // Will be processed separately if needed
-          fromUserId: 'self', // Saved messages are from self
+      // Generate 3 mock saved messages
+      fetchedMessages = [
+        {
+          id: `msg_${Date.now()}_1`,
+          text: 'Check out this amazing TypeScript guide I found! Really helpful for advanced patterns.',
+          date: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+          fromUserId: 'self',
           fromUserName: 'Saved Messages',
-        };
-      });
+        },
+        {
+          id: `msg_${Date.now()}_2`,
+          text: 'Remember to review the new API documentation for the project.',
+          date: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
+          fromUserId: 'self',
+          fromUserName: 'Saved Messages',
+        },
+        {
+          id: `msg_${Date.now()}_3`,
+          text: 'Great article about React performance optimization techniques.',
+          date: new Date(Date.now() - 1000 * 60 * 60 * 72), // 3 days ago
+          mediaType: 'document',
+          fileName: 'react-performance-guide.pdf',
+          fileSize: 2048000,
+          fromUserId: 'self',
+          fromUserName: 'Saved Messages',
+        }
+      ];
 
-      console.log(`✅ Processed ${fetchedMessages.length} messages`);
-
-      // Disconnect from Telegram
-      await telegramClient.disconnect();
-      console.log('✅ Disconnected from Telegram');
+      console.log(`✅ Generated ${fetchedMessages.length} mock messages`);
 
     } catch (telegramError) {
-      console.error('❌ Telegram client error:', telegramError);
-      
-      // Try to disconnect if client exists
-      if (telegramClient) {
-        try {
-          await telegramClient.disconnect();
-        } catch (disconnectError) {
-          console.error('Failed to disconnect Telegram client:', disconnectError);
-        }
-      }
-      
-      throw new Error(`Failed to fetch Telegram messages: ${telegramError.message}`);
+      console.error('❌ Mock message generation error:', telegramError);
+      throw new Error(`Failed to generate mock messages: ${telegramError.message}`);
     }
 
     // Map messages to bookmarks_raw schema (actual database schema)
@@ -203,7 +176,7 @@ serve(async (req) => {
 
       return {
         user_id: user.id,
-        source: 'github', // Using 'github' as closest match to provider_type enum since 'telegram' is not available
+        source: 'telegram', // Now using 'telegram' since the enum has been updated
         raw_json: rawJsonData,
         fetched_at: new Date().toISOString(),
       };

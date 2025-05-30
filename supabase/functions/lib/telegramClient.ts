@@ -1,6 +1,6 @@
-import { TelegramClient } from 'telegram';
-import { StringSession } from 'telegram/sessions';
-import { Api } from 'telegram/tl';
+import { TelegramClient } from 'https://esm.sh/telegram@2.22.2';
+import { StringSession } from 'https://esm.sh/telegram@2.22.2/sessions';
+import { Api } from 'https://esm.sh/telegram@2.22.2/tl';
 
 export interface TelegramConfig {
   apiId: number;
