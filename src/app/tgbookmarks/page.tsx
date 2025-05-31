@@ -161,26 +161,10 @@ export default function TelegramBookmarksDebug() {
     try {
       addLog('📤 Sending test export to upload endpoint...');
       
-      // Get fresh session for authorization
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        addLog(`❌ Session error: ${sessionError.message}`);
-        return;
-      }
-      
-      if (!session) {
-        addLog(`❌ No active session - please log in again`);
-        return;
-      }
-      
-      addLog(`🔑 Using session token: ${session.access_token.substring(0, 20)}...`);
-      
+      // For cookie-based auth, use credentials: 'include' instead of Authorization header
       const response = await fetch('/api/upload/telegram-export', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        credentials: 'include',  // This sends cookies automatically
         body: formData
       });
 
@@ -194,7 +178,7 @@ export default function TelegramBookmarksDebug() {
       } else {
         addLog(`❌ Upload failed: ${response.status} - ${JSON.stringify(result)}`);
         if (response.status === 401) {
-          addLog(`🔐 Authorization failed - token may be expired`);
+          addLog(`🔐 Authorization failed - session may be expired`);
         }
       }
 
@@ -208,27 +192,15 @@ export default function TelegramBookmarksDebug() {
     addLog('📡 Testing telegram sync endpoint...');
     
     try {
-      // Get session for direct edge function call
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        addLog(`❌ Session error: ${sessionError.message}`);
-        return;
-      }
-      
-      if (!session) {
-        addLog(`❌ No active session - please log in again`);
-        return;
-      }
-
       addLog('📡 Calling /api/sync/telegram route...');
       
+      // Use cookie-based auth instead of Authorization header
       const response = await fetch('/api/sync/telegram', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        }
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'  // This sends cookies automatically
       });
 
       const result = await response.json();
