@@ -228,10 +228,7 @@ export default function OAuthConnectButtons() {
         // Force refresh the bookmarks data in the UI
         window.dispatchEvent(new CustomEvent('bookmarks-updated'));
         
-        // Reduced delay for faster feedback
-        setTimeout(() => {
-          window.location.reload();
-        }, 800);
+        // Remove navigation after sync - user should stay on profile
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || 'Sync failed');
