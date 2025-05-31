@@ -240,40 +240,57 @@ export default function TelegramBookmarksDebug() {
     }
   };
 
-  const testTelegramSync = async () => {
+  const testSync = async () => {
     addLog('📡 Testing telegram sync endpoint...');
+    addLog('📡 Calling /api/sync/telegram route...');
     
     try {
-      addLog('📡 Calling /api/sync/telegram route...');
-      
-      // Use cookie-based auth instead of Authorization header
       const response = await fetch('/api/sync/telegram', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'  // This sends cookies automatically
+        credentials: 'include'
       });
-
-      const result = await response.json();
+      
+      const data = await response.json();
       
       if (response.ok) {
-        addLog(`✅ Sync successful: ${JSON.stringify(result)}`);
-        if (result.count) {
-          addLog(`📈 Synced ${result.count} messages`);
-        }
-      } else if (response.status === 409) {
-        addLog(`⚠️ Sync blocked: ${result.error} (Expected - no session string)`);
+        addLog(`✅ Sync successful: ${JSON.stringify(data)}`);
       } else {
-        addLog(`❌ Sync failed: ${response.status} - ${JSON.stringify(result)}`);
+        addLog(`❌ Sync failed: ${response.status} - ${JSON.stringify(data)}`);
       }
-      
-      // Refresh debug data
-      setTimeout(() => fetchDebugData(), 1000);
+    } catch (error) {
+      addLog(`❌ Sync error: ${error}`);
+    }
+  };
 
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Sync error';
-      addLog(`💥 Sync error: ${errorMsg}`);
+  const fixSession = async () => {
+    addLog('🔧 Fixing corrupted telegram session string...');
+    
+    if (!user || !session) {
+      addLog('❌ No authenticated user for session fix');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/debug/fix-session', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        addLog(`✅ Session fix successful: ${JSON.stringify(data)}`);
+        addLog('🔄 Refreshing debug data...');
+        await fetchDebugData();
+      } else {
+        addLog(`❌ Session fix failed: ${response.status} - ${JSON.stringify(data)}`);
+      }
+    } catch (error) {
+      addLog(`❌ Session fix error: ${error}`);
     }
   };
 
@@ -344,9 +361,13 @@ export default function TelegramBookmarksDebug() {
             <Upload className="h-4 w-4 mr-2" />
             Test Upload
           </Button>
-          <Button onClick={testTelegramSync} variant="outline">
+          <Button onClick={testSync} variant="outline">
             <MessageSquare className="h-4 w-4 mr-2" />
             Test Sync
+          </Button>
+          <Button onClick={fixSession} variant="outline">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Fix Session
           </Button>
           <Button onClick={testDebugEndpoint} variant="outline">
             <MessageSquare className="h-4 w-4 mr-2" />
