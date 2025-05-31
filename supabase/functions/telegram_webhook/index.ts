@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/x/sift@0.6.0/mod.ts';
 
+// Telegram Bot Webhook Handler - v1.0.0
 const BOT = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
 
 const api = (method: string, body: unknown) =>
