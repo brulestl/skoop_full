@@ -51,16 +51,21 @@ const DEBOUNCE_DELAY = 300; // 300ms debounce
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 const AUTO_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes for auto-sync (increased from 15 to reduce spam)
 
-// Cache for storing query results and their timestamps
+// TASK UI-FILTER: Enhanced cache management to stop endless polling
+// Cache for storing query results and their timestamps with improved empty result handling
 interface CacheEntry {
   data: Bookmark[];
   totalCount: number;
   timestamp: number;
   isEmpty: boolean; // Track if this query returned 0 results
   queryKey: string; // Store the query key for debugging
+  lastFetchKey: string; // Track the exact parameters that produced this result
 }
 
 const queryCache = new Map<string, CacheEntry>();
+
+// Track last fetch to prevent endless re-querying with same parameters
+const lastFetchCache = new Map<string, { count: number; timestamp: number }>();
 
 export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksResult {
   const { user } = useAuth();
@@ -91,13 +96,21 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
       providers: providers?.sort() // Sort to ensure consistent key
     });
   }, [user?.id, provider, sortBy, sortOrder, providers]);
+  
+  // TASK UI-FILTER: Create sources key for tracking filter combinations
+  const createSourcesKey = useCallback(() => {
+    return JSON.stringify({
+      pageSize: limit,
+      providers: providers?.sort()
+    });
+  }, [limit, providers]);
 
   // Check if cache entry is still valid
   const isCacheValid = (entry: CacheEntry): boolean => {
     return Date.now() - entry.timestamp < CACHE_DURATION;
   };
 
-  // Get cached data if available and valid
+  // TASK UI-FILTER: Enhanced cache checking with last fetch tracking
   const getCachedData = (queryKey: string): CacheEntry | null => {
     const cached = queryCache.get(queryKey);
     if (cached && isCacheValid(cached)) {
@@ -111,18 +124,45 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     return null;
   };
 
-  // Store data in cache
+  // TASK UI-FILTER: Check if we should skip re-query based on last fetch
+  const shouldSkipRequery = (sourcesKey: string): boolean => {
+    const lastFetch = lastFetchCache.get(sourcesKey);
+    if (!lastFetch) return false;
+    
+    const timeSinceLastFetch = Date.now() - lastFetch.timestamp;
+    const isRecentFetch = timeSinceLastFetch < CACHE_DURATION;
+    
+    // If we recently fetched this exact filter combination and got 0 results, skip
+    if (isRecentFetch && lastFetch.count === 0) {
+      console.log(`TASK UI-FILTER: Skipping re-query for empty result. Last fetch: ${timeSinceLastFetch}ms ago, got ${lastFetch.count} results`);
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Store data in cache with enhanced tracking
   const setCachedData = (queryKey: string, data: Bookmark[], totalCount: number) => {
+    const sourcesKey = createSourcesKey();
+    
     const cacheEntry: CacheEntry = {
       data,
       totalCount,
       timestamp: Date.now(),
       isEmpty: totalCount === 0,
-      queryKey
+      queryKey,
+      lastFetchKey: sourcesKey
     };
     
     queryCache.set(queryKey, cacheEntry);
-    console.log(`Cached data for query: ${queryKey} (${totalCount} items, isEmpty: ${cacheEntry.isEmpty})`);
+    
+    // TASK UI-FILTER: Track last fetch result for this filter combination
+    lastFetchCache.set(sourcesKey, {
+      count: totalCount,
+      timestamp: Date.now()
+    });
+    
+    console.log(`Cached data for query: ${queryKey} (${totalCount} items, isEmpty: ${cacheEntry.isEmpty}, sourcesKey: ${sourcesKey})`);
   };
 
   // Check if we should throttle auto-sync based on empty results
@@ -211,6 +251,25 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     }
 
     const queryKey = createQueryKey();
+    const sourcesKey = createSourcesKey();
+    
+    // TASK UI-FILTER: Check if we should skip this query based on recent empty results
+    if (offset === 0 && !force && shouldSkipRequery(sourcesKey)) {
+      // Return cached empty state to show "No bookmarks for Telegram yet" message
+      const lastFetch = lastFetchCache.get(sourcesKey);
+      if (lastFetch && lastFetch.count === 0) {
+        console.log('TASK UI-FILTER: Returning cached empty state to prevent re-query');
+        setBookmarks([]);
+        setTotalCount(0);
+        setHasMore(false);
+        setCurrentOffset(0);
+        setLoading(false);
+        setError(null);
+        setIsEmpty(true);
+        lastQueryRef.current = queryKey;
+        return;
+      }
+    }
     
     // Check cache first (only for initial queries, not pagination)
     if (offset === 0 && !force) {

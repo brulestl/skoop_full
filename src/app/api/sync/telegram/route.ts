@@ -25,6 +25,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Telegram sync error:', error);
+      
+      // TASK M-SESSION: Forward 409 status for missing session
+      if (error.message?.includes('409') || error.context?.body?.includes('no_session')) {
+        return NextResponse.json(
+          { error: 'no_session' },
+          { status: 409 }
+        );
+      }
+      
       return NextResponse.json(
         { error: error.message || 'Failed to sync Telegram saved messages' },
         { status: 500 }

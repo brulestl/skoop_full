@@ -24,6 +24,42 @@ export default function SyncTelegramButton({
 
   const isConnectedToTelegram = isConnected('telegram');
 
+  // Custom toast implementation matching the pattern used in other components
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    console.log(`Toast (${type}): ${message}`);
+    
+    // Remove any existing toasts first
+    const existingToasts = document.querySelectorAll('.skoop-toast');
+    existingToasts.forEach(toast => document.body.removeChild(toast));
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = `skoop-toast fixed top-4 right-4 px-6 py-4 rounded-lg text-white z-[9999] transition-all duration-300 transform translate-x-0 shadow-lg max-w-md ${
+      type === 'success' ? 'bg-green-600' : 'bg-red-600'
+    }`;
+    toast.style.fontSize = '14px';
+    toast.style.fontWeight = '500';
+    
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+      toast.style.transform = 'translateX(0) scale(1)';
+    }, 10);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100px) scale(0.95)';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 5000);
+  };
+
   const syncTelegramMessages = async () => {
     if (!isConnectedToTelegram) {
       setLastResult({
@@ -45,6 +81,21 @@ export default function SyncTelegramButton({
       });
 
       const data = await response.json();
+
+      // TASK M-SESSION: Handle 409 status for missing session
+      if (response.status === 409 && data.error === 'no_session') {
+        const errorMessage = 'Telegram setup incomplete – upload session string';
+        
+        setLastResult({
+          success: false,
+          message: errorMessage
+        });
+        
+        // Show toast notification
+        showToast(errorMessage, 'error');
+        
+        return;
+      }
 
       if (data.success) {
         setLastResult({

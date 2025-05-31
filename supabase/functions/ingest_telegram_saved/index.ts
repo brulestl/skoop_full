@@ -16,14 +16,20 @@ interface TelegramMessage {
   fileName?: string;
   fileSize?: number;
   mediaUrl?: string;
+  url?: string; // For media URLs
   fromUserId?: string;
   fromUserName?: string;
+  mediaCaption?: string;
 }
 
 interface BookmarkRaw {
   user_id: string;
-  source: string; // Must be a provider_type: 'github', 'twitter', 'reddit', 'stack'  
+  source: string;
+  provider_item_id: number; // Added for telegram message ID
+  text: string | null; // Added for message text
+  url: string | null; // Added for extracted URLs
   raw_json: any; // JSONB data
+  created_at: string; // Added for message timestamp
   fetched_at?: string;
 }
 
@@ -34,7 +40,7 @@ serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client with service role (like GitHub)
+    // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
@@ -45,7 +51,7 @@ serve(async (req) => {
       }
     })
 
-    // Get user from JWT token (like GitHub)
+    // Get user from JWT token
     const authorization = req.headers.get('Authorization')
     if (!authorization) {
       throw new Error('No authorization header')
@@ -60,7 +66,7 @@ serve(async (req) => {
 
     console.log(`Starting Telegram ingestion for user: ${user.id}`)
 
-    // Get Telegram connected account - only select the session string field
+    // TASK M-SESSION: Check for session string existence and return 409 if missing
     const { data: acct, error } = await supabaseAdmin
       .from('connected_accounts')
       .select('telegram_session_string')
@@ -72,8 +78,11 @@ serve(async (req) => {
 
     const session = acct?.telegram_session_string
     if (!session) {
-      console.log('[Telegram] No session string; skipping sync.')
-      return new Response(null, { status: 204 })
+      console.log('[Telegram] No session string found - returning 409')
+      return new Response(JSON.stringify({ error: 'no_session' }), { 
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     console.log('✅ Found Telegram session for user')
@@ -88,7 +97,7 @@ serve(async (req) => {
 
     console.log('✅ Telegram API credentials validated')
 
-    // Update last_sync_at timestamp (like GitHub)
+    // Update last_sync_at timestamp
     await supabaseAdmin
       .from('connected_accounts')
       .update({ 
@@ -156,10 +165,11 @@ serve(async (req) => {
 
       console.log('✅ Telegram client authorized')
 
-      // Fetch saved messages (messages with yourself) - REAL DATA like GitHub API
-      console.log('📨 Fetching REAL saved messages...')
-      const messages = await client.getMessages('me', {
-        limit: 50, // Get more messages like GitHub gets up to 1000 stars
+      // TASK M-PEER: Use 'me' instead of fetching user entity
+      console.log('📨 Fetching REAL saved messages using inputPeerSelf...')
+      const peer = 'me' // Use inputPeerSelf instead of getting entity
+      const messages = await client.getMessages(peer, {
+        limit: 50,
         reverse: false,
       })
 
@@ -167,13 +177,11 @@ serve(async (req) => {
       console.log(`📥 Retrieved ${messages.length} REAL saved messages`)
       console.log('[TG] raw len', messages.length)
 
-      // Filter for useful messages (those with text OR caption)
+      // TASK M-MAP: Accept non-text messages, extract URLs and captions
       const usefulMessages = messages.filter((msg: any) => {
-        const hasText = msg.message && msg.message.length > 0
-        const hasCaption = msg.media && msg.media.caption && msg.media.caption.length > 0
-        const hasFileName = msg.media && msg.media.document && msg.media.document.attributes?.some((attr: any) => attr.className === 'DocumentAttributeFilename')
-        
-        return hasText || hasCaption || hasFileName
+        const text = msg.message ?? (msg.media?.caption ?? '')
+        const url = msg.media?.webpage?.url ?? null
+        return text || url // Accept if has text OR URL
       })
 
       totalUsefulMessages = usefulMessages.length
@@ -181,15 +189,15 @@ serve(async (req) => {
 
       // Process and format REAL useful messages
       fetchedMessages = usefulMessages.map((msg: any) => {
-        // Extract text from message or media caption
-        const messageText = msg.message || ''
-        const mediaCaption = msg.media?.caption || ''
-        const combinedText = messageText || mediaCaption
+        // TASK M-MAP implementation: accept text, caption, or URL
+        const text = msg.message ?? (msg.media?.caption ?? '')
+        const url = msg.media?.webpage?.url ?? null
         
         return {
           id: msg.id.toString(),
-          text: combinedText,
+          text: text,
           date: new Date(msg.date * 1000),
+          url: url,
           mediaType: msg.media ? msg.media.className : undefined,
           fileName: msg.media && msg.media.document && msg.media.document.attributes
             ? msg.media.document.attributes.find((attr: any) => attr.className === 'DocumentAttributeFilename')?.fileName
@@ -197,7 +205,7 @@ serve(async (req) => {
           fileSize: msg.media && msg.media.document ? Number(msg.media.document.size) : undefined,
           fromUserId: 'self',
           fromUserName: 'Saved Messages',
-          mediaCaption: mediaCaption, // Store caption separately for debugging
+          mediaCaption: msg.media?.caption,
         }
       })
 
@@ -210,7 +218,7 @@ serve(async (req) => {
     } catch (telegramError) {
       console.error('❌ Telegram connection error:', telegramError)
       
-      // Update connected_accounts with error status (like GitHub)
+      // Update connected_accounts with error status
       const errorMessage = telegramError.message || 'Failed to fetch Telegram saved messages'
       await supabaseAdmin
         .from('connected_accounts')
@@ -225,56 +233,100 @@ serve(async (req) => {
       throw telegramError
     }
 
+    // TASK M-INSERT: Build raw rows array for batch insert
+    const rawRows: BookmarkRaw[] = []
+    
+    for (const message of fetchedMessages) {
+      rawRows.push({
+        user_id: user.id,
+        source: 'telegram',
+        provider_item_id: parseInt(message.id),
+        text: message.text || null,
+        url: message.url || null,
+        created_at: message.date.toISOString(),
+        raw_json: {
+          telegram_message_id: message.id,
+          message_text: message.text,
+          message_date: message.date.toISOString(),
+          url: message.url,
+          metadata: {
+            from_user: message.fromUserId,
+            from_user_name: message.fromUserName,
+            media_type: message.mediaType,
+            file_name: message.fileName,
+            file_size: message.fileSize,
+            media_url: message.mediaUrl,
+            media_caption: message.mediaCaption,
+            sync_timestamp: new Date().toISOString(),
+            has_media: !!message.mediaType,
+            has_caption: !!(message.mediaCaption && message.mediaCaption.length > 0),
+            character_count: message.text?.length || 0,
+            total_text_length: (message.text?.length || 0) + (message.mediaCaption?.length || 0),
+          },
+          original_message: {
+            id: message.id,
+            text: message.text,
+            date: message.date.toISOString(),
+            url: message.url,
+            media: message.mediaType ? {
+              type: message.mediaType,
+              fileName: message.fileName,
+              fileSize: message.fileSize,
+              url: message.mediaUrl,
+            } : null,
+          }
+        },
+        fetched_at: new Date().toISOString()
+      })
+    }
+
     let insertedCount = 0
 
-    // Process each REAL saved message (following GitHub pattern)
+    // TASK M-INSERT: Batch insert with conflict handling
+    if (rawRows.length > 0) {
+      try {
+        console.log(`💾 Batch inserting ${rawRows.length} raw messages...`)
+        
+        const { data, error, count } = await supabaseAdmin
+          .from('bookmarks_raw')
+          .insert(rawRows, { 
+            returning: 'minimal', 
+            count: 'exact' 
+          })
+          // Note: onConflict requires unique index on user_id,source,provider_item_id
+          
+        if (error) {
+          console.error('Batch insert error:', error)
+          // Fall back to individual inserts for better error handling
+          console.log('Falling back to individual inserts...')
+          
+          for (const row of rawRows) {
+            try {
+              await supabaseAdmin
+                .from('bookmarks_raw')
+                .upsert(row, { onConflict: 'user_id,source,provider_item_id' })
+              insertedCount++
+            } catch (individualError) {
+              console.error('Individual insert error for message:', row.provider_item_id, individualError)
+            }
+          }
+        } else {
+          insertedCount = count || rawRows.length
+          console.log(`✅ Batch inserted ${insertedCount} raw messages`)
+        }
+      } catch (batchError) {
+        console.error('Batch insert failed:', batchError)
+        throw batchError
+      }
+    }
+
+    // Process each message for bookmarks table (existing logic)
     for (const message of fetchedMessages) {
       try {
-        // Store raw data (like GitHub)
-        await supabaseAdmin
-          .from('bookmarks_raw')
-          .upsert({
-            user_id: user.id,
-            source: 'telegram',
-            raw_json: {
-              telegram_message_id: message.id,
-              message_text: message.text,
-              message_date: message.date.toISOString(),
-              metadata: {
-                from_user: message.fromUserId,
-                from_user_name: message.fromUserName,
-                media_type: message.mediaType,
-                file_name: message.fileName,
-                file_size: message.fileSize,
-                media_url: message.mediaUrl,
-                media_caption: message.mediaCaption,
-                sync_timestamp: new Date().toISOString(),
-                has_media: !!message.mediaType,
-                has_caption: !!(message.mediaCaption && message.mediaCaption.length > 0),
-                character_count: message.text?.length || 0,
-                total_text_length: (message.text?.length || 0) + (message.mediaCaption?.length || 0),
-              },
-              original_message: {
-                id: message.id,
-                text: message.text,
-                date: message.date.toISOString(),
-                media: message.mediaType ? {
-                  type: message.mediaType,
-                  fileName: message.fileName,
-                  fileSize: message.fileSize,
-                  url: message.mediaUrl,
-                } : null,
-              }
-            },
-            fetched_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id,source,raw_json'
-          })
-
-        // Extract and store processed bookmark data (like GitHub)
-        const messageUrl = `tg://saved_message_${message.id}`
+        // Extract and store processed bookmark data
+        const messageUrl = message.url || `tg://saved_message_${message.id}`
         
-        // Create title from REAL message content, caption, or filename
+        // Create title from message content, caption, or filename
         let title = 'Telegram Saved Message'
         if (message.text && message.text.length > 0) {
           title = message.text.length > 100 
@@ -282,11 +334,13 @@ serve(async (req) => {
             : message.text
         } else if (message.fileName) {
           title = message.fileName
+        } else if (message.url) {
+          title = `Saved Link: ${new URL(message.url).hostname}`
         } else {
           title = `Saved Message ${message.id}`
         }
 
-        // Generate tags based on REAL content (like GitHub)
+        // Generate tags based on content
         const tags = ['telegram', 'saved-messages']
         
         // Add media type tag if present
@@ -303,6 +357,11 @@ serve(async (req) => {
         // Add caption tag if media has caption
         if (message.mediaCaption && message.mediaCaption.length > 0) {
           tags.push('caption')
+        }
+        
+        // Add link tag if has URL
+        if (message.url) {
+          tags.push('link')
         }
 
         await supabaseAdmin
@@ -323,6 +382,7 @@ serve(async (req) => {
               file_size: message.fileSize,
               character_count: message.text?.length || 0,
               sync_timestamp: new Date().toISOString(),
+              extracted_url: message.url,
             },
             created_at: message.date.toISOString(),
             updated_at: new Date().toISOString()
@@ -330,14 +390,13 @@ serve(async (req) => {
             onConflict: 'user_id,url'
           })
 
-        insertedCount++
       } catch (error) {
         console.error('Error processing Telegram message:', error)
-        // Continue processing other items (like GitHub)
+        // Continue processing other items
       }
     }
 
-    // Update connected_accounts with successful sync status (like GitHub)
+    // Update connected_accounts with successful sync status
     await supabaseAdmin
       .from('connected_accounts')
       .update({ 
@@ -351,7 +410,7 @@ serve(async (req) => {
     console.log(`Successfully processed ${insertedCount} REAL Telegram messages`)
     console.log(`[TG] Final stats: ${totalRawMessages} raw → ${totalUsefulMessages} useful → ${insertedCount} inserted`)
 
-    // Return response in same format as GitHub
+    // Return response in same format as other providers
     return new Response(JSON.stringify({ 
       count: insertedCount, 
       total_fetched: totalRawMessages,
