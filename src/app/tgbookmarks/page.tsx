@@ -394,6 +394,36 @@ export default function TelegramBookmarksDebug() {
     }
   };
 
+  const fixNullSession = async () => {
+    addLog('🔧 Fixing NULL telegram session string...');
+    
+    try {
+      const response = await fetch('/api/debug/fix-telegram-session', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        addLog(`✅ Session fix successful:`);
+        addLog(`  New session length: ${result.session_length}`);
+        addLog(`  Previous session length: ${result.previous_session_length}`);
+        addLog(`  Message: ${result.message}`);
+        addLog('🔄 Refreshing debug data...');
+        await fetchDebugData();
+      } else {
+        addLog(`❌ Session fix failed: ${response.status}`);
+        addLog(`❌ Error: ${result.error}`);
+        addLog(`❌ Details: ${result.details}`);
+      }
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Session fix error';
+      addLog(`💥 Session fix error: ${errorMsg}`);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchDebugData();
@@ -445,6 +475,10 @@ export default function TelegramBookmarksDebug() {
           <Button onClick={directSessionFix} variant="outline">
             <MessageSquare className="h-4 w-4 mr-2" />
             Direct Session Fix
+          </Button>
+          <Button onClick={fixNullSession} variant="outline">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Fix NULL Session
           </Button>
         </div>
       </div>
