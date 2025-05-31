@@ -186,6 +186,82 @@ serve(async (req) => {
     console.log(`[TG-SYNC] Using API ID: ${apiId}, Session length: ${connectedAccount.telegram_session_string.length}`);
     console.log(`[TG-SYNC] Session starts with: ${connectedAccount.telegram_session_string.substring(0, 20)}...`);
 
+    // REPROCESS CHECK: Look for raw data that needs to be reprocessed into bookmarks
+    console.log('[TG-SYNC] Checking for unprocessed raw data...');
+    
+    const { data: rawCount } = await supabaseClient
+      .from('bookmarks_raw')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('source', 'telegram');
+    
+    const { data: bookmarkCount } = await supabaseClient
+      .from('bookmarks')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('source', 'telegram');
+    
+    const rawTotal = rawCount || 0;
+    const bookmarkTotal = bookmarkCount || 0;
+    
+    console.log(`[TG-SYNC] Raw count: ${rawTotal}, Bookmark count: ${bookmarkTotal}`);
+    
+    // If there's a mismatch, reprocess existing raw data
+    if (rawTotal > bookmarkTotal) {
+      console.log('[TG-SYNC] Found unprocessed raw data, reprocessing...');
+      
+      // Get unprocessed raw data
+      const { data: unprocessedRaw, error: rawError } = await supabaseClient
+        .from('bookmarks_raw')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('source', 'telegram');
+      
+      if (rawError) {
+        console.error('[TG-SYNC] Error fetching raw data:', rawError);
+      } else if (unprocessedRaw && unprocessedRaw.length > 0) {
+        console.log(`[TG-SYNC] Reprocessing ${unprocessedRaw.length} raw items...`);
+        
+        // Convert raw data to bookmark format
+        const reprocessedBookmarks = unprocessedRaw.map(raw => ({
+          user_id: raw.user_id,
+          source: 'telegram' as const,
+          provider_item_id: raw.provider_item_id,
+          url: raw.url,
+          title: raw.text || raw.url || `Telegram message ${raw.provider_item_id}`,
+          description: raw.text,
+          tags: ['telegram'],
+          created_at: raw.created_at,
+          updated_at: new Date().toISOString()
+        }));
+        
+        // Upsert into bookmarks table
+        const { data: reprocessedData, error: reprocessError } = await supabaseClient
+          .from('bookmarks')
+          .upsert(reprocessedBookmarks, { 
+            onConflict: 'user_id,source,provider_item_id',
+            ignoreDuplicates: false 
+          });
+        
+        if (reprocessError) {
+          console.error('[TG-SYNC] Error reprocessing raw data:', reprocessError);
+        } else {
+          console.log(`[TG-SYNC] Successfully reprocessed ${reprocessedBookmarks.length} items`);
+          
+          // Return early with reprocess results
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              message: `Reprocessed ${reprocessedBookmarks.length} existing telegram messages`,
+              inserted: reprocessedBookmarks.length,
+              reprocessed: true
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     // Initialize Telegram client with enhanced error handling
     let client: TelegramClient;
     try {
