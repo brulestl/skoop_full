@@ -236,7 +236,19 @@ export default function OAuthConnectButtons() {
         if (provider === 'twitter' && result.helpMessage) {
           showToast(`🐦 ${result.helpMessage}`, 'success');
         } else {
-          showToast(`✅ Synced ${result.count || 0} ${contentType} from ${provider}!`, 'success');
+          const syncedCount = result.count || result.inserted || 0;
+          const existingCount = result.existing_count || 0;
+          
+          if (syncedCount === 0 && existingCount > 0) {
+            // No new items but existing items found
+            showToast(`✅ ${provider} is up to date (${existingCount} ${contentType} total)`, 'success');
+          } else if (syncedCount > 0) {
+            // New items synced
+            showToast(`✅ Synced ${syncedCount} new ${contentType} from ${provider}!`, 'success');
+          } else {
+            // No items at all
+            showToast(`✅ ${provider} sync complete (no ${contentType} found)`, 'success');
+          }
         }
         
         // Force refresh the bookmarks data in the UI
