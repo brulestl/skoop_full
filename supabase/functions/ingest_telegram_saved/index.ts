@@ -63,10 +63,10 @@ serve(async (req) => {
       )
     }
 
-    // TASK TG-NOSESSION: Get telegram session string and return 409 if missing
+    // TASK 1: Get telegram account with last_sync_message_id for incremental sync
     const { data: connectedAccount, error: accountError } = await supabaseClient
       .from('connected_accounts')
-      .select('telegram_session_string')
+      .select('telegram_session_string, last_sync_message_id')
       .eq('user_id', user.id)
       .eq('provider', 'telegram')
       .single()
@@ -97,18 +97,29 @@ serve(async (req) => {
     try {
       await client.start()
 
-      // TASK TG-PEER: Use 'me' peer directly instead of looking up provider_user_id
+      // TASK 1: Use incremental sync with offsetId to avoid duplicates
+      const lastSyncMessageId = connectedAccount.last_sync_message_id || 0
+      console.log(`Starting incremental sync from message ID: ${lastSyncMessageId}`)
+
       const messages = await client.getMessages('me', {
         limit: 100,
+        offsetId: lastSyncMessageId, // Only get messages newer than this ID
       })
 
       console.log(`Fetched ${messages.length} messages from telegram`)
 
-      // TASK TG-MAP: Accept messages with text OR caption OR url
+      // TASK 1: If no new messages, return 204
+      if (messages.length === 0) {
+        return new Response(
+          JSON.stringify({ success: true, note: 'no_new', message: 'No new messages to sync' }),
+          { status: 204, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Filter valid messages (text OR caption OR url)
       const validMessages = messages.filter((msg: TelegramMessage) => {
         const text = msg.message ?? (msg.media?.caption ?? '')
         const url = msg.media?.webpage?.url
-        // Accept messages that have text OR url
         return text || url
       })
 
@@ -116,12 +127,12 @@ serve(async (req) => {
 
       if (validMessages.length === 0) {
         return new Response(
-          JSON.stringify({ success: true, message: 'No valid messages to sync', count: 0 }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: true, note: 'no_new', message: 'No valid new messages to sync' }),
+          { status: 204, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      // TASK TG-INSERT: Prepare batch data with new schema columns
+      // Prepare batch data with new schema columns
       const rawRows = validMessages.map((msg: TelegramMessage) => {
         const text = msg.message ?? (msg.media?.caption ?? '')
         const url = msg.media?.webpage?.url ?? null
@@ -129,16 +140,16 @@ serve(async (req) => {
         return {
           user_id: user.id,
           source: 'telegram' as const,
-          provider_item_id: msg.id, // Telegram message ID
-          text: text || null,       // Message text or caption
-          url: url,                 // Webpage URL if present
-          created_at: new Date(msg.date * 1000).toISOString(), // Convert unix timestamp
-          raw_json: msg,           // Full message object
+          provider_item_id: msg.id,
+          text: text || null,
+          url: url,
+          created_at: new Date(msg.date * 1000).toISOString(), // Preserve timezone (UTC)
+          raw_json: msg,
           fetched_at: new Date().toISOString(),
         }
       })
 
-      // TASK TG-INSERT: Use upsert with conflict handling for batch insert
+      // Batch upsert with conflict handling
       const { data: insertedData, error: insertError } = await supabaseClient
         .from('bookmarks_raw')
         .upsert(rawRows, {
@@ -154,13 +165,33 @@ serve(async (req) => {
         )
       }
 
-      console.log(`Successfully synced ${validMessages.length} telegram messages`)
+      // TASK 1: Update last_sync_message_id after successful insert
+      const newMessageIds = validMessages.map(msg => msg.id)
+      const maxMessageId = Math.max(...newMessageIds)
+      
+      const { error: updateError } = await supabaseClient
+        .from('connected_accounts')
+        .update({
+          last_sync_message_id: maxMessageId,
+          last_sync_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'telegram')
+
+      if (updateError) {
+        console.error('Error updating sync metadata:', updateError)
+        // Don't fail the request, just log the error
+      }
+
+      console.log(`Successfully synced ${validMessages.length} telegram messages, new max ID: ${maxMessageId}`)
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: `Successfully synced ${validMessages.length} telegram messages`,
-          count: validMessages.length
+          inserted: validMessages.length,
+          lastMessageId: maxMessageId
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -187,6 +218,14 @@ serve(async (req) => {
     )
   }
 })
+
+/* TASK 1 ✅ Incremental Sync Implementation:
+ * - Uses offsetId with last_sync_message_id for incremental fetch
+ * - Returns 204 when no new messages
+ * - Updates last_sync_message_id after successful sync
+ * - Preserves timezone with new Date(unix*1000) → UTC
+ * - Deduplication via unique index uniq_braw_user_src_item
+ */
 
 /* Debug info:
  * TASK TG-PEER ✅: Using 'me' peer directly
