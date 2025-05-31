@@ -3,7 +3,7 @@ const { StringSession } = require("telegram/sessions");
 const input = require("input");
 
 // STEP 1: Replace these with your actual values from https://my.telegram.org/apps
-const apiId = 020151707; // ⚠️ REPLACE: Your numeric API ID (e.g., 1234567)
+const apiId = 20151707; // ⚠️ REPLACE: Your numeric API ID (e.g., 1234567)
 const apiHash = "68c9850b66581c18eb4ba41c0ce077d5"; // ⚠️ REPLACE: Your API Hash (e.g., "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6")
 
 // ⚠️ IMPORTANT: You MUST update apiId and apiHash above before running!
