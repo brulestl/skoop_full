@@ -92,16 +92,24 @@ export default function TelegramBookmarksDebug() {
         addLog(`❌ Error fetching recent bookmarks: ${recentBookmarksError.message}`);
       }
 
-      // Get connected account
-      const { data: connectedAccount, error: accountError } = await supabase
+      // Get connected account - handle multiple or no results gracefully
+      const { data: connectedAccounts, error: accountError } = await supabase
         .from('connected_accounts')
         .select('*')
         .eq('user_id', user.id)
-        .eq('provider', 'telegram')
-        .single();
+        .eq('provider', 'telegram');
 
+      let connectedAccount = null;
       if (accountError) {
-        addLog(`❌ Error fetching connected account: ${accountError.message}`);
+        addLog(`❌ Error fetching connected accounts: ${accountError.message}`);
+      } else if (!connectedAccounts || connectedAccounts.length === 0) {
+        addLog(`📝 No telegram account connected`);
+      } else if (connectedAccounts.length > 1) {
+        addLog(`⚠️ Multiple telegram accounts found (${connectedAccounts.length}), using first one`);
+        connectedAccount = connectedAccounts[0];
+      } else {
+        addLog(`✅ Found telegram account connection`);
+        connectedAccount = connectedAccounts[0];
       }
 
       setDebugData({
@@ -153,13 +161,25 @@ export default function TelegramBookmarksDebug() {
     try {
       addLog('📤 Sending test export to upload endpoint...');
       
-      // Get session for authorization
-      const { data: { session } } = await supabase.auth.getSession();
+      // Get fresh session for authorization
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        addLog(`❌ Session error: ${sessionError.message}`);
+        return;
+      }
+      
+      if (!session) {
+        addLog(`❌ No active session - please log in again`);
+        return;
+      }
+      
+      addLog(`🔑 Using session token: ${session.access_token.substring(0, 20)}...`);
       
       const response = await fetch('/api/upload/telegram-export', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: formData
       });
@@ -168,10 +188,14 @@ export default function TelegramBookmarksDebug() {
 
       if (response.ok) {
         addLog(`✅ Upload successful: ${JSON.stringify(result)}`);
+        addLog(`📈 Inserted ${result.inserted || 0} messages`);
         // Refresh debug data
         setTimeout(() => fetchDebugData(), 1000);
       } else {
         addLog(`❌ Upload failed: ${response.status} - ${JSON.stringify(result)}`);
+        if (response.status === 401) {
+          addLog(`🔐 Authorization failed - token may be expired`);
+        }
       }
 
     } catch (err) {
@@ -184,15 +208,41 @@ export default function TelegramBookmarksDebug() {
     addLog('📡 Testing telegram sync endpoint...');
     
     try {
+      // Get session for direct edge function call
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        addLog(`❌ Session error: ${sessionError.message}`);
+        return;
+      }
+      
+      if (!session) {
+        addLog(`❌ No active session - please log in again`);
+        return;
+      }
+
+      addLog('📡 Calling /api/sync/telegram route...');
+      
       const response = await fetch('/api/sync/telegram', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         }
       });
 
       const result = await response.json();
-      addLog(`📡 Sync response: ${response.status} - ${JSON.stringify(result)}`);
+      
+      if (response.ok) {
+        addLog(`✅ Sync successful: ${JSON.stringify(result)}`);
+        if (result.count) {
+          addLog(`📈 Synced ${result.count} messages`);
+        }
+      } else if (response.status === 409) {
+        addLog(`⚠️ Sync blocked: ${result.error} (Expected - no session string)`);
+      } else {
+        addLog(`❌ Sync failed: ${response.status} - ${JSON.stringify(result)}`);
+      }
       
       // Refresh debug data
       setTimeout(() => fetchDebugData(), 1000);
