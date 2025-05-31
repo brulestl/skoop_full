@@ -329,6 +329,40 @@ export default function TelegramBookmarksDebug() {
     }
   };
 
+  const testSimpleEndpoint = async () => {
+    addLog('🧪 Testing simple endpoint to isolate auth/db issues...');
+    
+    try {
+      const response = await fetch('/api/debug/simple-test', {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        addLog(`✅ Simple test successful:`);
+        addLog(`  Session exists: ${result.tests.session.exists}`);
+        addLog(`  Session user ID: ${result.tests.session.userId || 'none'}`);
+        addLog(`  Database connected: ${result.tests.database.connected}`);
+        addLog(`  Database error: ${result.tests.database.error || 'none'}`);
+        addLog(`  User account count: ${typeof result.tests.userQuery === 'object' ? result.tests.userQuery.accountCount : result.tests.userQuery}`);
+        addLog(`  Has session string: ${typeof result.tests.userQuery === 'object' ? result.tests.userQuery.hasSessionString : 'unknown'}`);
+      } else {
+        addLog(`❌ Simple test failed: ${response.status}`);
+        addLog(`❌ Error: ${result.error}`);
+        addLog(`❌ Details: ${result.details}`);
+        if (result.stack) {
+          addLog(`❌ Stack: ${result.stack.substring(0, 200)}...`);
+        }
+      }
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Simple test error';
+      addLog(`💥 Simple test error: ${errorMsg}`);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchDebugData();
@@ -372,6 +406,10 @@ export default function TelegramBookmarksDebug() {
           <Button onClick={testDebugEndpoint} variant="outline">
             <MessageSquare className="h-4 w-4 mr-2" />
             Test Debug Endpoint
+          </Button>
+          <Button onClick={testSimpleEndpoint} variant="outline">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Test Simple Endpoint
           </Button>
         </div>
       </div>
