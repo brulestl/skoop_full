@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid export format: missing messages array' }, { status: 400 })
     }
 
-    console.log(`Processing ${exportData.messages.length} messages from export`)
+    console.log(`[TG-DEBUG] Processing ${exportData.messages.length} messages from export`)
 
     // Filter and map valid messages
     const validMessages = exportData.messages.filter((msg: TelegramExportMessage) => {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       return text || url
     })
 
-    console.log(`Filtered to ${validMessages.length} valid messages`)
+    console.log(`[TG-DEBUG] Filtered to ${validMessages.length} valid messages`)
 
     if (validMessages.length === 0) {
       return NextResponse.json({ 
@@ -114,6 +114,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log(`[TG-DEBUG] Mapped ${rawRows.length} rawRows for bookmarks_raw`)
+
     // TASK 2: Batch insert with conflict handling (same as MTProto sync)
     const { data: insertedData, error: insertError } = await supabase
       .from('bookmarks_raw')
@@ -123,30 +125,42 @@ export async function POST(request: NextRequest) {
       })
 
     if (insertError) {
-      console.error('Error inserting telegram export messages:', insertError)
+      console.error('[TG-DEBUG] Error inserting telegram export messages:', insertError)
       return NextResponse.json(
         { error: 'Failed to save messages', details: insertError.message },
         { status: 500 }
       )
     }
 
-    // TG-BOOKMARKS: Upsert equivalent rows into bookmarks table for dashboard display
+    console.log(`[TG-DEBUG] Successfully inserted ${rawRows.length} rows into bookmarks_raw`)
+
+    // TG-BOOK2: Fix URL conflict by allowing null URLs and using provider_item_id
     const bookmarkRows = rawRows.map(r => ({
       user_id:    r.user_id,
       source:     'telegram' as const,
-      url:        r.url ?? '',                                   // cannot be null
-      title:      r.text ?? r.url ?? '',
+      provider_item_id: r.provider_item_id,
+      url:        r.url ?? null,                               // TG-BOOK2: allow null for empty URLs
+      title:      r.text ?? r.url ?? `Telegram message ${r.provider_item_id}`,
       description: r.text ?? null,
       tags:       ['telegram'],
       created_at: r.created_at,
       updated_at: new Date().toISOString()
     }));
 
-    const { error: bookmarkErr } = await supabase
-      .from('bookmarks')
-      .upsert(bookmarkRows, { onConflict: 'user_id,url', ignoreDuplicates: false });
+    console.log(`[TG-DEBUG] Prepared ${bookmarkRows.length} bookmarkRows for bookmarks table`)
 
-    if (bookmarkErr) console.error('TG upload → bookmarks error', bookmarkErr);
+    const { data: bookmarkData, error: bookmarkErr } = await supabase
+      .from('bookmarks')
+      .upsert(bookmarkRows, { 
+        onConflict: 'user_id,source,provider_item_id',  // TG-BOOK2: use provider_item_id instead of url
+        ignoreDuplicates: false 
+      });
+
+    if (bookmarkErr) {
+      console.error('[TG-DEBUG] TG upload → bookmarks error:', bookmarkErr);
+    } else {
+      console.log(`[TG-DEBUG] Successfully upserted ${bookmarkRows.length} rows into bookmarks table`);
+    }
 
     // TASK 2: Update last_sync_message_id if we imported newer messages
     const messageIds = validMessages.map(msg => msg.id)

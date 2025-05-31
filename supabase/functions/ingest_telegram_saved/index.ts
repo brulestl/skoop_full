@@ -165,24 +165,6 @@ serve(async (req) => {
         )
       }
 
-      // TG-BOOKMARKS: Upsert equivalent rows into bookmarks table for dashboard display
-      const bookmarkRows = rawRows.map(r => ({
-        user_id:    r.user_id,
-        source:     'telegram' as const,
-        url:        r.url ?? '',                                   // cannot be null
-        title:      r.text ?? r.url ?? '',
-        description: r.text ?? null,
-        tags:       ['telegram'],
-        created_at: r.created_at,
-        updated_at: new Date().toISOString()
-      }));
-
-      const { error: bookmarkErr } = await supabaseClient
-        .from('bookmarks')
-        .upsert(bookmarkRows, { onConflict: 'user_id,url', ignoreDuplicates: false });
-
-      if (bookmarkErr) console.error('TG sync → bookmarks error', bookmarkErr);
-
       // TASK 1: Update last_sync_message_id after successful insert
       const newMessageIds = validMessages.map(msg => msg.id)
       const maxMessageId = Math.max(...newMessageIds)
@@ -203,6 +185,34 @@ serve(async (req) => {
       }
 
       console.log(`Successfully synced ${validMessages.length} telegram messages, new max ID: ${maxMessageId}`)
+
+      // TG-BOOK2: Fix URL conflict by allowing null URLs and using provider_item_id
+      const bookmarkRows = rawRows.map(r => ({
+        user_id:    r.user_id,
+        source:     'telegram' as const,
+        provider_item_id: r.provider_item_id,
+        url:        r.url ?? null,                               // TG-BOOK2: allow null for empty URLs
+        title:      r.text ?? r.url ?? `Telegram message ${r.provider_item_id}`,
+        description: r.text ?? null,
+        tags:       ['telegram'],
+        created_at: r.created_at,
+        updated_at: new Date().toISOString()
+      }));
+
+      console.log(`[TG-DEBUG] Prepared ${bookmarkRows.length} bookmarkRows for bookmarks table`)
+
+      const { data: bookmarkData, error: bookmarkErr } = await supabaseClient
+        .from('bookmarks')
+        .upsert(bookmarkRows, { 
+          onConflict: 'user_id,source,provider_item_id',  // TG-BOOK2: use provider_item_id instead of url
+          ignoreDuplicates: false 
+        });
+
+      if (bookmarkErr) {
+        console.error('[TG-DEBUG] TG sync → bookmarks error:', bookmarkErr);
+      } else {
+        console.log(`[TG-DEBUG] Successfully upserted ${bookmarkRows.length} rows into bookmarks table`);
+      }
 
       return new Response(
         JSON.stringify({ 
