@@ -5,6 +5,7 @@ import { Github, Twitter, MessageSquare as Reddit, Code as StackOverflow, CheckC
 import { Button } from '@/components/ui/button';
 import { useConnectedAccounts, Provider } from '@/hooks/useConnectedAccounts';
 import { cn } from '@/lib/utils';
+import { TelegramConnectModal } from '@/components/telegram/TelegramConnectModal';
 
 const providers: Array<{
   id: Provider;
@@ -110,11 +111,13 @@ export default function OAuthConnectButtons() {
     disconnectAccount, 
     connecting, 
     loading,
-    getAccount 
+    getAccount,
+    fetchAccounts
   } = useConnectedAccounts();
   
   const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
   const [refreshing, setRefreshing] = useState<Provider | null>(null);
+  const [telegramModalOpen, setTelegramModalOpen] = useState(false);
 
   // Get account status for a provider
   const getAccountStatus = (provider: Provider) => {
@@ -167,6 +170,12 @@ export default function OAuthConnectButtons() {
   };
 
   const handleConnect = async (provider: Provider) => {
+    // Special handling for Telegram - open modal instead of OAuth
+    if (provider === 'telegram') {
+      setTelegramModalOpen(true);
+      return;
+    }
+
     try {
       await connectAccount(provider);
     } catch (error) {
@@ -181,6 +190,11 @@ export default function OAuthConnectButtons() {
         showToast(`Failed to connect ${provider}: ${errorMessage}`, 'error');
       }
     }
+  };
+
+  const handleTelegramSuccess = () => {
+    showToast('Telegram connected successfully!', 'success');
+    fetchAccounts(); // Refresh the connected accounts list
   };
 
   const handleDisconnect = async (provider: Provider) => {
@@ -368,6 +382,13 @@ export default function OAuthConnectButtons() {
           );
         })}
       </div>
+
+      {/* Telegram Connect Modal */}
+      <TelegramConnectModal
+        isOpen={telegramModalOpen}
+        onClose={() => setTelegramModalOpen(false)}
+        onSuccess={handleTelegramSuccess}
+      />
     </div>
   );
 } 
