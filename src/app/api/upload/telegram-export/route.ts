@@ -143,23 +143,35 @@ export async function POST(request: NextRequest) {
 
     console.log(`[TG-DEBUG] Mapped ${rawRows.length} rawRows for bookmarks_raw`)
 
-    // TASK 2: Batch insert with conflict handling (same as MTProto sync)
+    // TASK 2: Batch insert with conflict handling - use exact index name
     const { data: insertedData, error: insertError } = await supabase
       .from('bookmarks_raw')
       .upsert(rawRows, {
-        onConflict: 'user_id,source,provider_item_id',
+        onConflict: 'idx_bookmarks_raw_user_source_provider_item',  // Use exact index name
         ignoreDuplicates: false
       })
 
     if (insertError) {
       console.error('[TG-DEBUG] Error inserting telegram export messages:', insertError)
-      return NextResponse.json(
-        { error: 'Failed to save messages', details: insertError.message },
-        { status: 500 }
-      )
+      console.error('[TG-DEBUG] Trying fallback without conflict resolution...')
+      
+      // Fallback: simple insert if conflict resolution fails
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('bookmarks_raw')
+        .insert(rawRows);
+        
+      if (fallbackError) {
+        console.error('[TG-DEBUG] Fallback insert also failed:', fallbackError)
+        return NextResponse.json(
+          { error: 'Failed to save messages', details: fallbackError.message },
+          { status: 500 }
+        )
+      } else {
+        console.log('[TG-DEBUG] Fallback insert succeeded')
+      }
+    } else {
+      console.log(`[TG-DEBUG] Successfully inserted ${rawRows.length} rows into bookmarks_raw`)
     }
-
-    console.log(`[TG-DEBUG] Successfully inserted ${rawRows.length} rows into bookmarks_raw`)
 
     // TG-BOOK2: Fix URL conflict by allowing null URLs and using provider_item_id
     const bookmarkRows = rawRows.map(r => ({
