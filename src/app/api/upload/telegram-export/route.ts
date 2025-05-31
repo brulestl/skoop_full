@@ -130,6 +130,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // TG-BOOKMARKS: Upsert equivalent rows into bookmarks table for dashboard display
+    const bookmarkRows = rawRows.map(r => ({
+      user_id:    r.user_id,
+      source:     'telegram' as const,
+      url:        r.url ?? '',                                   // cannot be null
+      title:      r.text ?? r.url ?? '',
+      description: r.text ?? null,
+      tags:       ['telegram'],
+      created_at: r.created_at,
+      updated_at: new Date().toISOString()
+    }));
+
+    const { error: bookmarkErr } = await supabase
+      .from('bookmarks')
+      .upsert(bookmarkRows, { onConflict: 'user_id,url', ignoreDuplicates: false });
+
+    if (bookmarkErr) console.error('TG upload → bookmarks error', bookmarkErr);
+
     // TASK 2: Update last_sync_message_id if we imported newer messages
     const messageIds = validMessages.map(msg => msg.id)
     const maxMessageId = Math.max(...messageIds)
