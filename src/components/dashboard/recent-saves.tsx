@@ -2038,10 +2038,10 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                               <div
                                 key={provider}
                                 className={cn(
-                                  "flex items-center space-x-2 px-2 py-1.5 rounded-sm transition-colors",
+                                  "group flex items-center space-x-2 px-2 py-1.5 rounded-sm transition-colors relative",
                                   isProviderConnected 
                                     ? "hover:bg-muted cursor-pointer" 
-                                    : "opacity-50 cursor-not-allowed"
+                                    : "opacity-50 cursor-not-allowed hover:bg-muted/50"
                                 )}
                                 onClick={() => {
                                   if (isProviderConnected) {
@@ -2071,8 +2071,11 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                                 )}>
                                   {provider}
                                 </span>
+                                {/* Show "Not connected" only on hover */}
                                 {!isProviderConnected && (
-                                  <span className="text-xs text-muted-foreground">Not connected</span>
+                                  <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity absolute right-2">
+                                    Not connected
+                                  </span>
                                 )}
                               </div>
                             );
