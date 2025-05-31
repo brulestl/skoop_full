@@ -69,8 +69,12 @@ export interface CollectionListResponse {
 export interface BookmarkForCollection {
   id: string;
   title: string;
-  url: string;
+  url: string | null;
   description?: string;
+  summary?: string;
+  tags?: string[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Add to collection input

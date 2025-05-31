@@ -46,6 +46,8 @@
     "out",
     "build",
     "dist",
-    "supabase"
+    "supabase",
+    "generate_telegram_session.js",
+    "generate_telegram_session.cjs"
   ]
 }
