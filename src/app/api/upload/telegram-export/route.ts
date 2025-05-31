@@ -176,12 +176,39 @@ export async function POST(request: NextRequest) {
 
     console.log(`[TG-DEBUG] Prepared ${bookmarkRows.length} bookmarkRows for bookmarks table`)
 
-    const { data: bookmarkData, error: bookmarkErr } = await supabase
-      .from('bookmarks')
-      .upsert(bookmarkRows, { 
-        onConflict: 'user_id,source,provider_item_id',  // TG-BOOK2: use provider_item_id instead of url
-        ignoreDuplicates: false 
-      });
+    // TG-BOOK2: Try different conflict resolution approaches
+    let bookmarkResult;
+    
+    // First, try with provider_item_id conflict (if index exists)
+    try {
+      bookmarkResult = await supabase
+        .from('bookmarks')
+        .upsert(bookmarkRows, { 
+          onConflict: 'user_id,source,provider_item_id',
+          ignoreDuplicates: false 
+        });
+    } catch (firstError) {
+      console.log('[TG-DEBUG] provider_item_id conflict failed, trying user_id only');
+      
+      // Fallback: try with just user_id (less ideal but should work)
+      try {
+        bookmarkResult = await supabase
+          .from('bookmarks')
+          .upsert(bookmarkRows, { 
+            onConflict: 'user_id',
+            ignoreDuplicates: false 
+          });
+      } catch (secondError) {
+        console.log('[TG-DEBUG] user_id conflict failed, trying manual insert');
+        
+        // Last resort: insert without conflict resolution
+        bookmarkResult = await supabase
+          .from('bookmarks')
+          .insert(bookmarkRows);
+      }
+    }
+
+    const { data: bookmarkData, error: bookmarkErr } = bookmarkResult;
 
     if (bookmarkErr) {
       console.error('[TG-DEBUG] TG upload → bookmarks error:', bookmarkErr);
