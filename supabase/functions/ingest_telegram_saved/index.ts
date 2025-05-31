@@ -64,6 +64,8 @@ serve(async (req) => {
       )
     }
 
+    console.log(`[TG-SYNC] Starting sync for user: ${user.id}`);
+
     // TASK 1: Get telegram account with last_sync_message_id for incremental sync
     const { data: connectedAccount, error: accountError } = await supabaseClient
       .from('connected_accounts')
@@ -73,7 +75,7 @@ serve(async (req) => {
       .single()
 
     if (accountError) {
-      console.error('Error fetching connected account:', accountError)
+      console.error('[TG-SYNC] Error fetching connected account:', accountError)
       return new Response(
         JSON.stringify({ error: 'Failed to fetch telegram account' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -81,6 +83,7 @@ serve(async (req) => {
     }
 
     if (!connectedAccount?.telegram_session_string) {
+      console.log('[TG-SYNC] No session string found');
       // TASK TG-NOSESSION: Return 409 with specific error for missing session
       return new Response(
         JSON.stringify({ error: 'no_session' }),
@@ -88,30 +91,77 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Telegram client with proper GramJS syntax
-    const session = new StringSession(connectedAccount.telegram_session_string);
-    const client = new TelegramClient(
-      session,
-      parseInt(Deno.env.get('TELEGRAM_API_ID') ?? ''),
-      Deno.env.get('TELEGRAM_API_HASH') ?? '',
-      {
+    // Validate environment variables
+    const apiId = parseInt(Deno.env.get('TELEGRAM_API_ID') ?? '0');
+    const apiHash = Deno.env.get('TELEGRAM_API_HASH') ?? '';
+    
+    if (!apiId || !apiHash) {
+      console.error('[TG-SYNC] Missing Telegram API credentials');
+      await supabaseClient
+        .from('connected_accounts')
+        .update({
+          status: 'error',
+          last_error: 'Telegram API credentials not configured',
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'telegram');
+        
+      return new Response(
+        JSON.stringify({ error: 'Telegram API not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`[TG-SYNC] Using API ID: ${apiId}, Session length: ${connectedAccount.telegram_session_string.length}`);
+
+    // Initialize Telegram client with enhanced error handling
+    let client: TelegramClient;
+    try {
+      const session = new StringSession(connectedAccount.telegram_session_string);
+      console.log('[TG-SYNC] Created StringSession successfully');
+      
+      client = new TelegramClient(session, apiId, apiHash, {
         connectionRetries: 5,
         timeout: 30000,
-      }
-    );
+        useWSS: false, // Try without WSS first
+      });
+      console.log('[TG-SYNC] Created TelegramClient successfully');
+    } catch (sessionError) {
+      console.error('[TG-SYNC] Error creating Telegram client:', sessionError);
+      
+      await supabaseClient
+        .from('connected_accounts')
+        .update({
+          status: 'error',
+          last_error: `Client creation failed: ${sessionError.message}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'telegram');
+        
+      return new Response(
+        JSON.stringify({ error: 'Failed to create Telegram client', details: sessionError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     try {
-      console.log('Connecting to Telegram...');
+      console.log('[TG-SYNC] Connecting to Telegram...');
       await client.connect();
+      console.log('[TG-SYNC] Connected successfully');
 
       // Check if client is authorized
-      if (!await client.checkAuthorization()) {
-        // Clear the error status since we're trying again
+      console.log('[TG-SYNC] Checking authorization...');
+      const isAuthorized = await client.checkAuthorization();
+      console.log(`[TG-SYNC] Authorization status: ${isAuthorized}`);
+      
+      if (!isAuthorized) {
         await supabaseClient
           .from('connected_accounts')
           .update({
-            status: 'active',
-            last_error: null,
+            status: 'error',
+            last_error: 'Telegram session expired - please reconnect',
             updated_at: new Date().toISOString()
           })
           .eq('user_id', user.id)
