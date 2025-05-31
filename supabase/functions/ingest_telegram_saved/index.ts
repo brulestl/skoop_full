@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
-import { TelegramApi } from "https://esm.sh/telegram@2.22.2"
+import { TelegramClient } from "https://esm.sh/telegram@2.22.2"
+import { StringSession } from "https://esm.sh/telegram@2.22.2/sessions"
 // Temporarily commenting out telegram import while debugging
 // import { createTelegramClientWithSession, TelegramClientManager } from './lib/telegramClient.ts'
 
@@ -87,15 +88,39 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Telegram client
-    const client = new TelegramApi({
-      apiId: parseInt(Deno.env.get('TELEGRAM_API_ID') ?? ''),
-      apiHash: Deno.env.get('TELEGRAM_API_HASH') ?? '',
-      stringSession: connectedAccount.telegram_session_string,
-    })
+    // Initialize Telegram client with proper GramJS syntax
+    const session = new StringSession(connectedAccount.telegram_session_string);
+    const client = new TelegramClient(
+      session,
+      parseInt(Deno.env.get('TELEGRAM_API_ID') ?? ''),
+      Deno.env.get('TELEGRAM_API_HASH') ?? '',
+      {
+        connectionRetries: 5,
+        timeout: 30000,
+      }
+    );
 
     try {
-      await client.start()
+      console.log('Connecting to Telegram...');
+      await client.connect();
+
+      // Check if client is authorized
+      if (!await client.checkAuthorization()) {
+        // Clear the error status since we're trying again
+        await supabaseClient
+          .from('connected_accounts')
+          .update({
+            status: 'active',
+            last_error: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'telegram');
+
+        throw new Error('Telegram client is not authorized. Session may have expired.');
+      }
+
+      console.log('✅ Successfully connected and authorized');
 
       // TASK 1: Use incremental sync with offsetId to avoid duplicates
       const lastSyncMessageId = connectedAccount.last_sync_message_id || 0
@@ -110,6 +135,18 @@ serve(async (req) => {
 
       // TASK 1: If no new messages, return 204
       if (messages.length === 0) {
+        // Update status to show successful connection
+        await supabaseClient
+          .from('connected_accounts')
+          .update({
+            status: 'active',
+            last_error: null,
+            last_sync_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'telegram');
+
         return new Response(
           JSON.stringify({ success: true, note: 'no_new', message: 'No new messages to sync' }),
           { status: 204, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -126,6 +163,18 @@ serve(async (req) => {
       console.log(`Filtered to ${validMessages.length} valid messages`)
 
       if (validMessages.length === 0) {
+        // Update status to show successful connection
+        await supabaseClient
+          .from('connected_accounts')
+          .update({
+            status: 'active',
+            last_error: null,
+            last_sync_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'telegram');
+
         return new Response(
           JSON.stringify({ success: true, note: 'no_new', message: 'No valid new messages to sync' }),
           { status: 204, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -174,6 +223,8 @@ serve(async (req) => {
         .update({
           last_sync_message_id: maxMessageId,
           last_sync_at: new Date().toISOString(),
+          status: 'active',
+          last_error: null,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id)
@@ -226,6 +277,18 @@ serve(async (req) => {
 
     } catch (telegramError) {
       console.error('Telegram API error:', telegramError)
+      
+      // Update account status with error
+      await supabaseClient
+        .from('connected_accounts')
+        .update({
+          status: 'error',
+          last_error: telegramError.message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('provider', 'telegram');
+
       return new Response(
         JSON.stringify({ error: 'Failed to fetch messages from Telegram', details: telegramError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
