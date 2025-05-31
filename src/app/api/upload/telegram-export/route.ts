@@ -179,27 +179,27 @@ export async function POST(request: NextRequest) {
     // TG-BOOK2: Try different conflict resolution approaches
     let bookmarkResult;
     
-    // First, try with provider_item_id conflict (if index exists)
+    // First, try with exact constraint name
     try {
       bookmarkResult = await supabase
         .from('bookmarks')
         .upsert(bookmarkRows, { 
-          onConflict: 'user_id,source,provider_item_id',
+          onConflict: 'uniq_bookmarks_user_src_item',  // Use exact constraint name
           ignoreDuplicates: false 
         });
     } catch (firstError) {
-      console.log('[TG-DEBUG] provider_item_id conflict failed, trying user_id only');
+      console.log('[TG-DEBUG] constraint name failed, trying column format');
       
-      // Fallback: try with just user_id (less ideal but should work)
+      // Second, try with existing user_id,url constraint
       try {
         bookmarkResult = await supabase
           .from('bookmarks')
           .upsert(bookmarkRows, { 
-            onConflict: 'user_id',
+            onConflict: 'user_id,url',  // Use existing constraint
             ignoreDuplicates: false 
           });
       } catch (secondError) {
-        console.log('[TG-DEBUG] user_id conflict failed, trying manual insert');
+        console.log('[TG-DEBUG] user_id,url conflict failed, trying manual insert');
         
         // Last resort: insert without conflict resolution
         bookmarkResult = await supabase
