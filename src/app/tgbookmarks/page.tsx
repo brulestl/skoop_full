@@ -40,6 +40,10 @@ export default function TelegramBookmarksDebug() {
     addLog('🔍 Starting debug data fetch...');
 
     try {
+      // Debug: Show what user ID we're using
+      addLog(`🔑 Debug page user ID: ${user.id}`);
+      addLog(`🔑 Expected user ID: e3ef0830-5658-445e-8193-17b28703ebf2`);
+      
       // Get bookmarks_raw count
       const { count: rawCount, error: rawCountError } = await supabase
         .from('bookmarks_raw')
@@ -51,6 +55,16 @@ export default function TelegramBookmarksDebug() {
         addLog(`❌ Error counting bookmarks_raw: ${rawCountError.message}`);
       } else {
         addLog(`📊 Found ${rawCount || 0} rows in bookmarks_raw`);
+      }
+
+      // Also try direct query to see if user ID mismatch
+      const { count: allRawCount, error: allRawError } = await supabase
+        .from('bookmarks_raw')
+        .select('*', { count: 'exact', head: true })
+        .eq('source', 'telegram');
+
+      if (!allRawError) {
+        addLog(`📊 Total telegram rows in DB: ${allRawCount || 0}`);
       }
 
       // Get bookmarks count
@@ -103,7 +117,17 @@ export default function TelegramBookmarksDebug() {
       if (accountError) {
         addLog(`❌ Error fetching connected accounts: ${accountError.message}`);
       } else if (!connectedAccounts || connectedAccounts.length === 0) {
-        addLog(`📝 No telegram account connected`);
+        addLog(`📝 No telegram account connected for this user`);
+        
+        // Check if any telegram accounts exist at all
+        const { data: allTelegramAccounts } = await supabase
+          .from('connected_accounts')
+          .select('user_id')
+          .eq('provider', 'telegram');
+        
+        if (allTelegramAccounts && allTelegramAccounts.length > 0) {
+          addLog(`📝 But ${allTelegramAccounts.length} telegram account(s) exist for other users`);
+        }
       } else if (connectedAccounts.length > 1) {
         addLog(`⚠️ Multiple telegram accounts found (${connectedAccounts.length}), using first one`);
         connectedAccount = connectedAccounts[0];
