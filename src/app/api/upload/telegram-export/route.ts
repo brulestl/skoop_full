@@ -176,42 +176,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`[TG-DEBUG] Prepared ${bookmarkRows.length} bookmarkRows for bookmarks table`)
 
-    // TG-BOOK2: Try different conflict resolution approaches
-    let bookmarkResult;
+    // TG-BOOK2: Use existing constraint that we know works
+    console.log('[TG-DEBUG] Attempting bookmarks upsert with user_id,url constraint...');
     
-    // First, try with exact constraint name
-    try {
-      bookmarkResult = await supabase
-        .from('bookmarks')
-        .upsert(bookmarkRows, { 
-          onConflict: 'uniq_bookmarks_user_src_item',  // Use exact constraint name
-          ignoreDuplicates: false 
-        });
-    } catch (firstError) {
-      console.log('[TG-DEBUG] constraint name failed, trying column format');
-      
-      // Second, try with existing user_id,url constraint
-      try {
-        bookmarkResult = await supabase
-          .from('bookmarks')
-          .upsert(bookmarkRows, { 
-            onConflict: 'user_id,url',  // Use existing constraint
-            ignoreDuplicates: false 
-          });
-      } catch (secondError) {
-        console.log('[TG-DEBUG] user_id,url conflict failed, trying manual insert');
-        
-        // Last resort: insert without conflict resolution
-        bookmarkResult = await supabase
-          .from('bookmarks')
-          .insert(bookmarkRows);
-      }
-    }
-
-    const { data: bookmarkData, error: bookmarkErr } = bookmarkResult;
+    const { data: bookmarkData, error: bookmarkErr } = await supabase
+      .from('bookmarks')
+      .upsert(bookmarkRows, { 
+        onConflict: 'user_id,url',  // Use existing constraint that definitely works
+        ignoreDuplicates: false 
+      });
 
     if (bookmarkErr) {
       console.error('[TG-DEBUG] TG upload → bookmarks error:', bookmarkErr);
+      console.error('[TG-DEBUG] Error details:', JSON.stringify(bookmarkErr, null, 2));
+      console.error('[TG-DEBUG] Sample bookmark row:', JSON.stringify(bookmarkRows[0], null, 2));
     } else {
       console.log(`[TG-DEBUG] Successfully upserted ${bookmarkRows.length} rows into bookmarks table`);
     }
