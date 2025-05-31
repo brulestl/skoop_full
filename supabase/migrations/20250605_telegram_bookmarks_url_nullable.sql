@@ -6,17 +6,6 @@ ALTER TABLE bookmarks ALTER COLUMN url DROP NOT NULL;
 
 -- Step 2: Create unique index for conflict resolution using provider_item_id
 -- This prevents duplicate telegram messages from the same user
+-- Note: provider_item_id column should be added via separate migration first
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_bookmarks_user_src_item 
-ON bookmarks(user_id, source, provider_item_id);
-
--- Step 3: Ensure provider_item_id column exists (should already exist from previous migrations)
-DO $$ 
-BEGIN
-    BEGIN
-        ALTER TABLE bookmarks ADD COLUMN provider_item_id BIGINT;
-        RAISE NOTICE 'Added provider_item_id column to bookmarks table';
-    EXCEPTION
-        WHEN duplicate_column THEN
-            RAISE NOTICE 'provider_item_id column already exists in bookmarks table';
-    END;
-END $$; 
+ON bookmarks(user_id, source, provider_item_id); 
