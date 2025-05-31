@@ -16,6 +16,7 @@ jobs:
           
       - name: Deploy functions
         run: |
+          supabase functions deploy generate_summary --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy telegram_webhook --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy ingest_telegram_message --project-ref llsjysvklkohnzgmpyob
         env:
