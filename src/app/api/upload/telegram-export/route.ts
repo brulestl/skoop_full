@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { Database } from '@/types/database.types'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
 interface TelegramExportMessage {
   id: number
@@ -24,25 +26,50 @@ interface TelegramExport {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get Supabase client
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    
-    const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
+    // Try cookie-based auth first (for live site), then Authorization header (for direct API calls)
+    let user: any = null;
+    let supabase: any = null;
 
-    // Get user from authorization header
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
+    // Method 1: Cookie-based authentication (Next.js route handler)
+    try {
+      const cookieBasedSupabase = createRouteHandlerClient({ cookies });
+      const { data: { session }, error: sessionError } = await cookieBasedSupabase.auth.getSession();
+      
+      if (session && !sessionError) {
+        user = session.user;
+        supabase = cookieBasedSupabase;
+        console.log('[TG-DEBUG] Using cookie-based authentication');
+      }
+    } catch (cookieError) {
+      console.log('[TG-DEBUG] Cookie auth failed, trying header auth');
+    }
+
+    // Method 2: Authorization header (direct API calls)
+    if (!user) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+        const headerBasedSupabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
+        
+        const { data: { user: headerUser }, error: userError } = await headerBasedSupabase.auth.getUser(
+          authHeader.replace('Bearer ', '')
+        );
+
+        if (headerUser && !userError) {
+          user = headerUser;
+          supabase = headerBasedSupabase;
+          console.log('[TG-DEBUG] Using Authorization header authentication');
+        }
+      }
+    }
+
+    // If neither auth method worked
+    if (!user || !supabase) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 })
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Invalid authorization' }, { status: 401 })
-    }
+    console.log(`[TG-DEBUG] Authenticated user: ${user.id}`);
 
     // Parse form data
     const formData = await request.formData()
