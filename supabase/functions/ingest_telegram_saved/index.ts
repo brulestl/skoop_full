@@ -11,6 +11,76 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+/**
+ * Session format filter to handle compatibility between different telegram library versions
+ */
+function filterSessionFormat(rawSession: string): string {
+  try {
+    console.log('[SESSION-FILTER] Input session length:', rawSession.length);
+    console.log('[SESSION-FILTER] Input session preview:', rawSession.substring(0, 30) + '...');
+    
+    // Remove any whitespace that might cause issues
+    let cleanSession = rawSession.trim();
+    
+    // Remove any embedded spaces (known issue from previous debugging)
+    cleanSession = cleanSession.replace(/\s/g, '');
+    
+    // Validate base64 format
+    try {
+      // Test if it's valid base64
+      atob(cleanSession);
+      console.log('[SESSION-FILTER] Session is valid base64');
+    } catch (e) {
+      console.warn('[SESSION-FILTER] Session might not be valid base64:', e.message);
+      // Try to fix common base64 issues
+      cleanSession = cleanSession.replace(/[^A-Za-z0-9+/=]/g, '');
+    }
+    
+    // Ensure proper base64 padding
+    while (cleanSession.length % 4 !== 0) {
+      cleanSession += '=';
+    }
+    
+    console.log('[SESSION-FILTER] Filtered session length:', cleanSession.length);
+    console.log('[SESSION-FILTER] Filtered session preview:', cleanSession.substring(0, 30) + '...');
+    
+    return cleanSession;
+  } catch (error) {
+    console.error('[SESSION-FILTER] Error filtering session:', error);
+    // Return original session as fallback
+    return rawSession;
+  }
+}
+
+/**
+ * Enhanced StringSession creation with multiple fallback strategies
+ */
+function createCompatibleSession(rawSession: string): StringSession {
+  const filteredSession = filterSessionFormat(rawSession);
+  
+  try {
+    console.log('[SESSION-CREATE] Attempting StringSession creation...');
+    const session = new StringSession(filteredSession);
+    console.log('[SESSION-CREATE] StringSession created successfully');
+    return session;
+  } catch (error) {
+    console.error('[SESSION-CREATE] StringSession creation failed:', error);
+    
+    // Fallback 1: Try with empty string and load manually
+    try {
+      console.log('[SESSION-CREATE] Trying fallback method...');
+      const session = new StringSession('');
+      // Manually load the session data
+      (session as any).load(filteredSession);
+      console.log('[SESSION-CREATE] Fallback session creation successful');
+      return session;
+    } catch (fallbackError) {
+      console.error('[SESSION-CREATE] Fallback method failed:', fallbackError);
+      throw new Error(`Session creation failed: ${error.message}`);
+    }
+  }
+}
+
 interface TelegramMessage {
   id: number;
   message?: string;
@@ -119,9 +189,9 @@ serve(async (req) => {
     // Initialize Telegram client with enhanced error handling
     let client: TelegramClient;
     try {
-      console.log('[TG-SYNC] Creating StringSession...');
-      const session = new StringSession(connectedAccount.telegram_session_string);
-      console.log('[TG-SYNC] StringSession created successfully');
+      console.log('[TG-SYNC] Creating compatible StringSession...');
+      const session = createCompatibleSession(connectedAccount.telegram_session_string);
+      console.log('[TG-SYNC] Compatible StringSession created successfully');
       
       console.log('[TG-SYNC] Creating TelegramClient...');
       client = new TelegramClient(session, apiId, apiHash, {
@@ -144,14 +214,14 @@ serve(async (req) => {
         .from('connected_accounts')
         .update({
           status: 'error',
-          last_error: `Client creation failed: ${sessionError.message}`,
+          last_error: `Session format incompatible: ${sessionError.message}`,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id)
         .eq('provider', 'telegram');
         
       return new Response(
-        JSON.stringify({ error: 'Failed to create Telegram client', details: sessionError.message }),
+        JSON.stringify({ error: 'Failed to create compatible Telegram session', details: sessionError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
