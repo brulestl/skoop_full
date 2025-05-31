@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Database, Upload, MessageSquare, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase'; // Use the authenticated client
 
 interface DebugData {
   bookmarks_raw_count: number;
@@ -16,16 +16,11 @@ interface DebugData {
 }
 
 export default function TelegramBookmarksDebug() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, session } = useAuth();
   const [debugData, setDebugData] = useState<DebugData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [realTimeLogs, setRealTimeLogs] = useState<string[]>([]);
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -33,7 +28,10 @@ export default function TelegramBookmarksDebug() {
   };
 
   const fetchDebugData = async () => {
-    if (!user) return;
+    if (!user || !isAuthenticated) {
+      addLog('❌ No authenticated user - skipping debug data fetch');
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -43,6 +41,10 @@ export default function TelegramBookmarksDebug() {
       // Debug: Show what user ID we're using
       addLog(`🔑 Debug page user ID: ${user.id}`);
       addLog(`🔑 Expected user ID: e3ef0830-5658-445e-8193-17b28703ebf2`);
+      addLog(`🔑 Has session: ${session ? 'Yes' : 'No'}`);
+      if (session) {
+        addLog(`🔑 Session user ID: ${session.user?.id}`);
+      }
       
       // Get bookmarks_raw count
       const { count: rawCount, error: rawCountError } = await supabase
@@ -113,27 +115,45 @@ export default function TelegramBookmarksDebug() {
         .eq('user_id', user.id)
         .eq('provider', 'telegram');
 
+      addLog(`🔍 Raw query result: ${JSON.stringify({ 
+        data: connectedAccounts, 
+        error: accountError,
+        count: connectedAccounts?.length || 0 
+      })}`);
+
       let connectedAccount = null;
       if (accountError) {
         addLog(`❌ Error fetching connected accounts: ${accountError.message}`);
+        addLog(`❌ Error details: ${JSON.stringify(accountError)}`);
       } else if (!connectedAccounts || connectedAccounts.length === 0) {
         addLog(`📝 No telegram account connected for this user`);
         
         // Check if any telegram accounts exist at all
         const { data: allTelegramAccounts } = await supabase
           .from('connected_accounts')
-          .select('user_id')
+          .select('user_id, status, last_error, created_at')
           .eq('provider', 'telegram');
         
         if (allTelegramAccounts && allTelegramAccounts.length > 0) {
-          addLog(`📝 But ${allTelegramAccounts.length} telegram account(s) exist for other users`);
+          addLog(`📝 But ${allTelegramAccounts.length} telegram account(s) exist for other users:`);
+          allTelegramAccounts.forEach((acc, i) => {
+            addLog(`  ${i+1}. User: ${acc.user_id}, Status: ${acc.status}, Error: ${acc.last_error || 'none'}`);
+          });
+        } else {
+          addLog(`📝 No telegram accounts exist in the system at all`);
         }
       } else if (connectedAccounts.length > 1) {
         addLog(`⚠️ Multiple telegram accounts found (${connectedAccounts.length}), using first one`);
         connectedAccount = connectedAccounts[0];
+        addLog(`📋 Account details: Status=${connectedAccount.status}, Error=${connectedAccount.last_error || 'none'}`);
       } else {
         addLog(`✅ Found telegram account connection`);
         connectedAccount = connectedAccounts[0];
+        addLog(`📋 Account details: Status=${connectedAccount.status}, Error=${connectedAccount.last_error || 'none'}`);
+        addLog(`🔑 Has session: ${connectedAccount.telegram_session_string ? 'Yes' : 'No'}`);
+        if (connectedAccount.telegram_session_string) {
+          addLog(`📏 Session length: ${connectedAccount.telegram_session_string.length} chars`);
+        }
       }
 
       setDebugData({
@@ -158,6 +178,14 @@ export default function TelegramBookmarksDebug() {
 
   const testUpload = async () => {
     addLog('🧪 Starting test upload...');
+    
+    if (!user || !isAuthenticated) {
+      addLog('❌ No authenticated user for upload test');
+      return;
+    }
+    
+    addLog(`🔑 Upload test user: ${user.id}`);
+    addLog(`🔑 Upload test session: ${session ? 'exists' : 'missing'}`);
     
     // Create a minimal test JSON export
     const testExport = {
@@ -249,6 +277,41 @@ export default function TelegramBookmarksDebug() {
     }
   };
 
+  const testDebugEndpoint = async () => {
+    addLog('🔍 Testing debug endpoint...');
+    
+    try {
+      const response = await fetch('/api/debug/telegram-account', {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        addLog(`✅ Debug endpoint result:`);
+        addLog(`  User ID: ${result.user_id}`);
+        addLog(`  Has any accounts: ${result.debug_info?.has_any_accounts}`);
+        addLog(`  Has telegram account: ${result.debug_info?.has_telegram_account}`);
+        addLog(`  Telegram has session: ${result.debug_info?.telegram_has_session}`);
+        addLog(`  Session length: ${result.debug_info?.session_length}`);
+        addLog(`  Total telegram accounts in system: ${result.total_telegram_accounts_in_system}`);
+        
+        if (result.telegram_account) {
+          addLog(`  Telegram account status: ${result.telegram_account.status}`);
+          addLog(`  Last error: ${result.telegram_account.last_error || 'none'}`);
+          addLog(`  Last sync: ${result.telegram_account.last_sync_at || 'never'}`);
+        }
+      } else {
+        addLog(`❌ Debug endpoint failed: ${response.status} - ${JSON.stringify(result)}`);
+      }
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Debug endpoint error';
+      addLog(`💥 Debug endpoint error: ${errorMsg}`);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchDebugData();
@@ -284,6 +347,10 @@ export default function TelegramBookmarksDebug() {
           <Button onClick={testTelegramSync} variant="outline">
             <MessageSquare className="h-4 w-4 mr-2" />
             Test Sync
+          </Button>
+          <Button onClick={testDebugEndpoint} variant="outline">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Test Debug Endpoint
           </Button>
         </div>
       </div>
