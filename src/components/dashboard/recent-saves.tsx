@@ -15,6 +15,7 @@ import { useCollections, useCollectionOperations } from '@/hooks/useCollections'
 import { analyzeBookmarksForCollection, SemanticSuggestion, SemanticAnalysisResult } from '@/services/semanticAnalysis';
 import RefreshAllBookmarksButton from '@/components/dashboard/refresh-all-bookmarks-button';
 import { SUPPORTED_SOURCES, getSourceDisplayName, type Source, type SupportedSource } from '@/constants/sources';
+import { useConnectedAccounts, sourceToProvider } from '@/hooks/useConnectedAccounts';
 
 // Source icon mapping
 const SourceIcon = ({ source }: { source: string }) => {
@@ -1479,13 +1480,33 @@ interface RecentSavesProps {
 }
 
 export default function RecentSaves({ searchResults, isSearchActive, onClearSearch }: RecentSavesProps = {}) {
+  // Get connected accounts data
+  const { isConnected, loading: connectionsLoading } = useConnectedAccounts();
+  
   // Add new state for sort and filter
   const [sortBy, setSortBy] = useState<'created_at' | 'source'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // Default providerFilters to include all available providers including telegram
+  // Available providers and connected providers calculation
   const availableProviders: readonly SupportedSource[] = SUPPORTED_SOURCES;
-  const [providerFilters, setProviderFilters] = useState<Set<string>>(new Set(availableProviders));
+  
+  // Get list of connected providers for filtering - calculate before state initialization
+  const connectedProviders = useMemo(() => {
+    return availableProviders.filter(source => {
+      const provider = sourceToProvider(source);
+      return isConnected(provider);
+    });
+  }, [availableProviders, isConnected]);
+  
+  // Default providerFilters to include connected providers only
+  const [providerFilters, setProviderFilters] = useState<Set<string>>(new Set());
+
+  // Initialize filters with connected providers when connection data loads
+  useEffect(() => {
+    if (!connectionsLoading && connectedProviders.length > 0 && providerFilters.size === 0) {
+      setProviderFilters(new Set(connectedProviders));
+    }
+  }, [connectedProviders, connectionsLoading, providerFilters.size]);
 
   // Add new state for tracking filter changes
   const [isFilterChanging, setIsFilterChanging] = useState(false);
@@ -1567,6 +1588,19 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   // Add state for dropdown
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Add state for connection prompt
+  const [connectionPrompt, setConnectionPrompt] = useState<string | null>(null);
+
+  // Clear connection prompt after a few seconds
+  useEffect(() => {
+    if (connectionPrompt) {
+      const timeout = setTimeout(() => {
+        setConnectionPrompt(null);
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [connectionPrompt]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -1708,6 +1742,16 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   };
 
   const handleProviderFilterToggle = (provider: string) => {
+    // Check if this provider is connected
+    const providerType = sourceToProvider(provider as Source);
+    const isProviderConnected = isConnected(providerType);
+    
+    if (!isProviderConnected) {
+      // Show connection prompt instead of toggling
+      setConnectionPrompt(`Connect ${provider.charAt(0).toUpperCase() + provider.slice(1)} account in profile`);
+      return;
+    }
+    
     setIsFilterChanging(true);
     const newFilters = new Set(providerFilters);
     
@@ -1727,13 +1771,13 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     }
     filterChangeTimeoutRef.current = setTimeout(() => {
       setIsFilterChanging(false);
-    }, 200); // Reduced timeout
+    }, 200);
   };
 
   const clearAllFilters = () => {
     setIsFilterChanging(true);
-    // Set to 'all' instead of empty set for better UX  
-    setProviderFilters(new Set(['all']));
+    // Set to connected providers instead of 'all' for better UX  
+    setProviderFilters(new Set(connectedProviders));
     
     // Clear the timeout and set a new one
     if (filterChangeTimeoutRef.current) {
@@ -1741,23 +1785,23 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     }
     filterChangeTimeoutRef.current = setTimeout(() => {
       setIsFilterChanging(false);
-    }, 200); // Reduced timeout
+    }, 200);
   };
 
-  // Add handler for select all in dropdown
+  // Update handleSelectAllProviders to only include connected providers
   const handleSelectAllProviders = () => {
     setIsFilterChanging(true);
     
-    // Check if all individual providers are selected OR if 'all' is selected
-    const hasAllProviders = availableProviders.every(provider => providerFilters.has(provider));
-    const hasAllOption = providerFilters.has('all');
+    // Only work with connected providers
+    const connectedProviderSet = new Set(connectedProviders);
+    const currentConnectedSelected = Array.from(providerFilters).filter(p => connectedProviderSet.has(p as SupportedSource));
     
-    if (hasAllProviders || hasAllOption) {
-      // If all are selected, clear filters (which will show nothing until user selects)
+    if (currentConnectedSelected.length === connectedProviders.length || providerFilters.has('all')) {
+      // If all connected providers are selected, clear selection
       setProviderFilters(new Set());
     } else {
-      // Select 'all' for better performance and clearer intent
-      setProviderFilters(new Set(['all']));
+      // Select all connected providers
+      setProviderFilters(new Set(connectedProviders));
     }
     
     // Clear the timeout and set a new one
@@ -1766,7 +1810,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
     }
     filterChangeTimeoutRef.current = setTimeout(() => {
       setIsFilterChanging(false);
-    }, 200); // Reduced timeout
+    }, 200);
   };
 
   // Clean up timeout on unmount
@@ -1947,57 +1991,105 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
                     <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-50">
                       <div className="p-2">
                         <div className="text-sm font-medium text-foreground mb-2 px-2">Select Platforms</div>
-                        <div className="space-y-1">
-                          {/* Add Select All option at the top */}
-                          <div
-                            className="flex items-center space-x-2 px-2 py-1.5 hover:bg-muted rounded-sm cursor-pointer border-b border-border mb-1"
-                            onClick={() => {
-                              handleSelectAllProviders();
-                            }}
-                          >
-                            <div className={cn(
-                              "w-4 h-4 rounded border-2 flex items-center justify-center",
-                              (availableProviders.every(provider => providerFilters.has(provider)) || providerFilters.has('all'))
-                                ? "border-primary bg-primary"
-                                : providerFilters.size > 0
-                                ? "border-primary bg-primary/20"
-                                : "border-muted-foreground"
-                            )}>
-                              {(availableProviders.every(provider => providerFilters.has(provider)) || providerFilters.has('all')) && (
-                                <CheckCircle2 className="h-3 w-3 text-white" />
-                              )}
-                              {providerFilters.size > 0 && !providerFilters.has('all') && !availableProviders.every(provider => providerFilters.has(provider)) && (
-                                <div className="w-2 h-2 bg-primary rounded-sm" />
-                              )}
-                            </div>
-                            <span className="text-sm font-medium">
-                              {(availableProviders.every(provider => providerFilters.has(provider)) || providerFilters.has('all')) ? 'Deselect All' : 'Select All'}
-                            </span>
+                        
+                        {/* Connection prompt */}
+                        {connectionPrompt && (
+                          <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                            {connectionPrompt}
                           </div>
-                          
-                          {availableProviders.map(provider => (
+                        )}
+                        
+                        <div className="space-y-1">
+                          {/* Add Select All option at the top - only for connected providers */}
+                          {connectedProviders.length > 0 && (
                             <div
-                              key={provider}
-                              className="flex items-center space-x-2 px-2 py-1.5 hover:bg-muted rounded-sm cursor-pointer"
+                              className="flex items-center space-x-2 px-2 py-1.5 hover:bg-muted rounded-sm cursor-pointer border-b border-border mb-1"
                               onClick={() => {
-                                handleProviderFilterToggle(provider);
+                                handleSelectAllProviders();
                               }}
                             >
                               <div className={cn(
                                 "w-4 h-4 rounded border-2 flex items-center justify-center",
-                                providerFilters.has(provider)
+                                (connectedProviders.every(provider => providerFilters.has(provider)))
                                   ? "border-primary bg-primary"
+                                  : providerFilters.size > 0 && Array.from(providerFilters).some(p => connectedProviders.includes(p as SupportedSource))
+                                  ? "border-primary bg-primary/20"
                                   : "border-muted-foreground"
                               )}>
-                                {providerFilters.has(provider) && (
+                                {connectedProviders.every(provider => providerFilters.has(provider)) && (
                                   <CheckCircle2 className="h-3 w-3 text-white" />
                                 )}
+                                {providerFilters.size > 0 && !connectedProviders.every(provider => providerFilters.has(provider)) && Array.from(providerFilters).some(p => connectedProviders.includes(p as SupportedSource)) && (
+                                  <div className="w-2 h-2 bg-primary rounded-sm" />
+                                )}
                               </div>
-                              <SourceIcon source={provider} />
-                              <span className="capitalize text-sm">{provider}</span>
+                              <span className="text-sm font-medium">
+                                {connectedProviders.every(provider => providerFilters.has(provider)) ? 'Deselect All' : 'Select All Connected'}
+                              </span>
                             </div>
-                          ))}
-                          {providerFilters.size > 0 && (
+                          )}
+                          
+                          {availableProviders.map(provider => {
+                            const providerType = sourceToProvider(provider as Source);
+                            const isProviderConnected = isConnected(providerType);
+                            const isChecked = providerFilters.has(provider);
+                            
+                            return (
+                              <div
+                                key={provider}
+                                className={cn(
+                                  "flex items-center space-x-2 px-2 py-1.5 rounded-sm transition-colors",
+                                  isProviderConnected 
+                                    ? "hover:bg-muted cursor-pointer" 
+                                    : "opacity-50 cursor-not-allowed"
+                                )}
+                                onClick={() => {
+                                  if (isProviderConnected) {
+                                    handleProviderFilterToggle(provider);
+                                  } else {
+                                    // Try to toggle anyway for the prompt
+                                    handleProviderFilterToggle(provider);
+                                  }
+                                }}
+                              >
+                                <div className={cn(
+                                  "w-4 h-4 rounded border-2 flex items-center justify-center",
+                                  isChecked && isProviderConnected
+                                    ? "border-primary bg-primary"
+                                    : isProviderConnected 
+                                    ? "border-muted-foreground"
+                                    : "border-muted-foreground/30"
+                                )}>
+                                  {isChecked && isProviderConnected && (
+                                    <CheckCircle2 className="h-3 w-3 text-white" />
+                                  )}
+                                </div>
+                                <SourceIcon source={provider} />
+                                <span className={cn(
+                                  "capitalize text-sm flex-1",
+                                  isProviderConnected ? "text-foreground" : "text-muted-foreground"
+                                )}>
+                                  {provider}
+                                </span>
+                                {!isProviderConnected && (
+                                  <span className="text-xs text-muted-foreground">Not connected</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                          
+                          {connectedProviders.length === 0 && (
+                            <div className="px-2 py-3 text-center">
+                              <div className="text-xs text-muted-foreground mb-2">
+                                No accounts connected
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Connect accounts in Profile to filter bookmarks
+                              </div>
+                            </div>
+                          )}
+                          
+                          {providerFilters.size > 0 && connectedProviders.length > 0 && (
                             <>
                               <div className="border-t border-border my-1"></div>
                               <div
