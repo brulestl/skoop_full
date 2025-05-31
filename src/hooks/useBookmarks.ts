@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 import { Provider } from './useConnectedAccounts';
+import { comprehensiveSyncService } from '@/services/comprehensiveSyncService';
 
 export interface Bookmark {
   id: string;
@@ -72,6 +73,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
   const [totalCount, setTotalCount] = useState(0);
   const [currentOffset, setCurrentOffset] = useState(0);
   const [isEmpty, setIsEmpty] = useState(false);
+  const [initialSyncPerformed, setInitialSyncPerformed] = useState(false);
   
   // Add debouncing and sync management
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -142,11 +144,70 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     return false;
   };
 
+  // Check if initial sync is needed and perform it
+  const checkAndPerformInitialSync = useCallback(async () => {
+    if (!user || initialSyncPerformed) return false;
+
+    try {
+      console.log('Checking if initial sync is needed...');
+      
+      // Check if this is the user's first time (no bookmarks exist)
+      const shouldSync = await comprehensiveSyncService.shouldPerformInitialSync();
+      
+      if (shouldSync) {
+        console.log('Performing initial comprehensive sync...');
+        setLoading(true);
+        setError(null);
+        
+        // Initialize sync service for this user
+        await comprehensiveSyncService.initialize(user.id, 'manual');
+        
+        // Perform initial sync
+        const result = await comprehensiveSyncService.syncAllBookmarks('initial');
+        
+        if (result.success && result.totalSynced > 0) {
+          console.log(`Initial sync completed successfully: ${result.totalSynced} bookmarks synced`);
+          
+          // Clear any cached data to ensure we fetch fresh data
+          queryCache.clear();
+          
+          // Mark initial sync as performed
+          setInitialSyncPerformed(true);
+          
+          return true; // Indicates that initial sync was performed
+        } else if (result.errors.length > 0) {
+          console.log('Initial sync completed with errors:', result.errors);
+          setError(`Initial sync completed with some errors. ${result.errors[0]}`);
+        } else {
+          console.log('Initial sync completed but no bookmarks were found');
+        }
+      }
+      
+      setInitialSyncPerformed(true);
+      return false;
+    } catch (error) {
+      console.error('Error during initial sync check:', error);
+      setError(error instanceof Error ? error.message : 'Failed to perform initial sync');
+      setInitialSyncPerformed(true);
+      return false;
+    }
+  }, [user, initialSyncPerformed]);
+
   const fetchBookmarks = async (offset = 0, append = false, force = false) => {
     if (!user) {
       setLoading(false);
       setIsEmpty(false);
       return;
+    }
+
+    // Check for initial sync first (only on very first load)
+    if (offset === 0 && !append && !force && !initialSyncPerformed && lastQueryRef.current === '') {
+      const syncPerformed = await checkAndPerformInitialSync();
+      if (syncPerformed) {
+        // If initial sync was performed, we'll fetch fresh data after it completes
+        // The comprehensive sync service will dispatch an event when done
+        return;
+      }
     }
 
     const queryKey = createQueryKey();
@@ -198,55 +259,47 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
       // Filter by multiple providers if specified - HARDENED LOGIC
       // Skip .in() filter in these cases:
       // 1. providers is empty array (would cause Supabase 400 error) 
-      // 2. providers includes 'all' (means fetch all sources)
-      // 3. providers is null/undefined
-      if (providers && providers.length > 0 && !providers.includes('all')) {
-        console.log('Applying source filter:', providers);
-        query = query.in('source', providers);
-      } else {
-        console.log('Skipping source filter - fetching all sources. Providers:', providers);
+      // 2. providers is undefined/null
+      // 3. Only apply .in() filter when providers has valid entries
+      if (providers && Array.isArray(providers) && providers.length > 0) {
+        // Additional safety: only apply if providers contains valid strings
+        const validProviders = providers.filter(p => p && typeof p === 'string' && p.trim().length > 0);
+        if (validProviders.length > 0) {
+          console.log('Applying provider filter:', validProviders);
+          query = query.in('source', validProviders);
+        } else {
+          console.log('Skipping provider filter - no valid providers found');
+        }
       }
 
-      const { data, error, count } = await query;
+      const { data, count, error } = await query;
 
       if (error) {
-        console.error('Error fetching bookmarks:', error);
-        setError(error.message);
+        console.error('Database query error:', error);
+        setError(`Failed to fetch bookmarks: ${error.message}`);
         setIsEmpty(false);
         return;
       }
 
-      // Treat empty data as valid result, not an error
-      const bookmarkData = data || [];
-      const resultCount = count || 0;
-      const isEmptyResult = resultCount === 0;
-      
-      console.log(`Query returned ${bookmarkData.length} bookmarks (count: ${resultCount}, isEmpty: ${isEmptyResult})`);
+      const fetchedBookmarks = data || [];
+      const fetchedCount = count || 0;
 
-      const newBookmarks = bookmarkData.map((bookmark: any) => ({
-        ...bookmark,
-        savedAt: new Date(bookmark.created_at),
-        sourceUrl: bookmark.url,
-        starred: false, // Default value
-        engagement: bookmark.metadata || {}, // Use metadata for engagement data
-      }));
-      
+      console.log(`Query result: ${fetchedBookmarks.length} items, total count: ${fetchedCount}, isEmpty: ${fetchedCount === 0}`);
+
       if (append) {
-        setBookmarks(prev => [...prev, ...newBookmarks]);
-        setCurrentOffset(offset + newBookmarks.length);
+        setBookmarks(prev => [...prev, ...fetchedBookmarks]);
+        setCurrentOffset(offset + fetchedBookmarks.length);
       } else {
-        setBookmarks(newBookmarks);
-        setCurrentOffset(newBookmarks.length);
+        setBookmarks(fetchedBookmarks);
+        setCurrentOffset(fetchedBookmarks.length);
         
-        // Always cache the initial query result - empty results are valid and important to cache
-        if (offset === 0) {
-          setCachedData(queryKey, newBookmarks, resultCount);
-        }
+        // Cache the query result for future use (only for non-append queries)
+        setCachedData(queryKey, fetchedBookmarks, fetchedCount);
       }
 
-      setTotalCount(resultCount);
-      setHasMore(newBookmarks.length === limit && !isEmptyResult);
-      setIsEmpty(isEmptyResult);
+      setTotalCount(fetchedCount);
+      setHasMore(fetchedBookmarks.length === limit && fetchedCount > currentOffset + fetchedBookmarks.length);
+      setIsEmpty(fetchedCount === 0);
       lastQueryRef.current = queryKey;
 
     } catch (err) {
@@ -427,6 +480,36 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     return () => {
       window.removeEventListener('bookmarks-updated', handleBookmarksUpdated);
     };
+  }, []);
+
+  // Listen for comprehensive sync completion events
+  useEffect(() => {
+    const handleComprehensiveSyncComplete = (event: CustomEvent) => {
+      const { results, totalSynced, syncType } = event.detail;
+      
+      if (syncType === 'initial' && totalSynced > 0) {
+        console.log('Initial comprehensive sync completed, refreshing bookmarks...');
+        // Clear cache and refresh data
+        queryCache.clear();
+        setCurrentOffset(0);
+        fetchBookmarks(0, false, true);
+      } else if (syncType !== 'initial') {
+        // For manual or automatic syncs, also refresh
+        console.log('Comprehensive sync completed, refreshing bookmarks...');
+        queryCache.clear();
+        lastAutoSyncRef.current = Date.now();
+        setCurrentOffset(0);
+        fetchBookmarks(0, false, true);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('comprehensive-sync-completed', handleComprehensiveSyncComplete as EventListener);
+      
+      return () => {
+        window.removeEventListener('comprehensive-sync-completed', handleComprehensiveSyncComplete as EventListener);
+      };
+    }
   }, []);
 
   return {

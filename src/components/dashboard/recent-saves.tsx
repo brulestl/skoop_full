@@ -13,7 +13,7 @@ import { useBookmarks } from '@/hooks/useBookmarks';
 import { transformBookmarksForUI, UIBookmark } from '@/utils/transformBookmarks';
 import { useCollections, useCollectionOperations } from '@/hooks/useCollections';
 import { analyzeBookmarksForCollection, SemanticSuggestion, SemanticAnalysisResult } from '@/services/semanticAnalysis';
-import SyncTelegramButton from '@/components/dashboard/sync-telegram-button';
+import RefreshAllBookmarksButton from '@/components/dashboard/refresh-all-bookmarks-button';
 import { SUPPORTED_SOURCES, getSourceDisplayName, type Source, type SupportedSource } from '@/constants/sources';
 
 // Source icon mapping
@@ -1491,11 +1491,28 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   const [isFilterChanging, setIsFilterChanging] = useState(false);
   const filterChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Convert provider filters to the format expected by useBookmarks
+  const providersForQuery = useMemo(() => {
+    // If all providers are selected or if the set is empty, don't apply any filter
+    if (providerFilters.size === 0 || 
+        providerFilters.size === availableProviders.length ||
+        providerFilters.has('all')) {
+      return undefined; // This will fetch all bookmarks without provider filtering
+    }
+    
+    // Filter out any invalid providers and return only valid ones
+    const validProviders = Array.from(providerFilters).filter(provider => 
+      availableProviders.includes(provider as SupportedSource)
+    );
+    
+    return validProviders.length > 0 ? validProviders : undefined;
+  }, [providerFilters, availableProviders]);
+
   // Update useBookmarks call to use the new parameters
   const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount, isEmpty } = useBookmarks({
     sortBy,
     sortOrder,
-    providers: Array.from(providerFilters)
+    providers: providersForQuery
   });
   
   const realBookmarks = useMemo(() => transformBookmarksForUI(bookmarks), [bookmarks]);
@@ -1839,8 +1856,8 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
             </div>
           </div>
           
-          {/* Add Telegram sync button */}
-          <SyncTelegramButton 
+          {/* Add refresh all bookmarks button */}
+          <RefreshAllBookmarksButton 
             size="sm" 
             variant="outline" 
             onSyncComplete={() => {
