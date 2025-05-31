@@ -363,6 +363,37 @@ export default function TelegramBookmarksDebug() {
     }
   };
 
+  const directSessionFix = async () => {
+    addLog('🔧 DIRECT session fix - bypassing all issues...');
+    
+    try {
+      const response = await fetch('/api/debug/direct-session-fix', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        addLog(`✅ DIRECT fix successful:`);
+        addLog(`  Updated records: ${result.updated}`);
+        addLog(`  New session length: ${result.newSessionLength}`);
+        addLog(`  Has spaces: ${result.hasSpaces}`);
+        addLog(`  Fixed: ${result.fixed}`);
+        addLog('🔄 Refreshing debug data...');
+        await fetchDebugData();
+      } else {
+        addLog(`❌ DIRECT fix failed: ${response.status}`);
+        addLog(`❌ Error: ${result.error}`);
+        addLog(`❌ Details: ${result.details}`);
+      }
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Direct fix error';
+      addLog(`💥 Direct fix error: ${errorMsg}`);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchDebugData();
@@ -410,6 +441,10 @@ export default function TelegramBookmarksDebug() {
           <Button onClick={testSimpleEndpoint} variant="outline">
             <MessageSquare className="h-4 w-4 mr-2" />
             Test Simple Endpoint
+          </Button>
+          <Button onClick={directSessionFix} variant="outline">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Direct Session Fix
           </Button>
         </div>
       </div>
