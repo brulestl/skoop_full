@@ -176,22 +176,19 @@ export async function POST(request: NextRequest) {
 
     console.log(`[TG-DEBUG] Prepared ${bookmarkRows.length} bookmarkRows for bookmarks table`)
 
-    // TG-BOOK2: Use existing constraint that we know works
-    console.log('[TG-DEBUG] Attempting bookmarks upsert with user_id,url constraint...');
+    // TG-BOOK2: Test with simple insert first (no conflict resolution)
+    console.log('[TG-DEBUG] Attempting simple bookmarks insert (no conflict resolution)...');
     
     const { data: bookmarkData, error: bookmarkErr } = await supabase
       .from('bookmarks')
-      .upsert(bookmarkRows, { 
-        onConflict: 'user_id,url',  // Use existing constraint that definitely works
-        ignoreDuplicates: false 
-      });
+      .insert(bookmarkRows);  // Simple insert without upsert
 
     if (bookmarkErr) {
       console.error('[TG-DEBUG] TG upload → bookmarks error:', bookmarkErr);
       console.error('[TG-DEBUG] Error details:', JSON.stringify(bookmarkErr, null, 2));
       console.error('[TG-DEBUG] Sample bookmark row:', JSON.stringify(bookmarkRows[0], null, 2));
     } else {
-      console.log(`[TG-DEBUG] Successfully upserted ${bookmarkRows.length} rows into bookmarks table`);
+      console.log(`[TG-DEBUG] Successfully inserted ${bookmarkRows.length} rows into bookmarks table`);
     }
 
     // TASK 2: Update last_sync_message_id if we imported newer messages
