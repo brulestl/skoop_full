@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
-import { TelegramClient } from "https://esm.sh/telegram@2.22.2"
-import { StringSession } from "https://esm.sh/telegram@2.22.2/sessions"
+import { TelegramClient } from "https://esm.sh/telegram@2.19.7"
+import { StringSession } from "https://esm.sh/telegram@2.19.7/sessions"
 // Temporarily commenting out telegram import while debugging
 // import { createTelegramClientWithSession, TelegramClientManager } from './lib/telegramClient.ts'
 
@@ -114,21 +114,31 @@ serve(async (req) => {
     }
 
     console.log(`[TG-SYNC] Using API ID: ${apiId}, Session length: ${connectedAccount.telegram_session_string.length}`);
+    console.log(`[TG-SYNC] Session starts with: ${connectedAccount.telegram_session_string.substring(0, 20)}...`);
 
     // Initialize Telegram client with enhanced error handling
     let client: TelegramClient;
     try {
+      console.log('[TG-SYNC] Creating StringSession...');
       const session = new StringSession(connectedAccount.telegram_session_string);
-      console.log('[TG-SYNC] Created StringSession successfully');
+      console.log('[TG-SYNC] StringSession created successfully');
       
+      console.log('[TG-SYNC] Creating TelegramClient...');
       client = new TelegramClient(session, apiId, apiHash, {
-        connectionRetries: 5,
-        timeout: 30000,
-        useWSS: false, // Try without WSS first
+        connectionRetries: 3,
+        timeout: 20000,
+        useWSS: false,
+        deviceModel: 'Desktop',
+        systemVersion: 'Linux',
+        appVersion: '1.0.0',
+        langCode: 'en',
       });
-      console.log('[TG-SYNC] Created TelegramClient successfully');
+      console.log('[TG-SYNC] TelegramClient created successfully');
     } catch (sessionError) {
       console.error('[TG-SYNC] Error creating Telegram client:', sessionError);
+      console.error('[TG-SYNC] Error name:', sessionError.name);
+      console.error('[TG-SYNC] Error message:', sessionError.message);
+      console.error('[TG-SYNC] Error stack:', sessionError.stack);
       
       await supabaseClient
         .from('connected_accounts')
