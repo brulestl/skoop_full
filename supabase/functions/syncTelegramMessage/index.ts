@@ -55,9 +55,32 @@ serve(async (req) => {
       )
     }
 
-    // Get the current user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
-    if (userError || !user) {
+    // Extract token from Authorization header
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Try to authenticate with the token
+    // First try as session token, then as service role key
+    let authenticated = false
+    let authMethod = ''
+    
+    // Try session token authentication
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
+    if (!userError && user) {
+      authenticated = true
+      authMethod = 'session'
+      console.log(`[SYNC-TG] Authenticated with session token for user: ${user.email}`)
+    } else {
+      // Try service role key authentication
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      if (token === serviceRoleKey) {
+        authenticated = true
+        authMethod = 'service_role'
+        console.log('[SYNC-TG] Authenticated with service role key')
+      }
+    }
+    
+    if (!authenticated) {
+      console.error('[SYNC-TG] Authentication failed:', userError)
       return new Response(
         JSON.stringify({ error: 'Invalid authorization token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
