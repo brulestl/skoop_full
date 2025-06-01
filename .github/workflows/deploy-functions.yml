@@ -14,18 +14,24 @@ jobs:
         with:
           version: latest
           
+      - name: Link project
+        run: |
+          supabase link --project-ref llsjysvklkohnzgmpyob
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          
       - name: Deploy migrations
         run: |
-          supabase db push --project-ref llsjysvklkohnzgmpyob
+          supabase db push --linked
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           
       - name: Deploy functions
         run: |
-          supabase functions deploy generate_summary --project-ref llsjysvklkohnzgmpyob
-          supabase functions deploy telegram_webhook --project-ref llsjysvklkohnzgmpyob
-          supabase functions deploy ingest_telegram_message --project-ref llsjysvklkohnzgmpyob
-          supabase functions deploy ingest_telegram_saved --project-ref llsjysvklkohnzgmpyob
-          supabase functions deploy syncTelegramMessage --project-ref llsjysvklkohnzgmpyob
+          supabase functions deploy generate_summary --linked
+          supabase functions deploy telegram_webhook --linked
+          supabase functions deploy ingest_telegram_message --linked
+          supabase functions deploy ingest_telegram_saved --linked
+          supabase functions deploy syncTelegramMessage --linked
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }} 
