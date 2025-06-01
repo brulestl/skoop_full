@@ -48,6 +48,12 @@
     "dist",
     "supabase",
     "generate_telegram_session.js",
-    "generate_telegram_session.cjs"
+    "generate_telegram_session.cjs",
+    "check_pending_updates.js",
+    "webhook_code_for_dashboard.ts",
+    "deploy_manual.js",
+    "test_bot.js",
+    "test_webhook_direct.js",
+    "setup_telegram_bot.js"
   ]
 }
