@@ -48,15 +48,23 @@ serve(async (req) => {
 
     // Get the authorization header
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    const apikeyHeader = req.headers.get('apikey')
+    
+    if (!authHeader && !apikeyHeader) {
       return new Response(
         JSON.stringify({ error: 'Authorization header required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Extract token from Authorization header
-    const token = authHeader.replace('Bearer ', '')
+    // Extract token from headers - try both Authorization and apikey
+    let token = ''
+    if (authHeader) {
+      token = authHeader.replace('Bearer ', '')
+    } else if (apikeyHeader) {
+      // apikey header might have Bearer prefix or not
+      token = apikeyHeader.startsWith('Bearer ') ? apikeyHeader.replace('Bearer ', '') : apikeyHeader
+    }
     
     // Try to authenticate with the token
     // First try as session token, then as service role key
@@ -80,7 +88,8 @@ serve(async (req) => {
     }
     
     if (!authenticated) {
-      console.error('[SYNC-TG] Authentication failed:', userError)
+      console.error('[SYNC-TG] Authentication failed. Token:', token.substring(0, 20) + '...')
+      console.error('[SYNC-TG] Headers received:', { auth: !!authHeader, apikey: !!apikeyHeader })
       return new Response(
         JSON.stringify({ error: 'Invalid authorization token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
