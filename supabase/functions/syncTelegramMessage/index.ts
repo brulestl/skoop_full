@@ -46,55 +46,26 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     )
 
-    // Get the authorization header
+    // Get the authorization header and validate service role key
     const authHeader = req.headers.get('Authorization')
-    const apikeyHeader = req.headers.get('apikey')
-    
-    if (!authHeader && !apikeyHeader) {
+    const expectedToken = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ error: 'Authorization header required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Extract token from headers - try both Authorization and apikey
-    let token = ''
-    if (authHeader) {
-      token = authHeader.replace('Bearer ', '')
-    } else if (apikeyHeader) {
-      // apikey header might have Bearer prefix or not
-      token = apikeyHeader.startsWith('Bearer ') ? apikeyHeader.replace('Bearer ', '') : apikeyHeader
-    }
-    
-    // Try to authenticate with the token
-    // First try as session token, then as service role key
-    let authenticated = false
-    let authMethod = ''
-    
-    // Try session token authentication
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
-    if (!userError && user) {
-      authenticated = true
-      authMethod = 'session'
-      console.log(`[SYNC-TG] Authenticated with session token for user: ${user.email}`)
-    } else {
-      // Try service role key authentication
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-      if (token === serviceRoleKey) {
-        authenticated = true
-        authMethod = 'service_role'
-        console.log('[SYNC-TG] Authenticated with service role key')
-      }
-    }
-    
-    if (!authenticated) {
-      console.error('[SYNC-TG] Authentication failed. Token:', token.substring(0, 20) + '...')
-      console.error('[SYNC-TG] Headers received:', { auth: !!authHeader, apikey: !!apikeyHeader })
+    const token = authHeader.replace('Bearer ', '')
+    if (token !== expectedToken) {
       return new Response(
-        JSON.stringify({ error: 'Invalid authorization token' }),
+        JSON.stringify({ error: 'Invalid service token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('[SYNC-TG] Authenticated with service role key')
 
     // Parse and validate request payload
     const payload: TelegramMessagePayload = await req.json()
