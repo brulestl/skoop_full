@@ -1,3 +1,5 @@
+// Supabase Edge Function: Ingest Telegram Saved Messages
+// Updated: Triggering deployment
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 import { TelegramClient } from "https://esm.sh/telegram@2.19.7"
@@ -168,12 +170,12 @@ serve(async (req) => {
     if (!apiId || !apiHash) {
       console.error('[TG-SYNC] Missing Telegram API credentials');
       await supabaseClient
-        .from('connected_accounts')
-        .update({
+      .from('connected_accounts')
+      .update({ 
           status: 'error',
           last_error: 'Telegram API credentials not configured',
-          updated_at: new Date().toISOString()
-        })
+        updated_at: new Date().toISOString()
+      })
         .eq('user_id', user.id)
         .eq('provider', 'telegram');
         
@@ -426,7 +428,7 @@ serve(async (req) => {
       
       const { error: updateError } = await supabaseClient
         .from('connected_accounts')
-        .update({
+        .update({ 
           last_sync_message_id: maxMessageId,
           last_sync_at: new Date().toISOString(),
           status: 'active',
@@ -467,7 +469,7 @@ serve(async (req) => {
 
       if (bookmarkErr) {
         console.error('[TG-DEBUG] TG sync → bookmarks error:', bookmarkErr);
-      } else {
+        } else {
         console.log(`[TG-DEBUG] Successfully upserted ${bookmarkRows.length} rows into bookmarks table`);
       }
 
@@ -490,7 +492,7 @@ serve(async (req) => {
         .update({
           status: 'error',
           last_error: telegramError.message,
-          updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id)
         .eq('provider', 'telegram');
