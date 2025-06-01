@@ -19,5 +19,6 @@ jobs:
           supabase functions deploy generate_summary --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy telegram_webhook --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy ingest_telegram_message --project-ref llsjysvklkohnzgmpyob
+          supabase functions deploy ingest_telegram_saved --project-ref llsjysvklkohnzgmpyob
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }} 
