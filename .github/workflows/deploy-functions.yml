@@ -2,7 +2,7 @@ name: Deploy Supabase Functions
 on:
   push:
     branches: [main]
-    paths: ['supabase/functions/**']
+    paths: ['supabase/functions/**', 'supabase/migrations/**']
 
 jobs:
   deploy:
@@ -14,11 +14,18 @@ jobs:
         with:
           version: latest
           
+      - name: Deploy migrations
+        run: |
+          supabase db push --project-ref llsjysvklkohnzgmpyob
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          
       - name: Deploy functions
         run: |
           supabase functions deploy generate_summary --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy telegram_webhook --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy ingest_telegram_message --project-ref llsjysvklkohnzgmpyob
           supabase functions deploy ingest_telegram_saved --project-ref llsjysvklkohnzgmpyob
+          supabase functions deploy syncTelegramMessage --project-ref llsjysvklkohnzgmpyob
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }} 
