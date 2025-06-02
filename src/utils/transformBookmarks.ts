@@ -28,6 +28,15 @@ export interface UIBookmark {
     watches?: number;
   };
   image?: string | null;
+  // Telegram-specific metadata
+  telegramMetadata?: {
+    has_images: boolean;
+    image_count: number;
+    image_urls?: string[];
+    media_type?: 'photo' | 'video' | 'document';
+    telegram_message_id?: string;
+    chat_id?: string;
+  };
 }
 
 /**
@@ -35,45 +44,63 @@ export interface UIBookmark {
  */
 export function transformBookmarkForUI(bookmark: Bookmark): UIBookmark {
   // Extract engagement metrics from metadata if available
-  const metadata = (bookmark as any).metadata || {};
-  let engagement: UIBookmark['engagement'] = { saves: 1 };
+  const metadata = bookmark.metadata || {};
+  let engagement = {
+    stars: 0,
+    forks: 0,
+    saves: 0,
+    likes: 0,
+    retweets: 0,
+    replies: 0,
+    votes: 0,
+    answers: 0,
+    views: 0,
+    upvotes: 0,
+    comments: 0,
+    awards: 0,
+    watches: 0
+  };
 
-  // Debug logging to see what data we're getting
+  // Extract engagement based on source
   if (bookmark.source === 'github') {
-    console.log('GitHub bookmark:', bookmark.title, 'Metadata:', metadata);
+    engagement.stars = metadata.stars || 0;
+    engagement.forks = metadata.forks || 0;
+    engagement.watches = metadata.watchers || 0;
+  } else if (bookmark.source === 'twitter') {
+    engagement.likes = metadata.likes || metadata.favorite_count || 0;
+    engagement.retweets = metadata.retweets || metadata.retweet_count || 0;
+    engagement.replies = metadata.replies || metadata.reply_count || 0;
+  } else if (bookmark.source === 'reddit') {
+    engagement.upvotes = metadata.upvotes || metadata.score || 0;
+    engagement.comments = metadata.comments || metadata.num_comments || 0;
+    engagement.awards = metadata.awards || 0;
+  } else if (bookmark.source === 'stack') {
+    engagement.votes = metadata.votes || metadata.score || 0;
+    engagement.answers = metadata.answers || metadata.answer_count || 0;
+    engagement.views = metadata.views || metadata.view_count || 0;
   }
 
-  if (bookmark.source === 'github') {
-    engagement = {
-      stars: metadata.stars || 0,
-      forks: metadata.forks || 0,
-      saves: 1
+  // Extract Telegram-specific metadata
+  let telegramMetadata = undefined;
+  if (bookmark.source === 'telegram' && metadata) {
+    telegramMetadata = {
+      has_images: metadata.has_images || false,
+      image_count: metadata.image_count || 0,
+      image_urls: metadata.image_urls || [],
+      media_type: metadata.media_type,
+      telegram_message_id: metadata.telegram_message_id,
+      chat_id: metadata.chat_id
     };
-  } else if (bookmark.source === 'twitter') {
-    engagement = {
-      likes: metadata.likes || 0,
-      retweets: metadata.retweets || 0,
-      replies: metadata.replies || 0,
-      saves: 1
-    };
-  } else if (bookmark.source === 'stack') {
-    engagement = {
-      votes: metadata.votes || 0,
-      answers: metadata.answers || 0,
-      views: metadata.views || 0,
-      saves: 1
-    };
-  } else if (bookmark.source === 'reddit') {
-    engagement = {
-      upvotes: metadata.upvotes || 0,
-      comments: metadata.comments || 0,
-      awards: metadata.awards || 0,
-      saves: 1
-    };
-  } else if (bookmark.source === 'telegram') {
-    engagement = {
-      saves: metadata.engagement?.saves || 1,
-    };
+  }
+
+  // Extract image - prioritize Telegram images, then fallback to general metadata
+  let image = null;
+  if (telegramMetadata?.has_images && telegramMetadata.image_urls?.length > 0) {
+    // For Telegram, we store file_ids, not direct URLs
+    // The UI will need to handle file_id to URL conversion if needed
+    image = telegramMetadata.image_urls[0]; // Use first image as primary
+  } else if (metadata.image || metadata.image_url) {
+    image = metadata.image || metadata.image_url;
   }
 
   // Map backend provider to frontend source  
@@ -96,12 +123,13 @@ export function transformBookmarkForUI(bookmark: Bookmark): UIBookmark {
     description: bookmark.description || '',
     content: bookmark.summary || bookmark.description || '',
     source: mapProviderToSource(bookmark.source || 'github'),
-    sourceUrl: bookmark.url,
+    sourceUrl: bookmark.url || '', // Handle nullable URL for Telegram
     savedAt: new Date(bookmark.created_at),
     tags: bookmark.tags || [],
     starred: false, // Can be enhanced later with user preferences
     engagement,
-    image: null // Can be enhanced later with metadata extraction
+    image,
+    telegramMetadata
   };
 }
 

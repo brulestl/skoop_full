@@ -64,17 +64,31 @@ export async function POST(request: NextRequest) {
     // Convert Telegram messages to bookmark format
     const bookmarkRows = telegramMessages
       .filter(msg => msg.text && msg.text.trim().length > 0) // Only messages with text
-      .map(msg => ({
-        user_id: session.user.id,
-        source: 'telegram',
-        provider_item_id: parseInt(msg.message_id),
-        url: null, // Telegram messages don't have URLs
-        title: msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text,
-        description: msg.text,
-        tags: ['telegram'],
-        created_at: msg.timestamp || new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
+      .map(msg => {
+        // Handle image URLs - store in metadata
+        const hasImages = msg.image_urls && Array.isArray(msg.image_urls) && msg.image_urls.length > 0;
+        const metadata = {
+          telegram_message_id: msg.message_id,
+          chat_id: msg.chat_id,
+          has_images: hasImages,
+          image_count: hasImages ? msg.image_urls.length : 0,
+          ...(hasImages && { image_urls: msg.image_urls }),
+          original_timestamp: msg.timestamp
+        };
+
+        return {
+          user_id: session.user.id,
+          source: 'telegram',
+          provider_item_id: parseInt(msg.message_id),
+          url: null, // Telegram messages don't have URLs
+          title: msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text,
+          description: msg.text,
+          tags: hasImages ? ['telegram', 'images'] : ['telegram'],
+          metadata: metadata,
+          created_at: msg.timestamp || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      });
 
     if (bookmarkRows.length === 0) {
       return NextResponse.json({

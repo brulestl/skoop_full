@@ -63,6 +63,17 @@ export async function POST(request: NextRequest) {
         // Create title (truncate if too long)
         const title = msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text;
         
+        // Handle image URLs - store in metadata
+        const hasImages = msg.image_urls && Array.isArray(msg.image_urls) && msg.image_urls.length > 0;
+        const metadata = {
+          telegram_message_id: msg.message_id,
+          chat_id: msg.chat_id,
+          has_images: hasImages,
+          image_count: hasImages ? msg.image_urls.length : 0,
+          ...(hasImages && { image_urls: msg.image_urls }),
+          original_timestamp: msg.timestamp
+        };
+        
         return {
           user_id: session.user.id,
           source: 'telegram',
@@ -70,7 +81,8 @@ export async function POST(request: NextRequest) {
           url: null, // Telegram messages don't have URLs
           title: title,
           description: msg.text,
-          tags: ['telegram'],
+          tags: hasImages ? ['telegram', 'images'] : ['telegram'],
+          metadata: metadata,
           created_at: msg.timestamp ? new Date(msg.timestamp).toISOString() : new Date().toISOString(),
           updated_at: new Date().toISOString()
         };

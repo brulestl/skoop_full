@@ -28,6 +28,7 @@ INSERT INTO bookmarks (
     title,
     description,
     tags,
+    metadata,
     created_at,
     updated_at
 )
@@ -41,7 +42,19 @@ SELECT
         ELSE text
     END as title,
     text as description,
-    ARRAY['telegram'] as tags,
+    CASE 
+        WHEN image_urls IS NOT NULL AND array_length(image_urls, 1) > 0 
+        THEN ARRAY['telegram', 'images']
+        ELSE ARRAY['telegram']
+    END as tags,
+    jsonb_build_object(
+        'telegram_message_id', message_id,
+        'chat_id', chat_id,
+        'has_images', CASE WHEN image_urls IS NOT NULL AND array_length(image_urls, 1) > 0 THEN true ELSE false END,
+        'image_count', COALESCE(array_length(image_urls, 1), 0),
+        'image_urls', CASE WHEN image_urls IS NOT NULL AND array_length(image_urls, 1) > 0 THEN to_jsonb(image_urls) ELSE NULL END,
+        'original_timestamp', timestamp
+    ) as metadata,
     COALESCE(timestamp, NOW()) as created_at,
     NOW() as updated_at
 FROM telegram_messages 
@@ -52,6 +65,8 @@ ON CONFLICT (user_id, source, provider_item_id)
 DO UPDATE SET
     title = EXCLUDED.title,
     description = EXCLUDED.description,
+    tags = EXCLUDED.tags,
+    metadata = EXCLUDED.metadata,
     updated_at = NOW();
 
 -- Step 4: Show migration results

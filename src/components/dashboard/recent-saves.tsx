@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown, Send, Linkedin, Facebook, FileText, Mail } from "lucide-react";
+import { Github, X, BookmarkIcon, Code as StackOverflow, MessageSquare as Reddit, Star, ArrowUp, Sparkles, ExternalLink, FolderPlus, TrendingUp, Calendar, Heart, CheckCircle2, RefreshCw, Trash2, FolderIcon, Filter, ChevronDown, Send, Linkedin, Facebook, FileText, Mail, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AISummary from "@/components/ai/summary";
 import { cn } from "@/lib/utils";
@@ -18,19 +18,33 @@ import { SUPPORTED_SOURCES, getSourceDisplayName, type Source, type SupportedSou
 import { useConnectedAccounts, sourceToProvider } from '@/hooks/useConnectedAccounts';
 
 // Source icon mapping
-const SourceIcon = ({ source }: { source: string }) => {
-  switch (source) {
-    case "github": return <Github className="h-4 w-4" />;
-    case "twitter": return <X className="h-4 w-4" />;
-    case "stackoverflow": return <StackOverflow className="h-4 w-4" />;
-    case "reddit": return <Reddit className="h-4 w-4" />;
-    case "telegram": return <Send className="h-4 w-4" />;
-    case "linkedin": return <Linkedin className="h-4 w-4" />;
-    case "facebook": return <Facebook className="h-4 w-4" />;
-    case "medium": return <FileText className="h-4 w-4" />;
-    case "substack": return <Mail className="h-4 w-4" />;
-    default: return <BookmarkIcon className="h-4 w-4" />;
+const SourceIcon = ({ source, telegramMetadata }: { source: string; telegramMetadata?: any }) => {
+  const baseIcon = (() => {
+    switch (source) {
+      case "github": return <Github className="h-4 w-4" />;
+      case "twitter": return <X className="h-4 w-4" />;
+      case "stackoverflow": return <StackOverflow className="h-4 w-4" />;
+      case "reddit": return <Reddit className="h-4 w-4" />;
+      case "telegram": return <Send className="h-4 w-4" />;
+      case "linkedin": return <Linkedin className="h-4 w-4" />;
+      case "facebook": return <Facebook className="h-4 w-4" />;
+      case "medium": return <FileText className="h-4 w-4" />;
+      case "substack": return <Mail className="h-4 w-4" />;
+      default: return <BookmarkIcon className="h-4 w-4" />;
+    }
+  })();
+
+  // Add image indicator for Telegram messages with images
+  if (source === "telegram" && telegramMetadata?.has_images) {
+    return (
+      <div className="flex items-center space-x-1">
+        {baseIcon}
+        <ImageIcon className="h-3 w-3 text-blue-400" />
+      </div>
+    );
   }
+
+  return baseIcon;
 };
 
 // Card component for the grid view
@@ -137,8 +151,13 @@ const SaveCard = ({
         {!save.image && (
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-1 text-muted-foreground text-sm">
-              <SourceIcon source={save.source} />
+              <SourceIcon source={save.source} telegramMetadata={save.telegramMetadata} />
               <span className="capitalize">{save.source}</span>
+              {save.telegramMetadata?.has_images && (
+                <span className="text-xs text-blue-600">
+                  • {save.telegramMetadata.image_count} image{save.telegramMetadata.image_count > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               {bulkSelectionMode && (
@@ -309,8 +328,13 @@ const SaveListItem = ({
         <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-2">
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              <SourceIcon source={save.source} />
+              <SourceIcon source={save.source} telegramMetadata={save.telegramMetadata} />
               <span className="capitalize">{save.source}</span>
+              {save.telegramMetadata?.has_images && (
+                <span className="text-xs text-blue-600 flex items-center space-x-1">
+                  <span>{save.telegramMetadata.image_count} image{save.telegramMetadata.image_count > 1 ? 's' : ''}</span>
+                </span>
+              )}
               {save.starred && <Star className="h-4 w-4 text-amber-500 fill-current" />}
             </div>
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
