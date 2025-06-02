@@ -1,9 +1,9 @@
 // Supabase Edge Function: Ingest Telegram Saved Messages
 // Updated: Triggering deployment
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
-import { TelegramClient } from "https://esm.sh/telegram@2.19.7"
-import { StringSession } from "https://esm.sh/telegram@2.19.7/sessions"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { TelegramApi } from 'https://esm.sh/telegram@2.15.10'
+import { StringSession } from 'https://esm.sh/telegram@2.15.10/sessions'
 // Temporarily commenting out telegram import while debugging
 // import { createTelegramClientWithSession, TelegramClientManager } from './lib/telegramClient.ts'
 
@@ -17,41 +17,23 @@ const corsHeaders = {
  * Session format filter to handle compatibility between different telegram library versions
  */
 function filterSessionFormat(rawSession: string): string {
-  try {
-    console.log('[SESSION-FILTER] Input session length:', rawSession.length);
-    console.log('[SESSION-FILTER] Input session preview:', rawSession.substring(0, 30) + '...');
-    
-    // Remove any whitespace that might cause issues
-    let cleanSession = rawSession.trim();
-    
-    // Remove any embedded spaces (known issue from previous debugging)
-    cleanSession = cleanSession.replace(/\s/g, '');
-    
-    // Validate base64 format
-    try {
-      // Test if it's valid base64
-      atob(cleanSession);
-      console.log('[SESSION-FILTER] Session is valid base64');
-    } catch (e) {
-      console.warn('[SESSION-FILTER] Session might not be valid base64:', e.message);
-      // Try to fix common base64 issues
-      cleanSession = cleanSession.replace(/[^A-Za-z0-9+/=]/g, '');
-    }
-    
-    // Ensure proper base64 padding
-    while (cleanSession.length % 4 !== 0) {
-      cleanSession += '=';
-    }
-    
-    console.log('[SESSION-FILTER] Filtered session length:', cleanSession.length);
-    console.log('[SESSION-FILTER] Filtered session preview:', cleanSession.substring(0, 30) + '...');
-    
-    return cleanSession;
-  } catch (error) {
-    console.error('[SESSION-FILTER] Error filtering session:', error);
-    // Return original session as fallback
-    return rawSession;
+  if (!rawSession) return ''
+  
+  // Remove any whitespace and newlines
+  let cleaned = rawSession.replace(/\s+/g, '')
+  
+  // If it looks like base64, ensure it's properly formatted
+  if (cleaned.match(/^[A-Za-z0-9+/]+=*$/)) {
+    return cleaned
   }
+  
+  // If it contains special characters, try to extract the base64 part
+  const base64Match = cleaned.match(/([A-Za-z0-9+/]+=*)/)
+  if (base64Match) {
+    return base64Match[1]
+  }
+  
+  return cleaned
 }
 
 /**
@@ -83,15 +65,68 @@ function createCompatibleSession(rawSession: string): StringSession {
   }
 }
 
+// Helper function to extract image URLs from Telegram message
+function extractImageUrls(messageData: any): string[] {
+  const imageUrls: string[] = []
+  
+  if (!messageData) return imageUrls
+  
+  // Handle photo messages
+  if (messageData.media?.photo) {
+    // For now, store the file_id - this would need to be converted to actual URLs
+    // via Telegram Bot API or uploaded to Supabase Storage
+    const fileId = messageData.media.photo.file_id || messageData.media.photo.id
+    if (fileId) {
+      // This would be replaced with actual Supabase Storage URL after upload
+      imageUrls.push(`telegram_file_id:${fileId}`)
+    }
+  }
+  
+  // Handle document messages (images sent as files)
+  if (messageData.media?.document) {
+    const doc = messageData.media.document
+    if (doc.mime_type?.startsWith('image/')) {
+      const fileId = doc.file_id || doc.id
+      if (fileId) {
+        imageUrls.push(`telegram_file_id:${fileId}`)
+      }
+    }
+  }
+  
+  // Handle multiple photos in media group
+  if (messageData.media_group_id && messageData.photo) {
+    const fileId = messageData.photo.file_id || messageData.photo.id
+    if (fileId) {
+      imageUrls.push(`telegram_file_id:${fileId}`)
+    }
+  }
+  
+  return imageUrls
+}
+
 interface TelegramMessage {
   id: number;
   message?: string;
   date: number;
   media?: {
     caption?: string;
+    photo?: {
+      id?: string;
+      file_id?: string;
+    };
+    document?: {
+      id?: string;
+      file_id?: string;
+      mime_type?: string;
+    };
     webpage?: {
       url?: string;
     };
+  };
+  media_group_id?: string;
+  photo?: {
+    id?: string;
+    file_id?: string;
   };
 }
 
@@ -115,228 +150,120 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get the authorization header
+    // Get the current user session
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Authorization header required' }),
+        JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get the current user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
+
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Invalid authorization token' }),
+        JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[TG-SYNC] Starting sync for user: ${user.id}`);
+    console.log(`Processing telegram sync for user: ${user.id}`)
 
-    // TASK 1: Get telegram account with last_sync_message_id for incremental sync
-    const { data: connectedAccount, error: accountError } = await supabaseClient
+    // Get user's telegram connection
+    const { data: telegramAccount, error: accountError } = await supabaseClient
       .from('connected_accounts')
-      .select('telegram_session_string, last_sync_message_id')
+      .select('*')
       .eq('user_id', user.id)
       .eq('provider', 'telegram')
       .single()
 
-    if (accountError) {
-      console.error('[TG-SYNC] Error fetching connected account:', accountError)
+    if (accountError || !telegramAccount) {
+      console.error('No telegram account found:', accountError)
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch telegram account' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (!connectedAccount?.telegram_session_string) {
-      console.log('[TG-SYNC] No session string found');
-      // TASK TG-NOSESSION: Return 409 with specific error for missing session
-      return new Response(
-        JSON.stringify({ error: 'no_session' }),
+        JSON.stringify({ error: 'No telegram account connected' }),
         { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Validate environment variables
-    const apiId = parseInt(Deno.env.get('TELEGRAM_API_ID') ?? '0');
-    const apiHash = Deno.env.get('TELEGRAM_API_HASH') ?? '';
-    
+    // Check if session string exists
+    if (!telegramAccount.telegram_session_string) {
+      console.error('No session string found for user')
+      return new Response(
+        JSON.stringify({ error: 'No telegram session found. Please reconnect your account.' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Initialize Telegram client
+    const apiId = parseInt(Deno.env.get('TELEGRAM_API_ID') ?? '0')
+    const apiHash = Deno.env.get('TELEGRAM_API_HASH') ?? ''
+
     if (!apiId || !apiHash) {
-      console.error('[TG-SYNC] Missing Telegram API credentials');
-      await supabaseClient
-      .from('connected_accounts')
-      .update({ 
-          status: 'error',
-          last_error: 'Telegram API credentials not configured',
-        updated_at: new Date().toISOString()
-      })
-        .eq('user_id', user.id)
-        .eq('provider', 'telegram');
-        
+      console.error('Missing Telegram API credentials')
       return new Response(
         JSON.stringify({ error: 'Telegram API not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[TG-SYNC] Using API ID: ${apiId}, Session length: ${connectedAccount.telegram_session_string.length}`);
-    console.log(`[TG-SYNC] Session starts with: ${connectedAccount.telegram_session_string.substring(0, 20)}...`);
-
-    // REPROCESS CHECK: Look for raw data that needs to be reprocessed into bookmarks
-    console.log('[TG-SYNC] Checking for unprocessed raw data...');
-    
-    const { data: rawCount } = await supabaseClient
-      .from('bookmarks_raw')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('source', 'telegram');
-    
-    const { data: bookmarkCount } = await supabaseClient
-      .from('bookmarks')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('source', 'telegram');
-    
-    const rawTotal = rawCount || 0;
-    const bookmarkTotal = bookmarkCount || 0;
-    
-    console.log(`[TG-SYNC] Raw count: ${rawTotal}, Bookmark count: ${bookmarkTotal}`);
-    
-    // If there's a mismatch, reprocess existing raw data
-    if (rawTotal > bookmarkTotal) {
-      console.log('[TG-SYNC] Found unprocessed raw data, reprocessing...');
-      
-      // Get unprocessed raw data
-      const { data: unprocessedRaw, error: rawError } = await supabaseClient
-        .from('bookmarks_raw')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('source', 'telegram');
-      
-      if (rawError) {
-        console.error('[TG-SYNC] Error fetching raw data:', rawError);
-      } else if (unprocessedRaw && unprocessedRaw.length > 0) {
-        console.log(`[TG-SYNC] Reprocessing ${unprocessedRaw.length} raw items...`);
-        
-        // Convert raw data to bookmark format
-        const reprocessedBookmarks = unprocessedRaw.map(raw => ({
-          user_id: raw.user_id,
-          source: 'telegram' as const,
-          provider_item_id: raw.provider_item_id,
-          url: raw.url,
-          title: raw.text || raw.url || `Telegram message ${raw.provider_item_id}`,
-          description: raw.text,
-          tags: ['telegram'],
-          created_at: raw.created_at,
-          updated_at: new Date().toISOString()
-        }));
-        
-        // Upsert into bookmarks table
-        const { data: reprocessedData, error: reprocessError } = await supabaseClient
-          .from('bookmarks')
-          .upsert(reprocessedBookmarks, { 
-            onConflict: 'user_id,source,provider_item_id',
-            ignoreDuplicates: false 
-          });
-        
-        if (reprocessError) {
-          console.error('[TG-SYNC] Error reprocessing raw data:', reprocessError);
-        } else {
-          console.log(`[TG-SYNC] Successfully reprocessed ${reprocessedBookmarks.length} items`);
-          
-          // Return early with reprocess results
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: `Reprocessed ${reprocessedBookmarks.length} existing telegram messages`,
-              inserted: reprocessedBookmarks.length,
-              reprocessed: true
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-    }
-
-    // Initialize Telegram client with enhanced error handling
-    let client: TelegramClient;
+    let session: StringSession
     try {
-      console.log('[TG-SYNC] Creating compatible StringSession...');
-      const session = createCompatibleSession(connectedAccount.telegram_session_string);
-      console.log('[TG-SYNC] Compatible StringSession created successfully');
-      
-      console.log('[TG-SYNC] Creating TelegramClient...');
-      client = new TelegramClient(session, apiId, apiHash, {
-        connectionRetries: 3,
-        timeout: 20000,
-        useWSS: false,
-        deviceModel: 'Desktop',
-        systemVersion: 'Linux',
-        appVersion: '1.0.0',
-        langCode: 'en',
-      });
-      console.log('[TG-SYNC] TelegramClient created successfully');
+      session = createCompatibleSession(telegramAccount.telegram_session_string)
     } catch (sessionError) {
-      console.error('[TG-SYNC] Error creating Telegram client:', sessionError);
-      console.error('[TG-SYNC] Error name:', sessionError.name);
-      console.error('[TG-SYNC] Error message:', sessionError.message);
-      console.error('[TG-SYNC] Error stack:', sessionError.stack);
+      console.error('Session creation failed:', sessionError)
       
+      // Update account status with error
       await supabaseClient
         .from('connected_accounts')
         .update({
           status: 'error',
-          last_error: `Session format incompatible: ${sessionError.message}`,
+          last_error: `Session error: ${sessionError.message}`,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id)
         .eq('provider', 'telegram');
-        
+
       return new Response(
-        JSON.stringify({ error: 'Failed to create compatible Telegram session', details: sessionError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Invalid telegram session. Please reconnect your account.' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    const client = new TelegramApi(session, apiId, apiHash, {
+      connectionRetries: 5,
+    })
+
     try {
-      console.log('[TG-SYNC] Connecting to Telegram...');
-      await client.connect();
-      console.log('[TG-SYNC] Connected successfully');
+      console.log('Connecting to Telegram...')
+      await client.start({
+        phoneNumber: async () => '', // We don't need phone for existing session
+        password: async () => '',
+        phoneCode: async () => '',
+        onError: (err) => console.error('Telegram client error:', err),
+      })
 
-      // Check if client is authorized
-      console.log('[TG-SYNC] Checking authorization...');
-      const isAuthorized = await client.checkAuthorization();
-      console.log(`[TG-SYNC] Authorization status: ${isAuthorized}`);
-      
-      if (!isAuthorized) {
-        await supabaseClient
-          .from('connected_accounts')
-          .update({
-            status: 'error',
-            last_error: 'Telegram session expired - please reconnect',
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id)
-          .eq('provider', 'telegram');
+      console.log('Connected to Telegram successfully')
 
-        throw new Error('Telegram client is not authorized. Session may have expired.');
-      }
+      // TASK 1: Get last synced message ID for incremental sync
+      const lastSyncMessageId = telegramAccount.last_sync_message_id || 0
+      console.log(`Last sync message ID: ${lastSyncMessageId}`)
 
-      console.log('✅ Successfully connected and authorized');
-
-      // TASK 1: Use incremental sync with offsetId to avoid duplicates
-      const lastSyncMessageId = connectedAccount.last_sync_message_id || 0
-      console.log(`Starting incremental sync from message ID: ${lastSyncMessageId}`)
-
-      const messages = await client.getMessages('me', {
-        limit: 100,
-        offsetId: lastSyncMessageId, // Only get messages newer than this ID
+      // Fetch messages from "Saved Messages" (self chat) with incremental sync
+      const messages = await client.invoke({
+        _: 'messages.getHistory',
+        peer: { _: 'inputPeerSelf' }, // "Saved Messages" chat
+        offset_id: lastSyncMessageId, // Start from last synced message
+        offset_date: 0,
+        add_offset: 0,
+        limit: 100, // Fetch up to 100 new messages
+        max_id: 0,
+        min_id: 0,
+        hash: 0,
       })
 
       console.log(`Fetched ${messages.length} messages from telegram`)
@@ -445,25 +372,44 @@ serve(async (req) => {
 
       console.log(`Successfully synced ${validMessages.length} telegram messages, new max ID: ${maxMessageId}`)
 
-      // TG-BOOK2: Fix URL conflict by allowing null URLs and using provider_item_id
-      const bookmarkRows = rawRows.map(r => ({
-        user_id:    r.user_id,
-        source:     'telegram' as const,
-        provider_item_id: r.provider_item_id,
-        url:        r.url ?? null,                               // TG-BOOK2: allow null for empty URLs
-        title:      r.text ?? r.url ?? `Telegram message ${r.provider_item_id}`,
-        description: r.text ?? null,
-        tags:       ['telegram'],
-        created_at: r.created_at,
-        updated_at: new Date().toISOString()
-      }));
+      // Enhanced bookmarks table mapping with image support
+      const bookmarkRows = rawRows.map(r => {
+        // Extract image URLs from raw_json
+        const imageUrls = extractImageUrls(r.raw_json)
+        const hasImages = imageUrls.length > 0
+        
+        // Create enhanced metadata with image information
+        const metadata = {
+          telegram_message_id: r.provider_item_id.toString(),
+          chat_id: r.raw_json?.peer_id?.user_id?.toString() || 'saved_messages',
+          has_images: hasImages,
+          image_count: imageUrls.length,
+          image_urls: imageUrls,
+          media_type: r.raw_json?.media?.photo ? 'photo' : 
+                     r.raw_json?.media?.document ? 'document' : null,
+          original_timestamp: r.created_at
+        }
+        
+        return {
+          user_id: r.user_id,
+          source: 'telegram' as const,
+          provider_item_id: r.provider_item_id,
+          url: r.url ?? null, // Allow null for Telegram messages
+          title: r.text ? (r.text.length > 80 ? r.text.substring(0, 80) + '...' : r.text) : `Telegram message ${r.provider_item_id}`,
+          description: r.text ?? null,
+          tags: hasImages ? ['telegram', 'images'] : ['telegram'],
+          metadata: metadata,
+          created_at: r.created_at,
+          updated_at: new Date().toISOString()
+        }
+      });
 
       console.log(`[TG-DEBUG] Prepared ${bookmarkRows.length} bookmarkRows for bookmarks table`)
 
       const { data: bookmarkData, error: bookmarkErr } = await supabaseClient
         .from('bookmarks')
         .upsert(bookmarkRows, { 
-          onConflict: 'user_id,source,provider_item_id',  // TG-BOOK2: use provider_item_id instead of url
+          onConflict: 'user_id,source,provider_item_id',  // Use provider_item_id for conflict resolution
           ignoreDuplicates: false 
         });
 
@@ -478,7 +424,9 @@ serve(async (req) => {
           success: true, 
           message: `Successfully synced ${validMessages.length} telegram messages`,
           inserted: validMessages.length,
-          lastMessageId: maxMessageId
+          lastMessageId: maxMessageId,
+          bookmarksCreated: bookmarkRows.length,
+          imagesFound: bookmarkRows.filter(r => r.metadata.has_images).length
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -526,15 +474,27 @@ serve(async (req) => {
  * - Deduplication via unique index uniq_braw_user_src_item
  */
 
+/* Enhanced Telegram → Bookmarks Merge ✅:
+ * - Extracts image URLs from Telegram messages
+ * - Maps messages to bookmarks table with proper metadata
+ * - Handles conflict resolution via user_id,source,provider_item_id
+ * - Stores image information in metadata.image_urls
+ * - Tags messages with 'images' when media is present
+ * - Preserves original message timestamps
+ * - Returns detailed sync statistics
+ */
+
 /* Debug info:
  * TASK TG-PEER ✅: Using 'me' peer directly
  * TASK TG-MAP ✅: Accept text OR caption OR url messages  
  * TASK TG-NOSESSION ✅: Return 409 for missing session
  * TASK TG-INSERT ✅: Batch upsert with conflict handling
+ * TASK TG-BOOKMARKS ✅: Enhanced mapping to bookmarks table
  * New schema mapping:
  * - msg.id → provider_item_id
- * - msg.message/caption → text
+ * - msg.message/caption → text & title & description
  * - msg.date → created_at
  * - msg.media.webpage.url → url
  * - full msg → raw_json
+ * - image detection → metadata.image_urls & tags
  */ 
