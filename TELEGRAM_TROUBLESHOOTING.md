@@ -122,12 +122,40 @@ supabase secrets set TELEGRAM_BOT_TOKEN=your_bot_token
 - HTTP 409 error with `no_session` message
 
 **Solution:**
-This means the user connected Telegram via OAuth but doesn't have a session string for API access. This is expected for the OAuth-only flow. The user needs to:
+This means the user connected Telegram via OAuth but doesn't have a session string for API access. This is expected for the OAuth-only flow. You have two options:
 
-1. Use the Telegram client setup to generate a session string
-2. Or implement the session generation flow
+1. **Use the Message Migration feature** (Recommended):
+   - If you have existing Telegram messages in the `telegram_messages` table
+   - Click the "Migrate Messages" button next to "Sync Now" for Telegram
+   - This will copy existing messages to the bookmarks table for display
 
-### 5. Widget not loading
+2. **Set up full API access**:
+   - Use the Telegram client setup to generate a session string
+   - Or implement the session generation flow
+
+### 5. Messages not showing in UI
+
+**Symptoms:**
+- Telegram is connected but no messages appear in "Recent Saves"
+- Messages exist in `telegram_messages` table but not in bookmarks
+
+**Solution:**
+1. **Use the Migration feature**:
+   - Go to Profile → Connected Accounts
+   - Find your Telegram account
+   - Click "Migrate Messages" button
+   - This will copy messages from `telegram_messages` to `bookmarks` table
+
+2. **Check database tables**:
+   ```sql
+   -- Check if messages exist in telegram_messages
+   SELECT COUNT(*) FROM telegram_messages WHERE telegram_user_id = 'your_telegram_user_id';
+   
+   -- Check if messages exist in bookmarks
+   SELECT COUNT(*) FROM bookmarks WHERE user_id = 'your_user_id' AND source = 'telegram';
+   ```
+
+### 6. Widget not loading
 
 **Symptoms:**
 - Telegram login widget doesn't appear
