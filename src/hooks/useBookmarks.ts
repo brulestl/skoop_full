@@ -313,6 +313,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
 
       // Filter by provider if specified and source column exists
       if (provider) {
+        console.log('Applying single provider filter:', provider);
         query = query.eq('source', provider);
       }
 
@@ -330,7 +331,20 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
         } else {
           console.log('Skipping provider filter - no valid providers found');
         }
+      } else {
+        console.log('No provider filter applied - providers:', providers);
       }
+
+      console.log('Final query parameters:', {
+        user_id: user.id,
+        sortBy,
+        sortOrder,
+        offset,
+        limit,
+        provider,
+        providers,
+        range: `${offset}-${offset + limit - 1}`
+      });
 
       const { data, count, error } = await query;
 
