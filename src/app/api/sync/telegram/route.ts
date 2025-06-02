@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Check if user has a connected Telegram account
     const { data: telegramAccount, error: accountError } = await supabase
       .from('connected_accounts')
-      .select('status, last_error, telegram_session_string')
+      .select('provider_user_id, status, last_error')
       .eq('user_id', session.user.id)
       .eq('provider', 'telegram')
       .single();
@@ -42,147 +42,134 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!telegramAccount.telegram_session_string) {
-      console.log('[TELEGRAM-SYNC] No session string - OAuth-only connection');
+    // STEP 1: Check if there are messages in telegram_messages that need to be migrated
+    const { data: telegramMessages, error: messagesError } = await supabase
+      .from('telegram_messages')
+      .select('*')
+      .eq('telegram_user_id', telegramAccount.provider_user_id)
+      .order('timestamp', { ascending: false });
+
+    if (messagesError) {
+      console.error('[TELEGRAM-SYNC] Error fetching telegram messages:', messagesError);
       return NextResponse.json(
-        { error: 'no_session', message: 'Telegram connected via OAuth but no session string available for message sync' },
-        { status: 409 }
-      );
-    }
-
-    // Try to call the Supabase edge function
-    let result;
-    try {
-      console.log('[TELEGRAM-SYNC] Calling ingest_telegram_saved edge function...');
-      result = await supabase.functions.invoke('ingest_telegram_saved', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: { user_id: session.user.id }
-      });
-
-      console.log('[TELEGRAM-SYNC] Edge function response:', {
-        error: result.error,
-        data: result.data
-      });
-
-    } catch (functionError) {
-      console.error('[TELEGRAM-SYNC] Edge function call failed:', functionError);
-      
-      // Fallback: Check if we have existing data in bookmarks_raw to process
-      const { data: rawData, error: rawError } = await supabase
-        .from('bookmarks_raw')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('source', 'telegram')
-        .limit(10);
-
-      if (!rawError && rawData && rawData.length > 0) {
-        console.log(`[TELEGRAM-SYNC] Found ${rawData.length} raw Telegram messages to process`);
-        
-        // Process raw data into bookmarks format
-        const bookmarkRows = rawData.map(raw => ({
-          user_id: raw.user_id,
-          source: 'telegram',
-          provider_item_id: raw.provider_item_id,
-          url: raw.url,
-          title: raw.text || raw.url || `Telegram message ${raw.provider_item_id}`,
-          description: raw.text,
-          tags: ['telegram'],
-          created_at: raw.created_at,
-          updated_at: new Date().toISOString()
-        }));
-
-        // Upsert into bookmarks table
-        const { error: upsertError } = await supabase
-          .from('bookmarks')
-          .upsert(bookmarkRows, { 
-            onConflict: 'user_id,source,provider_item_id',
-            ignoreDuplicates: false 
-          });
-
-        if (upsertError) {
-          console.error('[TELEGRAM-SYNC] Failed to process raw data:', upsertError);
-          return NextResponse.json(
-            { error: 'Failed to process existing Telegram data', details: upsertError.message },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({ 
-          success: true,
-          count: bookmarkRows.length,
-          inserted: bookmarkRows.length,
-          existing_count: bookmarkRows.length,
-          message: `Processed ${bookmarkRows.length} existing Telegram messages`,
-          fallback: true
-        });
-      }
-
-      return NextResponse.json(
-        { 
-          error: 'Telegram sync service unavailable', 
-          details: functionError instanceof Error ? functionError.message : 'Edge function failed',
-          suggestion: 'Please try again later or contact support if the issue persists'
-        },
-        { status: 503 }
-      );
-    }
-
-    if (result.error) {
-      console.error('[TELEGRAM-SYNC] Supabase function error:', result.error);
-      
-      // Handle specific error cases
-      if (result.error.message?.includes('409') || result.error.message?.includes('no_session')) {
-        return NextResponse.json(
-          { error: 'no_session', message: 'Telegram session expired. Please reconnect your account.' },
-          { status: 409 }
-        );
-      }
-
-      if (result.error.message?.includes('TELEGRAM_API_ID') || result.error.message?.includes('TELEGRAM_API_HASH')) {
-        return NextResponse.json(
-          { error: 'Telegram API not configured on server. Please contact support.' },
-          { status: 500 }
-        );
-      }
-
-      if (result.error.message?.includes('Session format incompatible')) {
-        return NextResponse.json(
-          { error: 'Telegram session format incompatible. Please reconnect your account.' },
-          { status: 400 }
-        );
-      }
-      
-      return NextResponse.json(
-        { 
-          error: 'Telegram sync failed', 
-          details: result.error.message || 'Unknown error from sync service'
-        },
+        { error: 'Failed to fetch Telegram messages', details: messagesError.message },
         { status: 500 }
       );
     }
 
-    // Get existing bookmarks count for better user feedback
-    const { count: existingCount } = await supabase
+    console.log(`[TELEGRAM-SYNC] Found ${telegramMessages?.length || 0} messages in telegram_messages table`);
+
+    let migratedCount = 0;
+    let skippedCount = 0;
+
+    // STEP 2: If there are messages in telegram_messages, migrate them to bookmarks
+    if (telegramMessages && telegramMessages.length > 0) {
+      console.log(`[TELEGRAM-SYNC] Migrating ${telegramMessages.length} messages from telegram_messages to bookmarks`);
+
+      // Convert Telegram messages to bookmark format
+      const bookmarkRows = telegramMessages
+        .filter(msg => msg.text && msg.text.trim().length > 0) // Only messages with text
+        .map(msg => {
+          // Handle image URLs - store in metadata
+          const hasImages = msg.image_urls && Array.isArray(msg.image_urls) && msg.image_urls.length > 0;
+          const metadata = {
+            telegram_message_id: msg.message_id,
+            chat_id: msg.chat_id,
+            has_images: hasImages,
+            image_count: hasImages ? msg.image_urls.length : 0,
+            ...(hasImages && { image_urls: msg.image_urls }),
+            original_timestamp: msg.timestamp
+          };
+
+          return {
+            user_id: session.user.id,
+            source: 'telegram',
+            provider_item_id: parseInt(msg.message_id),
+            url: null, // Telegram messages don't have URLs
+            title: msg.text.length > 100 ? msg.text.substring(0, 100) + '...' : msg.text,
+            description: msg.text,
+            tags: hasImages ? ['telegram', 'images'] : ['telegram'],
+            metadata: metadata,
+            created_at: msg.timestamp || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        });
+
+      skippedCount = telegramMessages.length - bookmarkRows.length;
+
+      if (bookmarkRows.length > 0) {
+        console.log(`[TELEGRAM-SYNC] Inserting ${bookmarkRows.length} messages into bookmarks table`);
+
+        // Insert messages into bookmarks table
+        const { data: insertedData, error: upsertError } = await supabase
+          .from('bookmarks')
+          .upsert(bookmarkRows, { 
+            onConflict: 'user_id,source,provider_item_id',
+            ignoreDuplicates: false 
+          })
+          .select();
+
+        if (upsertError) {
+          console.error('[TELEGRAM-SYNC] Failed to migrate messages:', upsertError);
+          return NextResponse.json(
+            { error: 'Failed to migrate Telegram messages', details: upsertError.message },
+            { status: 500 }
+          );
+        }
+
+        migratedCount = insertedData?.length || bookmarkRows.length;
+        console.log(`[TELEGRAM-SYNC] Successfully migrated ${migratedCount} messages`);
+      }
+    }
+
+    // STEP 3: Get final count of Telegram bookmarks
+    const { count: totalCount, error: countError } = await supabase
       .from('bookmarks')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', session.user.id)
       .eq('source', 'telegram');
 
-    const insertedCount = result.data?.inserted || 0;
+    if (countError) {
+      console.error('[TELEGRAM-SYNC] Error counting Telegram bookmarks:', countError);
+      return NextResponse.json(
+        { error: 'Failed to check Telegram bookmarks', details: countError.message },
+        { status: 500 }
+      );
+    }
+
+    // STEP 4: Update the connected account's last sync timestamp
+    await supabase
+      .from('connected_accounts')
+      .update({ 
+        last_sync_at: new Date().toISOString(),
+        status: 'active'
+      })
+      .eq('user_id', session.user.id)
+      .eq('provider', 'telegram');
+
+    console.log(`[TELEGRAM-SYNC] Sync completed. Migrated: ${migratedCount}, Skipped: ${skippedCount}, Total: ${totalCount}`);
     
-    console.log(`[TELEGRAM-SYNC] Sync completed. Inserted: ${insertedCount}, Existing: ${existingCount}`);
-    
-    return NextResponse.json({ 
-      success: true,
-      count: insertedCount,
-      inserted: insertedCount,
-      existing_count: existingCount || 0,
-      message: insertedCount > 0 
-        ? `Successfully synced ${insertedCount} new messages`
-        : `Telegram is up to date (${existingCount || 0} messages total)`
-    });
+    // STEP 5: Return appropriate response
+    if (migratedCount > 0) {
+      return NextResponse.json({ 
+        success: true,
+        count: migratedCount,
+        inserted: migratedCount,
+        skipped: skippedCount,
+        existing_count: totalCount || 0,
+        message: `Successfully migrated ${migratedCount} Telegram messages to bookmarks${skippedCount > 0 ? ` (${skippedCount} empty messages skipped)` : ''}`,
+        migrated: true
+      });
+    } else {
+      return NextResponse.json({ 
+        success: true,
+        count: 0,
+        inserted: 0,
+        existing_count: totalCount || 0,
+        message: `Telegram is up to date (${totalCount || 0} messages total)`,
+        note: 'All messages are already in bookmarks'
+      });
+    }
 
   } catch (error) {
     console.error('[TELEGRAM-SYNC] Route error:', error);
