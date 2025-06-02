@@ -43,11 +43,34 @@ export async function POST(request: NextRequest) {
     console.log(`[TELEGRAM-SYNC] Current bookmarks in database: ${currentBookmarksCount || 0}`);
 
     // Check for messages in telegram_messages table to migrate
-    const { data: telegramMessages, error: messagesError } = await supabase
-      .from('telegram_messages')
-      .select('*')
-      .eq('telegram_user_id', session.user.id)
-      .order('timestamp', { ascending: false });
+    // Use the telegram_user_id from connected account, not session.user.id
+    let telegramMessages = null;
+    let messagesError = null;
+
+    if (telegramAccount?.provider_user_id) {
+      console.log(`[TELEGRAM-SYNC] Looking for messages with telegram_user_id: ${telegramAccount.provider_user_id}`);
+      
+      const { data, error } = await supabase
+        .from('telegram_messages')
+        .select('*')
+        .eq('telegram_user_id', telegramAccount.provider_user_id)
+        .order('timestamp', { ascending: false });
+        
+      telegramMessages = data;
+      messagesError = error;
+    } else {
+      // Fallback: try to find messages by session.user.id (for legacy data)
+      console.log(`[TELEGRAM-SYNC] No telegram account found, trying fallback with user_id: ${session.user.id}`);
+      
+      const { data, error } = await supabase
+        .from('telegram_messages')
+        .select('*')
+        .eq('telegram_user_id', session.user.id)
+        .order('timestamp', { ascending: false });
+        
+      telegramMessages = data;
+      messagesError = error;
+    }
 
     if (messagesError) {
       console.error('[TELEGRAM-SYNC] Error fetching telegram messages:', messagesError);
@@ -176,7 +199,8 @@ export async function POST(request: NextRequest) {
       debug: {
         hadTelegramAccount: !!telegramAccount,
         telegramMessagesInDb: telegramMessages?.length || 0,
-        validMessagesWithText: telegramMessages?.filter(msg => msg.text && msg.text.trim().length > 0).length || 0
+        validMessagesWithText: telegramMessages?.filter(msg => msg.text && msg.text.trim().length > 0).length || 0,
+        telegramUserId: telegramAccount?.provider_user_id || 'none'
       }
     };
 
