@@ -2,22 +2,16 @@
 -- Date: 2025-01-07
 -- Purpose: Ensure all schema requirements are met for Telegram messages to sync to bookmarks table
 
--- Step 1: Add telegram to source_enum if not already present
+-- Step 1: Add telegram to provider_type enum if not already present
 DO $$ 
 BEGIN
-    -- Check if source_enum exists, if not create it
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'source_enum') THEN
-        CREATE TYPE source_enum AS ENUM ('github_starred', 'twitter_bookmarks', 'reddit_saved', 'stack_bookmarks');
-        RAISE NOTICE 'Created source_enum type';
-    END IF;
-    
-    -- Add telegram to existing source_enum if not already present
+    -- Add telegram to existing provider_type enum if not already present
     BEGIN
-        ALTER TYPE source_enum ADD VALUE 'telegram';
-        RAISE NOTICE 'Added telegram to source_enum';
+        ALTER TYPE provider_type ADD VALUE 'telegram';
+        RAISE NOTICE 'Added telegram to provider_type enum';
     EXCEPTION
         WHEN duplicate_object THEN
-            RAISE NOTICE 'telegram already exists in source_enum';
+            RAISE NOTICE 'telegram already exists in provider_type enum';
     END;
 END $$;
 
@@ -61,7 +55,7 @@ BEGIN
         RAISE NOTICE 'metadata column already exists in bookmarks';
     END IF;
     
-    -- Update source column to use source_enum if it's still using provider_type
+    -- Verify source column is using provider_type (it should already be)
     IF EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'bookmarks' 
@@ -69,14 +63,9 @@ BEGIN
         AND data_type = 'USER-DEFINED'
         AND udt_name = 'provider_type'
     ) THEN
-        -- First, update any existing telegram entries to use the new enum
-        UPDATE bookmarks SET source = 'telegram'::text WHERE source::text = 'telegram';
-        
-        -- Change column type to source_enum
-        ALTER TABLE bookmarks ALTER COLUMN source TYPE source_enum USING source::text::source_enum;
-        RAISE NOTICE 'Updated bookmarks.source to use source_enum';
+        RAISE NOTICE 'bookmarks.source already uses provider_type enum (correct)';
     ELSE
-        RAISE NOTICE 'bookmarks.source already uses correct type or does not exist';
+        RAISE NOTICE 'WARNING: bookmarks.source column type is not provider_type';
     END IF;
 END $$;
 
@@ -134,15 +123,15 @@ DECLARE
     schema_ready BOOLEAN := TRUE;
     missing_items TEXT := '';
 BEGIN
-    -- Check if telegram is in source_enum
+    -- Check if telegram is in provider_type enum
     IF NOT EXISTS (
         SELECT 1 FROM pg_enum e 
         JOIN pg_type t ON e.enumtypid = t.oid 
-        WHERE t.typname = 'source_enum' 
+        WHERE t.typname = 'provider_type' 
         AND e.enumlabel = 'telegram'
     ) THEN
         schema_ready := FALSE;
-        missing_items := missing_items || 'telegram not in source_enum; ';
+        missing_items := missing_items || 'telegram not in provider_type; ';
     END IF;
     
     -- Check if url is nullable
@@ -209,11 +198,11 @@ WHERE table_name = 'bookmarks'
     AND column_name IN ('url', 'provider_item_id', 'metadata', 'source')
 ORDER BY column_name;
 
--- Step 7: Show available source enum values
+-- Step 7: Show available provider_type enum values
 SELECT 
-    'Available Source Values' as status,
-    enumlabel as source_value
+    'Available Provider Values' as status,
+    enumlabel as provider_value
 FROM pg_enum e 
 JOIN pg_type t ON e.enumtypid = t.oid 
-WHERE t.typname = 'source_enum'
+WHERE t.typname = 'provider_type'
 ORDER BY enumlabel; 
