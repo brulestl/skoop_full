@@ -41,6 +41,7 @@ export interface UseBookmarksResult {
   hasMore: boolean;
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
+  forceRefresh: () => Promise<void>;
   deleteBookmark: (bookmarkId: string) => Promise<boolean>;
   totalCount: number;
   isEmpty: boolean; // Flag to indicate if the current filter combination has no results
@@ -439,6 +440,21 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     await fetchBookmarks(0, false, true);
   };
 
+  const forceRefresh = async () => {
+    // Clear ALL cache and force complete refresh
+    console.log('Force refresh - clearing ALL cache and resetting state');
+    queryCache.clear();
+    lastFetchCache.clear();
+    setCurrentOffset(0);
+    setBookmarks([]);
+    setTotalCount(0);
+    setHasMore(true);
+    setIsEmpty(false);
+    setError(null);
+    lastQueryRef.current = '';
+    await fetchBookmarks(0, false, true);
+  };
+
   const deleteBookmark = async (bookmarkId: string): Promise<boolean> => {
     if (!user) return false;
 
@@ -578,6 +594,7 @@ export function useBookmarks(options: UseBookmarksOptions = {}): UseBookmarksRes
     hasMore,
     loadMore,
     refresh,
+    forceRefresh,
     deleteBookmark,
     totalCount,
     isEmpty

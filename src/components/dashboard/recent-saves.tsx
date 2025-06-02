@@ -1554,7 +1554,7 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
   }, [providerFilters, availableProviders]);
 
   // Update useBookmarks call to use the new parameters
-  const { bookmarks, loading, error, hasMore, loadMore, refresh, deleteBookmark, totalCount, isEmpty } = useBookmarks({
+  const { bookmarks, loading, error, hasMore, loadMore, refresh, forceRefresh, deleteBookmark, totalCount, isEmpty } = useBookmarks({
     sortBy,
     sortOrder,
     providers: providersForQuery
@@ -1929,8 +1929,8 @@ export default function RecentSaves({ searchResults, isSearchActive, onClearSear
             size="sm" 
             variant="outline" 
             onSyncComplete={() => {
-              // Refresh bookmarks when sync completes
-              refresh();
+              // Force refresh bookmarks when sync completes to bypass all caching
+              forceRefresh();
             }}
           />
         </div>
