@@ -178,6 +178,18 @@ export default function OAuthConnectButtons() {
       
       if (errorMessage.includes('already connected')) {
         showToast(`${provider} account is already linked. Disconnect first to reconnect.`, 'error');
+      } else if (errorMessage.includes('Popup blocked')) {
+        showToast(`❌ Popup blocked. Please allow popups for this site and try again.`, 'error');
+      } else if (errorMessage.includes('OAuth cancelled')) {
+        showToast(`${provider} connection was cancelled.`, 'error');
+      } else if (errorMessage.includes('timeout')) {
+        showToast(`❌ Connection timeout for ${provider}. Please try again.`, 'error');
+      } else if (errorMessage.includes('TELEGRAM_BOT_TOKEN')) {
+        showToast(`❌ Telegram bot not configured. Please contact support.`, 'error');
+      } else if (errorMessage.includes('TELEGRAM_BOT_USERNAME')) {
+        showToast(`❌ Telegram bot username not configured. Please contact support.`, 'error');
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        showToast(`❌ Network error connecting to ${provider}. Please check your connection.`, 'error');
       } else {
         showToast(`Failed to connect ${provider}: ${errorMessage}`, 'error');
       }
@@ -205,7 +217,7 @@ export default function OAuthConnectButtons() {
     setRefreshing(provider);
     
     // Show immediate feedback  
-    const contentType = provider === 'twitter' ? 'likes' : 'bookmarks';
+    const contentType = provider === 'twitter' ? 'likes' : provider === 'telegram' ? 'messages' : 'bookmarks';
     showToast(`Syncing ${provider} ${contentType}...`, 'success');
     
     try {
@@ -217,7 +229,7 @@ export default function OAuthConnectButtons() {
       
       if (response.ok) {
         const result = await response.json();
-        const contentType = provider === 'twitter' ? 'likes' : 'bookmarks';
+        const contentType = provider === 'twitter' ? 'likes' : provider === 'telegram' ? 'messages' : 'bookmarks';
         
         // Handle Twitter special case with helpful message
         if (provider === 'twitter' && result.helpMessage) {
@@ -244,12 +256,34 @@ export default function OAuthConnectButtons() {
         // Remove navigation after sync - user should stay on profile
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || 'Sync failed');
+        
+        // Handle specific error cases
+        if (response.status === 409 && errorData.error === 'no_session') {
+          showToast(`❌ ${provider} session expired. Please reconnect your account.`, 'error');
+          // Refresh accounts to update UI status
+          await fetchAccounts();
+        } else if (response.status === 401) {
+          showToast(`❌ Authentication failed. Please reconnect your ${provider} account.`, 'error');
+        } else if (response.status === 500) {
+          console.error('Sync error details:', errorData);
+          const errorMsg = errorData.details || errorData.error || 'Internal server error';
+          showToast(`❌ Failed to sync ${provider}: ${errorMsg}`, 'error');
+        } else {
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
       }
     } catch (error) {
       console.error('Failed to refresh account:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`❌ Failed to sync ${provider}: ${errorMessage}`, 'error');
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('fetch')) {
+        showToast(`❌ Network error syncing ${provider}. Please check your connection.`, 'error');
+      } else if (errorMessage.includes('timeout')) {
+        showToast(`❌ Sync timeout for ${provider}. Please try again.`, 'error');
+      } else {
+        showToast(`❌ Failed to sync ${provider}: ${errorMessage}`, 'error');
+      }
     } finally {
       setRefreshing(null);
     }

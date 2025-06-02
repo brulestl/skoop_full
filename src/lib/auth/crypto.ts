@@ -36,6 +36,11 @@ function fromBase64Url(base64url: string): string {
  */
 export function encryptUserData(data: { userId: string; timestamp?: number; returnUrl?: string }): string {
   try {
+    // Validate input
+    if (!data.userId) {
+      throw new Error('userId is required for encryption');
+    }
+    
     const dataToEncrypt = {
       ...data,
       timestamp: data.timestamp || Date.now()
@@ -61,7 +66,8 @@ export function encryptUserData(data: { userId: string; timestamp?: number; retu
     return toBase64Url(base64);
   } catch (error) {
     console.error('Encryption failed:', error);
-    throw new Error('Failed to encrypt user data');
+    console.error('Input data:', { userId: data?.userId, hasReturnUrl: !!data?.returnUrl });
+    throw new Error(`Failed to encrypt user data: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -70,9 +76,21 @@ export function encryptUserData(data: { userId: string; timestamp?: number; retu
  */
 export function decryptUserData(encryptedData: string): { userId: string; timestamp: number; returnUrl?: string } | null {
   try {
+    // Validate input
+    if (!encryptedData || typeof encryptedData !== 'string') {
+      console.error('Invalid encrypted data provided to decryptUserData');
+      return null;
+    }
+    
     // Convert from base64url to base64 format
     const base64 = fromBase64Url(encryptedData);
     const tokenData: EncryptedToken = JSON.parse(Buffer.from(base64, 'base64').toString());
+    
+    // Validate token structure
+    if (!tokenData.encrypted || !tokenData.iv || !tokenData.tag) {
+      console.error('Invalid token structure');
+      return null;
+    }
     
     const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
     decipher.setAuthTag(Buffer.from(tokenData.tag, 'hex'));
@@ -83,9 +101,15 @@ export function decryptUserData(encryptedData: string): { userId: string; timest
     
     const data = JSON.parse(decrypted);
     
+    // Validate decrypted data structure
+    if (!data.userId || typeof data.userId !== 'string') {
+      console.error('Invalid decrypted data structure');
+      return null;
+    }
+    
     // Check if token is not too old (1 hour)
     const now = Date.now();
-    if (now - data.timestamp > 3600000) {
+    if (data.timestamp && (now - data.timestamp > 3600000)) {
       console.warn('Encrypted token expired');
       return null;
     }
@@ -93,6 +117,8 @@ export function decryptUserData(encryptedData: string): { userId: string; timest
     return data;
   } catch (error) {
     console.error('Decryption failed:', error);
+    console.error('Encrypted data length:', encryptedData?.length || 0);
+    console.error('Encrypted data preview:', encryptedData?.substring(0, 20) + '...');
     return null;
   }
 }
