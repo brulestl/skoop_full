@@ -326,6 +326,47 @@ export default function OAuthConnectButtons() {
     }
   };
 
+  const handleMigrateUserMessages = async (provider: Provider) => {
+    if (provider !== 'telegram') return;
+    
+    setRefreshing(provider);
+    showToast(`Migrating your ${provider} messages...`, 'success');
+    
+    try {
+      const response = await fetch(`/api/telegram/migrate-user-messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const migratedCount = result.count || 0;
+        const skippedCount = result.skipped || 0;
+        
+        if (migratedCount > 0) {
+          const message = `✅ Migrated ${migratedCount} Telegram messages!${skippedCount > 0 ? ` (${skippedCount} empty messages skipped)` : ''}`;
+          showToast(message, 'success');
+        } else if (skippedCount > 0) {
+          showToast(`✅ Found ${skippedCount} messages but all were empty (no text content)`, 'success');
+        } else {
+          showToast(`✅ No messages to migrate (${result.existing_count || 0} total)`, 'success');
+        }
+        
+        // Force refresh the bookmarks data in the UI
+        window.dispatchEvent(new CustomEvent('bookmarks-updated'));
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Failed to migrate user messages:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`❌ Failed to migrate messages: ${errorMessage}`, 'error');
+    } finally {
+      setRefreshing(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -405,16 +446,29 @@ export default function OAuthConnectButtons() {
                     </Button>
                     
                     {provider.id === 'telegram' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleMigrateMessages(provider.id)}
-                        disabled={isRefreshing}
-                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                      >
-                        <Send className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                        {isRefreshing ? 'Migrating...' : 'Migrate Messages'}
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleMigrateMessages(provider.id)}
+                          disabled={isRefreshing}
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                        >
+                          <Send className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+                          {isRefreshing ? 'Migrating...' : 'Migrate Messages'}
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleMigrateUserMessages(provider.id)}
+                          disabled={isRefreshing}
+                          className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                        >
+                          <Send className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+                          {isRefreshing ? 'Migrating...' : 'Migrate Your Messages'}
+                        </Button>
+                      </>
                     )}
                   </>
                 )}
