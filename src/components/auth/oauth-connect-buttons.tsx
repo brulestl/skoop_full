@@ -268,7 +268,25 @@ export default function OAuthConnectButtons() {
           showToast(`❌ Authentication failed. Please reconnect your ${provider} account.`, 'error');
         } else if (response.status === 500) {
           console.error('Sync error details:', errorData);
-          const errorMsg = errorData.details || errorData.error || 'Internal server error';
+          console.error('Full error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            errorData: errorData
+          });
+          
+          // Try to extract more specific error information
+          let specificError = 'Internal server error';
+          if (errorData.details?.message) {
+            specificError = errorData.details.message;
+          } else if (errorData.details?.context?.message) {
+            specificError = errorData.details.context.message;
+          } else if (errorData.error && typeof errorData.error === 'string') {
+            specificError = errorData.error;
+          }
+          
+          console.error(`Reddit Edge Function Error: ${specificError}`);
+          const errorMsg = specificError;
           showToast(`❌ Failed to sync ${provider}: ${errorMsg}`, 'error');
         } else {
           throw new Error(errorData.error || `HTTP ${response.status}`);
