@@ -30,10 +30,14 @@ export async function GET(request: NextRequest) {
       callbackUrl = 'https://skoop.pro/api/oauth/reddit/callback';
     } else if (host?.includes('skoop-full.vercel.app')) {
       callbackUrl = 'https://skoop-full.vercel.app/api/oauth/reddit/callback';
+    } else if (host?.includes('localhost') || host?.includes('127.0.0.1')) {
+      // For local development
+      callbackUrl = `http://localhost:3000/api/oauth/reddit/callback`;
     } else {
-      // Fallback for local development or other domains
       callbackUrl = `${baseUrl}/api/oauth/reddit/callback`;
     }
+
+    console.log('🔗 Reddit OAuth callback URL:', callbackUrl);
 
     // Generate CSRF state nonce
     const state = crypto.randomBytes(32).toString('hex');
