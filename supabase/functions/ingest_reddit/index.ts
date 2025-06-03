@@ -86,46 +86,95 @@ serve(async (req) => {
       console.log(`🟡 Retrieved ${items.length} Reddit saved items`)
 
       for (const item of items) {
-        const itemData = item.data
-        
-        // Store raw data
-        await supabase
-          .from('bookmarks_raw')
-          .insert({
-            user_id,
-            source: 'reddit',
-            raw_json: item,
-            fetched_at: new Date().toISOString()
-          })
-
-        // Process into bookmarks table
-        let url = ''
-        let title = ''
-        let description = ''
-        
-        if (item.kind === 't3') { // Post
-          url = `https://reddit.com${itemData.permalink}`
-          title = itemData.title || 'Reddit Post'
-          description = itemData.selftext || itemData.url || ''
-        } else if (item.kind === 't1') { // Comment
-          url = `https://reddit.com${itemData.permalink}`
-          title = `Comment by u/${itemData.author}`
-          description = itemData.body || ''
-        }
-
-        if (url) {
-          await supabase
-            .from('bookmarks')
-            .insert({
-              user_id,
-              source: 'reddit',
-              url,
-              title,
-              description,
-              created_at: new Date().toISOString()
-            })
+        try {
+          const itemData = item.data
           
-          itemsProcessed++
+          console.log(`🔍 Processing item: ${item.kind} - ${itemData?.title || itemData?.body?.substring(0, 50) || 'untitled'}`)
+          
+          // Store raw data with error handling
+          try {
+            const { error: rawInsertError } = await supabase
+              .from('bookmarks_raw')
+              .insert({
+                user_id,
+                source: 'reddit',
+                raw_json: item,
+                fetched_at: new Date().toISOString()
+              })
+            
+            if (rawInsertError) {
+              console.error('❌ Failed to insert raw data:', rawInsertError)
+              // Continue processing even if raw insert fails
+            }
+          } catch (rawError) {
+            console.error('💥 Raw data insert error:', rawError)
+            // Continue processing
+          }
+
+          // Process into bookmarks table with improved validation
+          let url = ''
+          let title = ''
+          let description = ''
+          
+          if (item.kind === 't3') { // Post
+            // Fix URL construction - use www.reddit.com
+            url = `https://www.reddit.com${itemData.permalink || ''}`
+            title = (itemData.title || 'Reddit Post').substring(0, 500) // Limit title length
+            description = (itemData.selftext || itemData.url || '').substring(0, 2000) // Limit description
+          } else if (item.kind === 't1') { // Comment
+            url = `https://www.reddit.com${itemData.permalink || ''}`
+            title = `Comment by u/${itemData.author || 'unknown'}`.substring(0, 500)
+            description = (itemData.body || '').substring(0, 2000)
+          } else {
+            console.log(`⚠️ Unknown item kind: ${item.kind}, skipping...`)
+            continue
+          }
+
+          // Validate required fields
+          if (!url || !title) {
+            console.log(`⚠️ Skipping item due to missing URL or title`)
+            continue
+          }
+
+          // Insert into bookmarks with error handling
+          try {
+            const { error: bookmarkError } = await supabase
+              .from('bookmarks')
+              .insert({
+                user_id,
+                source: 'reddit',
+                url,
+                title,
+                description,
+                created_at: new Date().toISOString()
+              })
+            
+            if (bookmarkError) {
+              console.error('❌ Failed to insert bookmark:', bookmarkError)
+              console.error('🔍 Bookmark data:', { url: url.substring(0, 100), title: title.substring(0, 50) })
+              
+              // Check if it's a duplicate URL error and continue
+              if (bookmarkError.message?.includes('duplicate') || bookmarkError.code === '23505') {
+                console.log('ℹ️ Duplicate bookmark, skipping...')
+                continue
+              } else {
+                // For other errors, still count as processed but log the issue
+                console.error('⚠️ Non-duplicate bookmark error, continuing...')
+              }
+            }
+            
+            itemsProcessed++
+            console.log(`✅ Processed item ${itemsProcessed}: ${title.substring(0, 50)}`)
+            
+          } catch (bookmarkInsertError) {
+            console.error('💥 Bookmark insert error:', bookmarkInsertError)
+            // Continue processing other items
+          }
+          
+        } catch (itemError) {
+          console.error('💥 Error processing individual item:', itemError)
+          console.error('🔍 Item data:', JSON.stringify(item, null, 2).substring(0, 500))
+          // Continue with next item
         }
       }
 
@@ -162,19 +211,31 @@ serve(async (req) => {
 
     } catch (fetchError) {
       console.error('❌ Failed to fetch Reddit data:', fetchError)
+      console.error('❌ Error details:', {
+        name: fetchError.name,
+        message: fetchError.message,
+        stack: fetchError.stack?.substring(0, 500)
+      })
       
       // Update sync history - failed
-      await supabase
+      const { error: syncUpdateError } = await supabase
         .from('sync_history')
         .update({
           status: 'failed',
-          error_message: fetchError.message,
+          error_message: fetchError.message || 'Unknown error during Reddit sync',
           completed_at: new Date().toISOString()
         })
         .eq('id', syncRecord?.id)
+      
+      if (syncUpdateError) {
+        console.error('❌ Failed to update sync history:', syncUpdateError)
+      }
 
       return new Response(
-        JSON.stringify({ error: fetchError.message }),
+        JSON.stringify({ 
+          error: fetchError.message || 'Reddit sync failed',
+          details: 'Check Edge Function logs for more information'
+        }),
         { status: 500, headers: corsHeaders }
       )
     }
