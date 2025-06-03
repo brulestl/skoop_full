@@ -4,23 +4,50 @@ import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
+    // Check for required environment variables
+    if (!process.env.REDDIT_CLIENT_ID || !process.env.REDDIT_CLIENT_SECRET) {
+      console.error('Missing Reddit OAuth credentials in environment variables');
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Reddit OAuth Error</title></head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'oauth_error',
+                  provider: 'reddit',
+                  error: 'Reddit integration not configured - missing environment variables'
+                }, window.location.origin);
+                window.close();
+              } else {
+                window.location.href = '/dashboard?error=reddit_not_configured';
+              }
+            </script>
+            <p>Reddit integration not configured. Please contact support.</p>
+          </body>
+        </html>
+      `;
+      return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
+    }
+
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
     if (error) {
-      console.error('LinkedIn OAuth error:', error);
+      console.error('Reddit OAuth error:', error);
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'OAuth authorization failed'
                 }, window.location.origin);
                 window.close();
@@ -40,13 +67,13 @@ export async function GET(request: NextRequest) {
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'Missing authorization parameters'
                 }, window.location.origin);
                 window.close();
@@ -63,21 +90,21 @@ export async function GET(request: NextRequest) {
 
     // Verify state parameter
     const cookieStore = await cookies();
-    const storedState = cookieStore.get('linkedin_oauth_state')?.value;
-    const returnTo = cookieStore.get('linkedin_return_to')?.value || '/dashboard';
+    const storedState = cookieStore.get('reddit_oauth_state')?.value;
+    const returnTo = cookieStore.get('reddit_return_to')?.value || '/dashboard';
 
     if (!storedState || storedState !== state) {
       console.error('Invalid state parameter');
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'Invalid state parameter'
                 }, window.location.origin);
                 window.close();
@@ -99,42 +126,42 @@ export async function GET(request: NextRequest) {
     
     let callbackUrl;
     if (host?.includes('skoop.pro')) {
-      callbackUrl = 'https://skoop.pro/api/oauth/linkedin/callback';
+      callbackUrl = 'https://skoop.pro/api/oauth/reddit/callback';
     } else if (host?.includes('skoop-full.vercel.app')) {
-      callbackUrl = 'https://skoop-full.vercel.app/api/oauth/linkedin/callback';
+      callbackUrl = 'https://skoop-full.vercel.app/api/oauth/reddit/callback';
     } else {
-      callbackUrl = `${baseUrl}/api/oauth/linkedin/callback`;
+      callbackUrl = `${baseUrl}/api/oauth/reddit/callback`;
     }
 
     // Exchange code for access token
-    const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    const tokenResponse = await fetch('https://www.reddit.com/api/v1/access_token', {
       method: 'POST',
       headers: {
+        'Authorization': `Basic ${Buffer.from(`${process.env.REDDIT_CLIENT_ID}:${process.env.REDDIT_CLIENT_SECRET}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'SKOOP/1.0'
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
         redirect_uri: callbackUrl,
-        client_id: process.env.LINKEDIN_CLIENT_ID!,
-        client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
       }),
     });
 
     const tokenData = await tokenResponse.json();
 
     if (tokenData.error) {
-      console.error('LinkedIn token exchange error:', tokenData);
+      console.error('Reddit token exchange error:', tokenData);
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'Token exchange failed'
                 }, window.location.origin);
                 window.close();
@@ -149,27 +176,28 @@ export async function GET(request: NextRequest) {
       return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
-    // Get user info from LinkedIn
-    const userResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
+    // Get user info from Reddit
+    const userResponse = await fetch('https://oauth.reddit.com/api/v1/me', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
+        'User-Agent': 'SKOOP/1.0'
       },
     });
 
     const userData = await userResponse.json();
 
-    if (!userData.id) {
-      console.error('Failed to get LinkedIn user data:', userData);
+    if (!userData.name) {
+      console.error('Failed to get Reddit user data:', userData);
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'Failed to get user data'
                 }, window.location.origin);
                 window.close();
@@ -184,30 +212,6 @@ export async function GET(request: NextRequest) {
       return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
-    // Get email address from LinkedIn
-    const emailResponse = await fetch('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
-      headers: {
-        'Authorization': `Bearer ${tokenData.access_token}`,
-      },
-    });
-
-    const emailData = await emailResponse.json();
-    const email = emailData.elements?.[0]?.['handle~']?.emailAddress;
-
-    // Extract profile picture URL
-    let avatarUrl = null;
-    if (userData.profilePicture?.['displayImage~']?.elements?.length > 0) {
-      const images = userData.profilePicture['displayImage~'].elements;
-      // Get the largest image
-      const largestImage = images[images.length - 1];
-      avatarUrl = largestImage?.identifiers?.[0]?.identifier;
-    }
-
-    // Construct display name
-    const firstName = userData.firstName?.localized?.en_US || userData.firstName?.preferredLocale?.language || '';
-    const lastName = userData.lastName?.localized?.en_US || userData.lastName?.preferredLocale?.language || '';
-    const displayName = `${firstName} ${lastName}`.trim() || email || userData.id;
-
     // Store the connected account in Supabase
     const supabase = createRouteHandlerClient({ cookies });
     const { data: { session } } = await supabase.auth.getSession();
@@ -217,13 +221,13 @@ export async function GET(request: NextRequest) {
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'No active session'
                 }, window.location.origin);
                 window.close();
@@ -242,11 +246,11 @@ export async function GET(request: NextRequest) {
       .from('connected_accounts')
       .upsert({
         user_id: session.user.id,
-        provider: 'linkedin',
+        provider: 'reddit',
         provider_user_id: userData.id,
-        username: email || userData.id,
-        display_name: displayName,
-        avatar_url: avatarUrl,
+        username: userData.name,
+        display_name: userData.name,
+        avatar_url: userData.icon_img || userData.snoovatar_img || null,
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
@@ -260,13 +264,13 @@ export async function GET(request: NextRequest) {
       const html = `
         <!DOCTYPE html>
         <html>
-          <head><title>LinkedIn OAuth Error</title></head>
+          <head><title>Reddit OAuth Error</title></head>
           <body>
             <script>
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'oauth_error',
-                  provider: 'linkedin',
+                  provider: 'reddit',
                   error: 'Failed to store account'
                 }, window.location.origin);
                 window.close();
@@ -283,7 +287,7 @@ export async function GET(request: NextRequest) {
 
     // Trigger initial sync in the background (don't wait for completion)
     try {
-      fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/sync/linkedin`, {
+      fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/sync/reddit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -291,37 +295,37 @@ export async function GET(request: NextRequest) {
         },
         body: JSON.stringify({ sync_type: 'initial' })
       }).catch(error => {
-        console.log('Initial LinkedIn sync failed (non-blocking):', error);
+        console.log('Initial Reddit sync failed (non-blocking):', error);
       });
     } catch (error) {
-      console.log('Failed to trigger initial LinkedIn sync (non-blocking):', error);
+      console.log('Failed to trigger initial Reddit sync (non-blocking):', error);
     }
 
     // Clean up cookies
-    cookieStore.delete('linkedin_oauth_state');
-    cookieStore.delete('linkedin_return_to');
+    cookieStore.delete('reddit_oauth_state');
+    cookieStore.delete('reddit_return_to');
 
     // For popup-based OAuth, return HTML that sends message to parent window
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>LinkedIn Connected</title>
+          <title>Reddit Connected</title>
         </head>
         <body>
           <script>
             if (window.opener) {
               window.opener.postMessage({
                 type: 'oauth_success',
-                provider: 'linkedin'
+                provider: 'reddit'
               }, window.location.origin);
               window.close();
             } else {
               // Fallback redirect if not in popup
-              window.location.href = '${returnTo}?connected=linkedin';
+              window.location.href = '${returnTo}?connected=reddit';
             }
           </script>
-          <p>LinkedIn account connected successfully. This window should close automatically.</p>
+          <p>Reddit account connected successfully. This window should close automatically.</p>
         </body>
       </html>
     `;
@@ -331,21 +335,21 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('LinkedIn OAuth callback error:', error);
+    console.error('Reddit OAuth callback error:', error);
     
     // For popup-based OAuth, return HTML that sends error message to parent window
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>LinkedIn Connection Error</title>
+          <title>Reddit Connection Error</title>
         </head>
         <body>
           <script>
             if (window.opener) {
               window.opener.postMessage({
                 type: 'oauth_error',
-                provider: 'linkedin',
+                provider: 'reddit',
                 error: 'Connection failed'
               }, window.location.origin);
               window.close();
@@ -354,7 +358,7 @@ export async function GET(request: NextRequest) {
               window.location.href = '/dashboard?error=callback_error';
             }
           </script>
-          <p>Failed to connect LinkedIn account. This window should close automatically.</p>
+          <p>Failed to connect Reddit account. This window should close automatically.</p>
         </body>
       </html>
     `;

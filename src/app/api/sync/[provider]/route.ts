@@ -32,8 +32,8 @@ export async function POST(
     
     console.log(`=== SYNC DEBUG START === Provider: ${provider}`);
     
-    const supportedProviders = ['github', 'twitter'];
-    const comingSoonProviders = ['azure', 'discord', 'gitlab', 'linkedin', 'notion', 'twitch', 'telegram', 'reddit', 'stack'];
+    const supportedProviders = ['github', 'twitter', 'linkedin', 'reddit'];
+    const comingSoonProviders = ['azure', 'discord', 'gitlab', 'notion', 'twitch', 'telegram', 'stack'];
     
     if (!supportedProviders.includes(provider) && !comingSoonProviders.includes(provider)) {
       return NextResponse.json(
@@ -233,6 +233,136 @@ export async function POST(
         await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error instanceof Error ? error.message : 'Unknown Twitter sync error');
         return NextResponse.json(
           { error: 'Twitter sync failed' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Handle LinkedIn sync
+    if (provider === 'linkedin') {
+      console.log('💼 Starting LinkedIn sync...');
+      
+      // Get connected account and access token
+      console.log('🔍 Looking for connected LinkedIn account...');
+      const { data: connectedAccount, error: accountError } = await supabase
+        .from('connected_accounts')
+        .select('access_token')
+        .eq('user_id', session.user.id)
+        .eq('provider', provider)
+        .single();
+
+      if (accountError || !connectedAccount) {
+        console.log('❌ LinkedIn account not connected:', accountError);
+        await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, 'LinkedIn account not connected');
+        return NextResponse.json(
+          { error: 'LinkedIn account not connected' },
+          { status: 400 }
+        );
+      }
+
+      console.log('✅ Found connected LinkedIn account with access token');
+
+      try {
+        // Call the Supabase function to ingest LinkedIn saved items
+        const { data, error } = await supabase.functions.invoke('ingest_linkedin_saved', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (error) {
+          console.error('❌ LinkedIn sync error:', error);
+          await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error.message || 'LinkedIn sync failed');
+          return NextResponse.json(
+            { error: error.message || 'Failed to sync LinkedIn saved items' },
+            { status: 500 }
+          );
+        }
+
+        console.log(`🎉 Successfully synced ${data.count} LinkedIn items`);
+
+        // Update sync history with success
+        await updateSyncHistory(supabase, syncHistoryId, 'success', data.count);
+
+        return NextResponse.json({
+          success: true,
+          count: data.count,
+          total: data.total_found,
+          provider: 'linkedin',
+          sync_type: syncType,
+          message: data.message
+        });
+
+      } catch (error) {
+        console.error('💥 LinkedIn sync error:', error);
+        await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error instanceof Error ? error.message : 'Unknown LinkedIn sync error');
+        return NextResponse.json(
+          { error: 'LinkedIn sync failed' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Handle Reddit sync
+    if (provider === 'reddit') {
+      console.log('🔴 Starting Reddit saved items sync...');
+      
+      // Get connected account and access token
+      console.log('🔍 Looking for connected Reddit account...');
+      const { data: connectedAccount, error: accountError } = await supabase
+        .from('connected_accounts')
+        .select('access_token')
+        .eq('user_id', session.user.id)
+        .eq('provider', provider)
+        .single();
+
+      if (accountError || !connectedAccount) {
+        console.log('❌ Reddit account not connected:', accountError);
+        await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, 'Reddit account not connected');
+        return NextResponse.json(
+          { error: 'Reddit account not connected' },
+          { status: 400 }
+        );
+      }
+
+      console.log('✅ Found connected Reddit account with access token');
+
+      try {
+        // Call the Supabase function to ingest Reddit saved items
+        const { data, error } = await supabase.functions.invoke('ingest_reddit', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (error) {
+          console.error('❌ Reddit sync error:', error);
+          await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error.message || 'Reddit sync failed');
+          return NextResponse.json(
+            { error: error.message || 'Failed to sync Reddit saved items' },
+            { status: 500 }
+          );
+        }
+
+        console.log(`🎉 Successfully synced ${data.count} Reddit items`);
+
+        // Update sync history with success
+        await updateSyncHistory(supabase, syncHistoryId, 'success', data.count);
+
+        return NextResponse.json({
+          success: true,
+          count: data.count,
+          total: data.total_fetched,
+          provider: 'reddit',
+          sync_type: syncType,
+          message: data.message
+        });
+
+      } catch (error) {
+        console.error('💥 Reddit sync error:', error);
+        await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error instanceof Error ? error.message : 'Unknown Reddit sync error');
+        return NextResponse.json(
+          { error: 'Reddit sync failed' },
           { status: 500 }
         );
       }

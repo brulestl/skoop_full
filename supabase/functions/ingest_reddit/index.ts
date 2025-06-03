@@ -61,9 +61,14 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .eq('provider', 'reddit')
 
-    // Reddit API credentials
-    const REDDIT_CLIENT_ID = 'ZtTUnPPm6b5qPU65KQcLLg'
-    const REDDIT_CLIENT_SECRET = 'l1gq8I2TKMMkWFbPWpqe0jZzcdRM3A'
+    // Reddit API credentials from environment variables
+    const REDDIT_CLIENT_ID = Deno.env.get('REDDIT_CLIENT_ID')
+    const REDDIT_CLIENT_SECRET = Deno.env.get('REDDIT_CLIENT_SECRET')
+
+    if (!REDDIT_CLIENT_ID || !REDDIT_CLIENT_SECRET) {
+      console.error('Missing Reddit API credentials in environment variables')
+      throw new Error('Reddit integration not configured - missing client credentials')
+    }
 
     // Function to refresh access token if needed
     const refreshRedditToken = async (refreshToken: string) => {

@@ -105,42 +105,19 @@ export function useConnectedAccounts() {
     setConnecting(provider);
     
     try {
-      // Use custom token exchange for supported providers
-      if (provider === 'github' || provider === 'twitter' || provider === 'linkedin' || provider === 'facebook' || provider === 'telegram') {
-        console.log(`Starting custom OAuth flow for provider: ${provider}`);
-        
-        let oauthUrl = `/api/oauth/${provider}/start`;
-        
-        // For Telegram, we need to pass user token for proper widget rendering
-        if (provider === 'telegram' && session?.user?.id) {
-          // Import and use the encryption function
-          const { encryptUserData } = await import('@/lib/auth/crypto');
-          const userToken = encryptUserData({ 
-            userId: session.user.id, 
-            returnUrl: '/dashboard' 
-          });
-          oauthUrl += `?user_token=${encodeURIComponent(userToken)}`;
-        }
-        
-        // Open popup window for OAuth
+      // Define currentOrigin at the beginning
+      const currentOrigin = window.location.origin;
+      
+      // Custom OAuth providers with manual handling
+      if (['github', 'twitter', 'linkedin', 'reddit'].includes(provider)) {
         const popup = window.open(
-          oauthUrl,
-          '_blank',
-          'width=520,height=680,scrollbars=yes,resizable=yes'
+          `/api/oauth/${provider}/start?returnTo=${currentOrigin}/dashboard`,
+          `${provider}_oauth`,
+          'width=600,height=700,scrollbars=yes,resizable=yes'
         );
 
         if (!popup) {
-          throw new Error('Popup blocked. Please allow popups for this site and try again.');
-        }
-
-        // Check if popup actually opened (some browsers return a window object even when blocked)
-        try {
-          if (popup.closed) {
-            throw new Error('Popup was blocked or failed to open. Please check your browser settings.');
-          }
-        } catch (e) {
-          // Some browsers throw an error when accessing popup.closed if blocked
-          throw new Error('Popup blocked. Please allow popups for this site and try again.');
+          throw new Error('Popup was blocked. Please allow popups for this site.');
         }
 
         // Wait for popup to close or receive success message
@@ -159,7 +136,6 @@ export function useConnectedAccounts() {
       }
 
       // Fallback to original Supabase OAuth for other providers
-      const currentOrigin = window.location.origin;
       const redirectTo = `${currentOrigin}/auth/callback?provider=${provider}`;
       
       console.log('Starting OAuth flow for provider:', provider);
@@ -183,10 +159,6 @@ export function useConnectedAccounts() {
         case 'twitch':
           oauthProvider = 'twitch';
           break;
-        case 'reddit':
-          // Reddit OAuth needs to be handled via custom redirect
-          setConnecting(null);
-          throw new Error('Reddit OAuth coming soon! Please use GitHub or Twitter for now.');
         case 'stack':
           oauthProvider = 'google'; // Stack Overflow uses Google OAuth
           break;

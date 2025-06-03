@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 
 export type SyncSchedule = '15min' | 'hourly' | 'daily' | 'manual';
-export type Provider = 'github' | 'twitter' | 'reddit' | 'stack';
+export type Provider = 'github' | 'twitter' | 'reddit' | 'stack' | 'linkedin';
 export type EmbeddingModel = 'openai-text-embedding-3' | 'openai-text-embedding-ada-002' | 'skoop-local' | 'sentence-transformers';
 export type AIModel = 'claude-bedrock' | 'azure-gpt-4o' | 'openai-gpt-4';
 export type CacheDuration = '1day' | '1week' | '1month' | 'never';

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     linkedinAuthUrl.searchParams.set('response_type', 'code');
     linkedinAuthUrl.searchParams.set('client_id', process.env.LINKEDIN_CLIENT_ID!);
     linkedinAuthUrl.searchParams.set('redirect_uri', callbackUrl);
-    linkedinAuthUrl.searchParams.set('scope', 'r_liteprofile r_emailaddress');
+    linkedinAuthUrl.searchParams.set('scope', 'r_liteprofile r_emailaddress r_member_social');
     linkedinAuthUrl.searchParams.set('state', state);
 
     return NextResponse.redirect(linkedinAuthUrl.toString());

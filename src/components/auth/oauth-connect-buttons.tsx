@@ -88,9 +88,7 @@ const providers: Array<{
     id: 'reddit',
     name: 'Reddit',
     icon: Reddit,
-    color: 'text-orange-500',
-    disabled: true,
-    disabledReason: 'Coming soon'
+    color: 'text-orange-500'
   },
   {
     id: 'stack',
@@ -184,6 +182,10 @@ export default function OAuthConnectButtons() {
         showToast(`${provider} connection was cancelled.`, 'error');
       } else if (errorMessage.includes('timeout')) {
         showToast(`❌ Connection timeout for ${provider}. Please try again.`, 'error');
+      } else if (errorMessage.includes('REDDIT_CLIENT_ID') || errorMessage.includes('REDDIT_CLIENT_SECRET')) {
+        showToast(`❌ Reddit integration not configured. Please contact support.`, 'error');
+      } else if (errorMessage.includes('Reddit integration not configured')) {
+        showToast(`❌ Reddit integration not configured. Please contact support.`, 'error');
       } else if (errorMessage.includes('TELEGRAM_BOT_TOKEN')) {
         showToast(`❌ Telegram bot not configured. Please contact support.`, 'error');
       } else if (errorMessage.includes('TELEGRAM_BOT_USERNAME')) {

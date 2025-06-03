@@ -84,7 +84,8 @@ function SyncSettings() {
     github: true,
     twitter: false,
     reddit: false,
-    stack: false
+    stack: false,
+    linkedin: false
   });
 
   // Initialize local state when settings load
@@ -95,7 +96,8 @@ function SyncSettings() {
         github: settings.enabled_providers.includes('github'),
         twitter: settings.enabled_providers.includes('twitter'),
         reddit: settings.enabled_providers.includes('reddit'),
-        stack: settings.enabled_providers.includes('stack')
+        stack: settings.enabled_providers.includes('stack'),
+        linkedin: settings.enabled_providers.includes('linkedin')
       };
       setLocalProviders(providersState);
     }
@@ -176,6 +178,7 @@ function SyncSettings() {
   const providerOptions: { key: Provider; label: string }[] = [
     { key: 'github', label: 'GitHub' },
     { key: 'twitter', label: 'Twitter' },
+    { key: 'linkedin', label: 'LinkedIn' },
     { key: 'reddit', label: 'Reddit' },
     { key: 'stack', label: 'Stack Overflow' }
   ];
@@ -233,8 +236,8 @@ function SyncSettings() {
               <div key={provider.key} className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{provider.label}</span>
-                  {/* Only show "Coming soon" for reddit and stack */}
-                  {(provider.key === 'reddit' || provider.key === 'stack') && (
+                  {/* Only show "Coming soon" for stack */}
+                  {provider.key === 'stack' && (
                     <span className="text-xs text-muted-foreground ml-2">(Coming soon)</span>
                   )}
                 </div>
@@ -249,13 +252,13 @@ function SyncSettings() {
                         [provider.key]: e.target.checked
                       }))
                     }
-                    /* Only disable reddit and stack */
-                    disabled={provider.key === 'reddit' || provider.key === 'stack'}
+                    /* Only disable stack */
+                    disabled={provider.key === 'stack'}
                   />
                   <div className={cn(
                     "w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary",
-                    /* Only show disabled style for reddit and stack */
-                    (provider.key === 'reddit' || provider.key === 'stack') && "opacity-50 cursor-not-allowed"
+                    /* Only show disabled style for stack */
+                    provider.key === 'stack' && "opacity-50 cursor-not-allowed"
                   )} />
                 </label>
               </div>
