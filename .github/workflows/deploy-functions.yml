@@ -20,10 +20,14 @@ jobs:
         with:
           version: latest
           
+      - name: Link project
+        run: |
+          supabase link --project-ref $PROJECT_ID
+          
       - name: Deploy migrations
         run: |
-          supabase db push --project-ref $PROJECT_ID
+          supabase db push
           
       - name: Deploy all functions
         run: |
-          supabase functions deploy --project-ref $PROJECT_ID 
+          supabase functions deploy 
