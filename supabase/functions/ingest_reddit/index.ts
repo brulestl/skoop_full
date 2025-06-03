@@ -169,6 +169,50 @@ serve(async (req) => {
               }
             } else {
               console.log(`✅ Successfully inserted Reddit post: ${redditData.reddit_id}`)
+              
+              // Also insert into bookmarks table so it appears in UI
+              try {
+                const bookmarkData = {
+                  user_id,
+                  source: 'reddit',
+                  url: redditData.url,
+                  title: redditData.title || 'Untitled Reddit Post',
+                  description: redditData.selftext || '',
+                  metadata: {
+                    reddit_id: redditData.reddit_id,
+                    reddit_kind: redditData.reddit_kind,
+                    author: redditData.author,
+                    subreddit: redditData.subreddit,
+                    score: redditData.score,
+                    ups: redditData.ups,
+                    num_comments: redditData.num_comments,
+                    upvote_ratio: redditData.upvote_ratio,
+                    permalink: redditData.permalink,
+                    link_flair_text: redditData.link_flair_text,
+                    is_self: redditData.is_self,
+                    created_utc: redditData.created_utc,
+                    engagement: {
+                      upvotes: redditData.ups,
+                      score: redditData.score,
+                      comments: redditData.num_comments
+                    }
+                  }
+                }
+
+                const { error: bookmarkInsertError } = await supabase
+                  .from('bookmarks')
+                  .insert(bookmarkData)
+
+                if (bookmarkInsertError) {
+                  console.error('❌ Failed to insert into bookmarks table:', bookmarkInsertError)
+                  // Don't fail the whole process, just log the error
+                } else {
+                  console.log(`✅ Also inserted into bookmarks table for UI display`)
+                }
+              } catch (bookmarkError) {
+                console.error('💥 Bookmark insert error:', bookmarkError)
+                // Continue processing
+              }
             }
             
             itemsProcessed++
