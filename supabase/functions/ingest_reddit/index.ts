@@ -111,64 +111,71 @@ serve(async (req) => {
             // Continue processing
           }
 
-          // Process into bookmarks table with improved validation
-          let url = ''
-          let title = ''
-          let description = ''
-          
-          if (item.kind === 't3') { // Post
-            // Fix URL construction - use www.reddit.com
-            url = `https://www.reddit.com${itemData.permalink || ''}`
-            title = (itemData.title || 'Reddit Post').substring(0, 500) // Limit title length
-            description = (itemData.selftext || itemData.url || '').substring(0, 2000) // Limit description
-          } else if (item.kind === 't1') { // Comment
-            url = `https://www.reddit.com${itemData.permalink || ''}`
-            title = `Comment by u/${itemData.author || 'unknown'}`.substring(0, 500)
-            description = (itemData.body || '').substring(0, 2000)
-          } else {
-            console.log(`⚠️ Unknown item kind: ${item.kind}, skipping...`)
-            continue
-          }
-
-          // Validate required fields
-          if (!url || !title) {
-            console.log(`⚠️ Skipping item due to missing URL or title`)
-            continue
-          }
-
-          // Insert into bookmarks with error handling
+          // Process into dedicated reddit_posts table (better schema match)
           try {
-            const { error: bookmarkError } = await supabase
-              .from('bookmarks')
-              .insert({
-                user_id,
-                source: 'reddit',
-                url,
-                title,
-                description,
-                created_at: new Date().toISOString()
-              })
+            const redditData = {
+              user_id,
+              reddit_id: itemData.name || itemData.id || 'unknown',
+              reddit_kind: item.kind,
+              title: itemData.title || null,
+              selftext: itemData.selftext || null,
+              author: itemData.author || null,
+              subreddit: itemData.subreddit || null,
+              subreddit_name_prefixed: itemData.subreddit_name_prefixed || null,
+              url: itemData.url || `https://www.reddit.com${itemData.permalink || ''}`,
+              permalink: itemData.permalink || null,
+              score: itemData.score || 0,
+              ups: itemData.ups || 0,
+              downs: itemData.downs || 0,
+              num_comments: itemData.num_comments || 0,
+              upvote_ratio: itemData.upvote_ratio || null,
+              is_self: itemData.is_self || false,
+              is_video: itemData.is_video || false,
+              over_18: itemData.over_18 || false,
+              spoiler: itemData.spoiler || false,
+              locked: itemData.locked || false,
+              archived: itemData.archived || false,
+              created_utc: itemData.created_utc || null,
+              edited_utc: (typeof itemData.edited === 'number') ? itemData.edited : null,
+              link_flair_text: itemData.link_flair_text || null,
+              link_flair_css_class: itemData.link_flair_css_class || null,
+              link_flair_background_color: itemData.link_flair_background_color || null,
+              author_flair_text: itemData.author_flair_text || null,
+              thumbnail: itemData.thumbnail || null,
+              domain: itemData.domain || null,
+              raw_json: item
+            }
+
+            console.log(`🔍 Inserting Reddit data:`, {
+              reddit_id: redditData.reddit_id,
+              kind: redditData.reddit_kind,
+              title: redditData.title?.substring(0, 50),
+              subreddit: redditData.subreddit
+            })
+
+            const { error: redditInsertError } = await supabase
+              .from('reddit_posts')
+              .insert(redditData)
             
-            if (bookmarkError) {
-              console.error('❌ Failed to insert bookmark:', bookmarkError)
-              console.error('🔍 Bookmark data:', { url: url.substring(0, 100), title: title.substring(0, 50) })
+            if (redditInsertError) {
+              console.error('❌ Failed to insert Reddit post:', redditInsertError)
+              console.error('🔍 Reddit data that failed:', JSON.stringify(redditData, null, 2).substring(0, 1000))
               
-              // Check if it's a duplicate URL error and continue
-              if (bookmarkError.message?.includes('duplicate') || bookmarkError.code === '23505') {
-                console.log('ℹ️ Duplicate bookmark, skipping...')
-                continue
+              // Check if it's a duplicate error
+              if (redditInsertError.message?.includes('duplicate') || redditInsertError.code === '23505') {
+                console.log('ℹ️ Duplicate Reddit post, skipping...')
               } else {
-                // For other errors, still count as processed but log the issue
-                console.error('⚠️ Non-duplicate bookmark error, continuing...')
+                console.error('⚠️ Non-duplicate Reddit insert error')
               }
+            } else {
+              console.log(`✅ Successfully inserted Reddit post: ${redditData.reddit_id}`)
             }
             
             itemsProcessed++
-            console.log(`✅ Processed item ${itemsProcessed}: ${title.substring(0, 50)}`)
             
-          } catch (bookmarkInsertError) {
-            console.error('💥 Bookmark insert error:', bookmarkInsertError)
-            // Continue processing other items
+          } catch (redditInsertError) {
+            console.error('💥 Reddit insert error:', redditInsertError)
+            console.error('🔍 Item data causing error:', JSON.stringify(itemData, null, 2).substring(0, 500))
           }
           
         } catch (itemError) {
