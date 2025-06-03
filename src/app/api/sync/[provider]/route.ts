@@ -337,11 +337,30 @@ export async function POST(
 
         if (error) {
           console.error('❌ Reddit sync error:', error);
-          await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, error.message || 'Reddit sync failed');
-          return NextResponse.json(
-            { error: error.message || 'Failed to sync Reddit saved items' },
-            { status: 500 }
-          );
+          
+          // Provide more detailed error information for Reddit
+          let errorMessage = error.message || 'Failed to sync Reddit saved items';
+          let debugInfo = '';
+          
+          if (error.message?.includes('Edge Function returned a non-2xx status code')) {
+            errorMessage = 'Reddit sync failed - Edge Function error';
+            debugInfo = 'This could be due to missing REDDIT_CLIENT_ID/SECRET environment variables, expired tokens, or database issues. Check Supabase Edge Function logs for details.';
+          } else if (error.message?.includes('Reddit integration not configured')) {
+            errorMessage = 'Reddit integration not configured';
+            debugInfo = 'Missing REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET environment variables in Supabase.';
+          } else if (error.message?.includes('Reddit account not connected')) {
+            errorMessage = 'Reddit account not found or access token missing';
+            debugInfo = 'Please reconnect your Reddit account.';
+          }
+          
+          await updateSyncHistory(supabase, syncHistoryId, 'failed', 0, errorMessage);
+          
+          return NextResponse.json({
+            error: errorMessage,
+            debug_info: debugInfo,
+            provider: 'reddit',
+            details: error
+          }, { status: 500 });
         }
 
         console.log(`🎉 Successfully synced ${data.count} Reddit items`);

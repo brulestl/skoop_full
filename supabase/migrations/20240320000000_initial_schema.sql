@@ -128,6 +128,9 @@ CREATE POLICY "Users can only access their own content columns" ON public.conten
 CREATE POLICY "Users can only access their own fresh content" ON public.fresh_content
     FOR ALL USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can only access their own bookmarks_raw" ON public.bookmarks_raw
+    FOR ALL USING (auth.uid() = user_id);
+
 -- Create functions for updated_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
