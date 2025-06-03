@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
+      body: {
+        user_id: session.user.id
+      }
     });
 
     console.log('📡 Edge function response:', { data, error });
