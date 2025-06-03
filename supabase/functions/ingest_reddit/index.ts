@@ -22,351 +22,213 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase environment variables')
     }
-    
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
 
-    // Get user from JWT token
-    const authorization = req.headers.get('Authorization')
-    if (!authorization) {
-      throw new Error('No authorization header')
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get user from request body
+    const { user_id } = await req.json()
+    
+    if (!user_id) {
+      console.error('❌ Missing user_id in request')
+      return new Response(
+        JSON.stringify({ error: 'Missing user_id' }),
+        { status: 400, headers: corsHeaders }
+      )
     }
 
-    const jwt = authorization.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(jwt)
-    
-    if (userError || !user) {
-      throw new Error('Invalid user token')
-    }
+    console.log(`🟡 Processing Reddit sync for user: ${user_id}`)
 
-    console.log(`✅ User authenticated: ${user.id}`)
-
-    // Get Reddit access token from connected_accounts
-    const { data: account, error: accountError } = await supabaseAdmin
+    // Get connected Reddit account
+    const { data: account, error: accountError } = await supabase
       .from('connected_accounts')
-      .select('access_token, refresh_token')
-      .eq('user_id', user.id)
+      .select('access_token, refresh_token, status')
+      .eq('user_id', user_id)
       .eq('provider', 'reddit')
       .single()
 
     if (accountError || !account) {
-      throw new Error('Reddit account not connected or access token not found')
+      console.error('❌ No Reddit account found:', accountError)
+      return new Response(
+        JSON.stringify({ error: 'No Reddit account connected' }),
+        { status: 404, headers: corsHeaders }
+      )
     }
 
-    console.log('✅ Reddit account found')
+    if (account.status !== 'active') {
+      console.error('❌ Reddit account not active:', account.status)
+      return new Response(
+        JSON.stringify({ error: 'Reddit account not active' }),
+        { status: 403, headers: corsHeaders }
+      )
+    }
 
-    // Update last_sync_at timestamp
-    await supabaseAdmin
-      .from('connected_accounts')
-      .update({ 
-        last_sync_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+    // Update sync history - start
+    const { data: syncRecord } = await supabase
+      .from('sync_history')
+      .insert({
+        user_id,
+        provider: 'reddit',
+        status: 'in_progress',
+        started_at: new Date().toISOString()
       })
-      .eq('user_id', user.id)
-      .eq('provider', 'reddit')
+      .select()
+      .single()
 
-    // Reddit API credentials from environment variables
-    const REDDIT_CLIENT_ID = Deno.env.get('REDDIT_CLIENT_ID')
-    const REDDIT_CLIENT_SECRET = Deno.env.get('REDDIT_CLIENT_SECRET')
+    console.log('🟡 Sync record created:', syncRecord?.id)
 
-    if (!REDDIT_CLIENT_ID || !REDDIT_CLIENT_SECRET) {
-      console.error('❌ Missing Reddit API credentials in environment variables')
-      throw new Error('Reddit integration not configured - missing REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET')
-    }
-
-    console.log('✅ Reddit API credentials found')
-
-    // Function to refresh access token if needed
-    const refreshRedditToken = async (refreshToken: string) => {
-      try {
-        console.log('🔄 Refreshing Reddit access token...')
-        
-        const refreshResponse = await fetch('https://www.reddit.com/api/v1/access_token', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`),
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'web:com.skoop.app:v1.0.0 (by /u/skoop_support)'
-          },
-          body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken
-          })
-        })
-
-        if (!refreshResponse.ok) {
-          const errorText = await refreshResponse.text()
-          throw new Error(`Failed to refresh Reddit token: ${refreshResponse.status} ${refreshResponse.statusText} - ${errorText}`)
-        }
-
-        const refreshData = await refreshResponse.json()
-        
-        // Update the stored access token
-        await supabaseAdmin
-          .from('connected_accounts')
-          .update({ 
-            access_token: refreshData.access_token,
-            status: 'active',
-            last_error: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id)
-          .eq('provider', 'reddit')
-
-        console.log('✅ Reddit token refreshed successfully')
-        return refreshData.access_token
-      } catch (refreshError) {
-        console.error('❌ Reddit token refresh failed:', refreshError)
-        
-        // Update connected_accounts with error status
-        await supabaseAdmin
-          .from('connected_accounts')
-          .update({ 
-            status: 'expired',
-            last_error: refreshError.message || 'Failed to refresh Reddit token',
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id)
-          .eq('provider', 'reddit')
-
-        throw refreshError
-      }
-    }
-
-    // Function to fetch Reddit saved items
-    const fetchRedditSaved = async (accessToken: string) => {
-      try {
-        console.log('📡 Fetching Reddit saved items...')
-        
-        // Test token validity and get user info first
-        console.log('🔍 Testing Reddit token with user info...')
-        const userInfoResponse = await fetch('https://oauth.reddit.com/api/v1/me', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'User-Agent': 'web:com.skoop.app:v1.0.0 (by /u/skoop_support)'
-          }
-        })
-
-        console.log(`📡 Reddit user info response: ${userInfoResponse.status} ${userInfoResponse.statusText}`)
-
-        if (!userInfoResponse.ok) {
-          if (userInfoResponse.status === 401 && account.refresh_token) {
-            console.log('🔄 Access token expired, refreshing...')
-            const newAccessToken = await refreshRedditToken(account.refresh_token)
-            return await fetchRedditSaved(newAccessToken)
-          }
-          
-          const errorText = await userInfoResponse.text()
-          throw new Error(`Reddit user info error: ${userInfoResponse.status} ${userInfoResponse.statusText} - ${errorText}`)
-        }
-
-        const userInfo = await userInfoResponse.json()
-        console.log(`✅ Reddit user verified: ${userInfo.name}`)
-
-        // Try different Reddit API endpoints for saved items
-        const endpoints = [
-          'https://oauth.reddit.com/user/me/saved',
-          'https://oauth.reddit.com/user/me/saved.json',
-          'https://oauth.reddit.com/u/me/saved',
-          'https://oauth.reddit.com/u/me/saved.json'
-        ]
-
-        let savedData = null
-        let lastError = null
-
-        for (const endpoint of endpoints) {
-          try {
-            console.log(`🔍 Trying Reddit endpoint: ${endpoint}`)
-            
-            const response = await fetch(`${endpoint}?limit=10`, {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'User-Agent': 'web:com.skoop.app:v1.0.0 (by /u/skoop_support)'
-              }
-            })
-
-            console.log(`📡 Response for ${endpoint}: ${response.status} ${response.statusText}`)
-
-            if (response.ok) {
-              savedData = await response.json()
-              console.log(`✅ Success with endpoint: ${endpoint}`)
-              break
-            } else {
-              const errorText = await response.text()
-              console.log(`❌ Failed ${endpoint}: ${response.status} - ${errorText}`)
-              lastError = { status: response.status, text: errorText, endpoint }
-              
-              // If 401, try token refresh
-              if (response.status === 401 && account.refresh_token) {
-                console.log('🔄 Token might be expired, trying refresh...')
-                const newAccessToken = await refreshRedditToken(account.refresh_token)
-                return await fetchRedditSaved(newAccessToken)
-              }
-            }
-          } catch (endpointError) {
-            console.log(`❌ Exception with ${endpoint}:`, endpointError)
-            lastError = { endpoint, error: endpointError.message }
-          }
-        }
-
-        if (!savedData) {
-          // If all endpoints failed, provide detailed error
-          const errorDetails = lastError ? 
-            `Last error from ${lastError.endpoint}: ${lastError.status || 'Exception'} - ${lastError.text || lastError.error}` : 
-            'All Reddit API endpoints failed'
-          
-          throw new Error(`Reddit saved items API failed. ${errorDetails}. This usually indicates missing OAuth scopes. Please ensure your Reddit app has 'identity', 'history', 'save', and 'read' scopes.`)
-        }
-
-        return savedData
-      } catch (apiError) {
-        console.error('❌ Reddit API call failed:', apiError)
-        
-        // Update connected_accounts with error status if not already updated
-        if (!apiError.message.includes('after refresh')) {
-          await supabaseAdmin
-            .from('connected_accounts')
-            .update({ 
-              status: 'error',
-              last_error: apiError.message || 'Failed to fetch data from Reddit API',
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', user.id)
-            .eq('provider', 'reddit')
-        }
-
-        throw apiError
-      }
-    }
-
-    let redditData
     try {
-      // Fetch saved items from Reddit
-      redditData = await fetchRedditSaved(account.access_token)
+      // Fetch Reddit saved items with corrected endpoint
+      const savedData = await fetchRedditSaved(account.access_token)
+      
+      let itemsProcessed = 0
+      const items = savedData?.data?.children || []
+
+      console.log(`🟡 Retrieved ${items.length} Reddit saved items`)
+
+      for (const item of items) {
+        const itemData = item.data
+        
+        // Store raw data
+        await supabase
+          .from('bookmarks_raw')
+          .insert({
+            user_id,
+            source: 'reddit',
+            raw_json: item,
+            fetched_at: new Date().toISOString()
+          })
+
+        // Process into bookmarks table
+        let url = ''
+        let title = ''
+        let description = ''
+        
+        if (item.kind === 't3') { // Post
+          url = `https://reddit.com${itemData.permalink}`
+          title = itemData.title || 'Reddit Post'
+          description = itemData.selftext || itemData.url || ''
+        } else if (item.kind === 't1') { // Comment
+          url = `https://reddit.com${itemData.permalink}`
+          title = `Comment by u/${itemData.author}`
+          description = itemData.body || ''
+        }
+
+        if (url) {
+          await supabase
+            .from('bookmarks')
+            .insert({
+              user_id,
+              source: 'reddit',
+              url,
+              title,
+              description,
+              created_at: new Date().toISOString()
+            })
+          
+          itemsProcessed++
+        }
+      }
+
+      // Update sync history - success
+      await supabase
+        .from('sync_history')
+        .update({
+          status: 'completed',
+          items_synced: itemsProcessed,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', syncRecord?.id)
+
+      // Update connected account status
+      await supabase
+        .from('connected_accounts')
+        .update({
+          last_sync_at: new Date().toISOString(),
+          status: 'active'
+        })
+        .eq('user_id', user_id)
+        .eq('provider', 'reddit')
+
+      console.log(`✅ Reddit sync completed: ${itemsProcessed} items processed`)
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          items_processed: itemsProcessed,
+          total_items: items.length
+        }),
+        { headers: corsHeaders }
+      )
+
     } catch (fetchError) {
       console.error('❌ Failed to fetch Reddit data:', fetchError)
-      throw fetchError
-    }
-    
-    if (!redditData?.data?.children) {
-      console.log('📭 No saved items found or unexpected response format')
-      console.log('📋 Reddit response structure:', JSON.stringify(redditData, null, 2))
-      return new Response(JSON.stringify({ count: 0, message: 'No saved items found' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      })
-    }
-
-    const items = redditData.data.children
-    console.log(`📊 Found ${items.length} saved Reddit items`)
-
-    let insertedCount = 0
-    let processedCount = 0
-
-    // Process each saved item
-    for (const item of items) {
-      const itemData = item.data
-      processedCount++
       
-      // Skip if not a post (t3) or comment (t1)
-      if (!['t3', 't1'].includes(item.kind)) {
-        console.log(`⏭️ Skipping item ${processedCount}: unsupported type ${item.kind}`)
-        continue
-      }
+      // Update sync history - failed
+      await supabase
+        .from('sync_history')
+        .update({
+          status: 'failed',
+          error_message: fetchError.message,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', syncRecord?.id)
 
-      try {
-        // Store raw data first
-        const { error: rawError } = await supabaseAdmin
-          .from('bookmarks_raw')
-          .upsert({
-            user_id: user.id,
-            source: 'reddit',
-            raw_json: itemData,
-            fetched_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id,source,(raw_json->>\'id\')'
-          })
-
-        if (rawError) {
-          console.error(`❌ Error storing raw data for item ${processedCount}:`, rawError)
-        }
-
-        // Extract and store processed bookmark data
-        const isComment = item.kind === 't1'
-        const url = isComment 
-          ? `https://reddit.com${itemData.permalink}`
-          : itemData.url || `https://reddit.com${itemData.permalink}`
-        
-        const title = isComment 
-          ? `Comment on: ${itemData.link_title || 'Reddit Post'}`
-          : itemData.title
-        
-        const description = isComment 
-          ? itemData.body 
-          : itemData.selftext || itemData.title
-
-        const { error: bookmarkError } = await supabaseAdmin
-          .from('bookmarks')
-          .upsert({
-            user_id: user.id,
-            url: url,
-            title: title || 'Untitled',
-            description: description?.substring(0, 500) || '',
-            source: 'reddit',
-            tags: ['reddit', isComment ? 'comment' : 'post'],
-            created_at: new Date(itemData.created_utc * 1000).toISOString(),
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id,url'
-          })
-
-        if (bookmarkError) {
-          console.error(`❌ Error storing bookmark for item ${processedCount}:`, bookmarkError)
-        } else {
-          insertedCount++
-          console.log(`✅ Processed item ${processedCount}/${items.length}: ${title?.substring(0, 50)}...`)
-        }
-      } catch (error) {
-        console.error(`❌ Error processing Reddit item ${processedCount}:`, error)
-        // Continue processing other items
-      }
+      return new Response(
+        JSON.stringify({ error: fetchError.message }),
+        { status: 500, headers: corsHeaders }
+      )
     }
-
-    // Update connected_accounts with successful sync status
-    await supabaseAdmin
-      .from('connected_accounts')
-      .update({ 
-        status: 'active',
-        last_error: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', user.id)
-      .eq('provider', 'reddit')
-
-    console.log(`🎉 Successfully processed ${insertedCount}/${items.length} Reddit items`)
-
-    return new Response(JSON.stringify({ 
-      count: insertedCount, 
-      total_fetched: items.length,
-      message: `Successfully synced ${insertedCount} Reddit saved items`
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
-    })
 
   } catch (error) {
     console.error('❌ Reddit ingestion error:', error)
-    
-    return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to ingest Reddit data',
-      count: 0
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
-    })
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: corsHeaders }
+    )
   }
-}) 
+})
+
+async function fetchRedditSaved(accessToken: string) {
+  const headers = {
+    'Authorization': `Bearer ${accessToken}`,
+    'User-Agent': 'web:com.skoop.app:v1.0.0 (by /u/skoop_support)'
+  }
+
+  console.log('🟡 Testing Reddit token validity...')
+  
+  // First, test token with /api/v1/me
+  const userResponse = await fetch('https://oauth.reddit.com/api/v1/me', { headers })
+  
+  if (!userResponse.ok) {
+    const userError = await userResponse.text()
+    console.error('❌ Reddit user API failed:', userResponse.status, userError)
+    throw new Error(`Reddit token validation failed: ${userResponse.status} - ${userError}`)
+  }
+  
+  const userData = await userResponse.json()
+  console.log('✅ Reddit token valid for user:', userData.name)
+
+  // Now try to fetch saved items with the CORRECT endpoint
+  console.log('🟡 Fetching saved items from Reddit API...')
+  
+  const savedResponse = await fetch('https://oauth.reddit.com/user/me/saved', { headers })
+  
+  if (!savedResponse.ok) {
+    let errorText = ''
+    try {
+      const errorData = await savedResponse.json()
+      errorText = JSON.stringify(errorData)
+    } catch {
+      errorText = await savedResponse.text()
+    }
+    
+    console.error('❌ Reddit saved items error details:', errorText)
+    
+    throw new Error(`Reddit saved items API failed: ${savedResponse.status} - ${errorText}. This usually indicates missing OAuth scopes. Please ensure your Reddit app has 'identity', 'history', 'save', and 'read' scopes.`)
+  }
+  
+  const savedData = await savedResponse.json()
+  console.log('✅ Successfully fetched Reddit saved items')
+  
+  return savedData
+} 
