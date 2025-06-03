@@ -54,6 +54,10 @@
     "deploy_manual.js",
     "test_bot.js",
     "test_webhook_direct.js",
-    "setup_telegram_bot.js"
+    "setup_telegram_bot.js",
+    "test_reddit_api.js",
+    "test_reddit_token.js",
+    "test_reddit_token.cjs",
+    "test_edge_function.js"
   ]
 }
