@@ -218,7 +218,7 @@ export async function POST(
         console.log(`🎉 Successfully synced ${twitterInsertedCount} Twitter likes`);
 
         // Update sync history with success
-        await updateSyncHistory(supabase, syncHistoryId, 'success', twitterInsertedCount);
+        await updateSyncHistory(supabase, syncHistoryId, 'completed', twitterInsertedCount);
 
         return NextResponse.json({
           success: true,
@@ -282,7 +282,7 @@ export async function POST(
         console.log(`🎉 Successfully synced ${data.count} LinkedIn items`);
 
         // Update sync history with success
-        await updateSyncHistory(supabase, syncHistoryId, 'success', data.count);
+        await updateSyncHistory(supabase, syncHistoryId, 'completed', data.count);
 
         return NextResponse.json({
           success: true,
@@ -369,7 +369,7 @@ export async function POST(
         console.log(`🎉 Successfully synced ${data.count} Reddit items`);
 
         // Update sync history with success
-        await updateSyncHistory(supabase, syncHistoryId, 'success', data.count);
+        await updateSyncHistory(supabase, syncHistoryId, 'completed', data.count);
 
         return NextResponse.json({
           success: true,
@@ -397,7 +397,7 @@ export async function POST(
         user_id: session.user.id,
         provider,
         sync_type: syncType,
-        status: 'success', // Will update if fails
+        status: 'completed', // Will update if fails
         items_synced: 0,
         started_at: startTime.toISOString()
       })
@@ -570,7 +570,7 @@ export async function POST(
     console.log(`🎉 Successfully synced ${insertedCount} GitHub stars`);
 
     // Update sync history with success
-    await updateSyncHistory(supabase, syncHistoryId, 'success', insertedCount);
+    await updateSyncHistory(supabase, syncHistoryId, 'completed', insertedCount);
 
     console.log(`=== SYNC DEBUG END ===`);
 
@@ -606,14 +606,17 @@ export async function POST(
 async function updateSyncHistory(
   supabase: any,
   syncHistoryId: string | null,
-  status: 'success' | 'failed' | 'partial',
+  status: 'completed' | 'failed' | 'in_progress',
   itemsSynced: number,
   errorMessage?: string
 ) {
-  if (!syncHistoryId) return;
+  if (!syncHistoryId) {
+    console.warn('⚠️ No syncHistoryId provided, skipping sync history update');
+    return;
+  }
   
   try {
-    await supabase
+    const { error } = await supabase
       .from('sync_history')
       .update({
         status,
@@ -622,7 +625,13 @@ async function updateSyncHistory(
         completed_at: new Date().toISOString()
       })
       .eq('id', syncHistoryId);
+      
+    if (error) {
+      console.error('❌ Error updating sync history:', error);
+    } else {
+      console.log(`✅ Updated sync history ${syncHistoryId} with status: ${status}`);
+    }
   } catch (error) {
-    console.error('Error updating sync history:', error);
+    console.error('💥 Exception updating sync history:', error);
   }
 } 

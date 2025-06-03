@@ -51,7 +51,7 @@ export interface SyncHistoryEntry {
   user_id: string;
   provider: Provider;
   sync_type: 'manual' | 'automatic' | 'initial';
-  status: 'success' | 'failed' | 'partial';
+  status: 'completed' | 'failed' | 'in_progress';
   items_synced: number;
   error_message?: string;
   started_at: string;
@@ -243,11 +243,14 @@ export function useUserSettings() {
   const logSyncOperation = async (
     provider: Provider,
     syncType: 'manual' | 'automatic' | 'initial',
-    status: 'success' | 'failed' | 'partial',
+    status: 'completed' | 'failed' | 'in_progress',
     itemsSynced: number = 0,
     errorMessage?: string
   ) => {
-    if (!user) return;
+    if (!user) {
+      console.warn('⚠️ No user found, skipping sync log');
+      return;
+    }
 
     try {
       const { error: logError } = await supabase
@@ -259,17 +262,19 @@ export function useUserSettings() {
           status,
           items_synced: itemsSynced,
           error_message: errorMessage,
-          completed_at: new Date().toISOString(),
+          started_at: new Date().toISOString(),
+          completed_at: status !== 'in_progress' ? new Date().toISOString() : null,
         });
 
       if (logError) {
-        console.error('Error logging sync operation:', logError);
+        console.error('❌ Error logging sync operation:', logError);
       } else {
+        console.log(`✅ Logged sync operation: ${provider} - ${status}`);
         // Refresh sync history
         await fetchSyncHistory();
       }
     } catch (err) {
-      console.error('Exception logging sync operation:', err);
+      console.error('💥 Exception logging sync operation:', err);
     }
   };
 

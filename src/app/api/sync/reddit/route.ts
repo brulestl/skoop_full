@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: data?.message || 'Reddit sync completed',
-      count: data?.count || 0,
-      total_found: data?.total_fetched || 0
+      count: data?.items_processed || 0,
+      total_found: data?.total_items || 0
     });
 
   } catch (error) {

@@ -294,11 +294,12 @@ function SyncSettings() {
                     )}
                     <span className={cn(
                       "text-xs px-2 py-0.5 rounded-full",
-                      entry.status === 'success' ? "bg-primary/10 text-primary" :
+                      entry.status === 'completed' ? "bg-primary/10 text-primary" :
                       entry.status === 'failed' ? "bg-destructive/10 text-destructive" :
                       "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                     )}>
-                      {entry.status}
+                      {entry.status === 'completed' ? 'Success' : 
+                       entry.status === 'failed' ? 'Failed' : 'In Progress'}
                     </span>
               </div>
             </div>
