@@ -51,7 +51,7 @@ export interface SyncHistoryEntry {
   user_id: string;
   provider: Provider;
   sync_type: 'manual' | 'automatic' | 'initial';
-  status: 'completed' | 'failed' | 'in_progress';
+  status: 'success' | 'failed' | 'in_progress';
   items_synced: number;
   error_message?: string;
   started_at: string;
@@ -243,7 +243,7 @@ export function useUserSettings() {
   const logSyncOperation = async (
     provider: Provider,
     syncType: 'manual' | 'automatic' | 'initial',
-    status: 'completed' | 'failed' | 'in_progress',
+    status: 'success' | 'failed' | 'in_progress',
     itemsSynced: number = 0,
     errorMessage?: string
   ) => {

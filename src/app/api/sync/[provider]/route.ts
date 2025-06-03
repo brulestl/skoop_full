@@ -218,7 +218,7 @@ export async function POST(
         console.log(`🎉 Successfully synced ${twitterInsertedCount} Twitter likes`);
 
         // Update sync history with success
-        await updateSyncHistory(supabase, syncHistoryId, 'completed', twitterInsertedCount);
+        await updateSyncHistory(supabase, syncHistoryId, 'success', twitterInsertedCount);
 
         return NextResponse.json({
           success: true,
@@ -282,7 +282,7 @@ export async function POST(
         console.log(`🎉 Successfully synced ${data.count} LinkedIn items`);
 
         // Update sync history with success
-        await updateSyncHistory(supabase, syncHistoryId, 'completed', data.count);
+        await updateSyncHistory(supabase, syncHistoryId, 'success', data.count);
 
         return NextResponse.json({
           success: true,
@@ -369,7 +369,7 @@ export async function POST(
         console.log(`🎉 Successfully synced ${data.count} Reddit items`);
 
         // Update sync history with success
-        await updateSyncHistory(supabase, syncHistoryId, 'completed', data.count);
+        await updateSyncHistory(supabase, syncHistoryId, 'success', data.count);
 
         return NextResponse.json({
           success: true,
@@ -397,7 +397,7 @@ export async function POST(
         user_id: session.user.id,
         provider,
         sync_type: syncType,
-        status: 'completed', // Will update if fails
+        status: 'success', // Will update if fails
         items_synced: 0,
         started_at: startTime.toISOString()
       })
@@ -570,7 +570,7 @@ export async function POST(
     console.log(`🎉 Successfully synced ${insertedCount} GitHub stars`);
 
     // Update sync history with success
-    await updateSyncHistory(supabase, syncHistoryId, 'completed', insertedCount);
+    await updateSyncHistory(supabase, syncHistoryId, 'success', insertedCount);
 
     console.log(`=== SYNC DEBUG END ===`);
 
@@ -606,7 +606,7 @@ export async function POST(
 async function updateSyncHistory(
   supabase: any,
   syncHistoryId: string | null,
-  status: 'completed' | 'failed' | 'in_progress',
+  status: 'success' | 'failed' | 'in_progress',
   itemsSynced: number,
   errorMessage?: string
 ) {

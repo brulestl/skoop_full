@@ -133,7 +133,7 @@ serve(async (req) => {
       await supabase
         .from('sync_history')
         .update({
-          status: 'completed',
+          status: 'success',
           items_synced: itemsProcessed,
           completed_at: new Date().toISOString()
         })
