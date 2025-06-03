@@ -195,6 +195,10 @@ async function fetchRedditSaved(accessToken: string) {
   }
 
   console.log('🟡 Testing Reddit token validity...')
+  console.log('🔍 Request headers (token redacted):', {
+    'Authorization': 'Bearer [REDACTED]',
+    'User-Agent': headers['User-Agent']
+  })
   
   // First, test token with /api/v1/me
   const userResponse = await fetch('https://oauth.reddit.com/api/v1/me', { headers })
@@ -208,27 +212,84 @@ async function fetchRedditSaved(accessToken: string) {
   const userData = await userResponse.json()
   console.log('✅ Reddit token valid for user:', userData.name)
 
-  // Now try to fetch saved items with the CORRECT endpoint
+  // Now try to fetch saved items - attempt multiple endpoints
   console.log('🟡 Fetching saved items from Reddit API...')
   
-  const savedResponse = await fetch('https://oauth.reddit.com/user/me/saved', { headers })
+  // List of endpoints to try (in order of most likely to work)
+  const endpointsToTry = [
+    'https://oauth.reddit.com/user/me/saved.json?raw_json=1&limit=25',
+    'https://oauth.reddit.com/user/me/saved.json?limit=25', 
+    'https://oauth.reddit.com/user/me/saved?raw_json=1&limit=25',
+    'https://oauth.reddit.com/user/me/saved?limit=25',
+    'https://oauth.reddit.com/user/me/saved',
+    `https://oauth.reddit.com/user/${userData.name}/saved.json?raw_json=1&limit=25`
+  ]
   
-  if (!savedResponse.ok) {
+  let savedResponse
+  let usedEndpoint = ''
+  
+  for (const endpoint of endpointsToTry) {
+    console.log(`🔍 Trying endpoint: ${endpoint}`)
+    console.log(`🔍 Request headers: ${JSON.stringify({
+      'Authorization': 'Bearer [REDACTED]',
+      'User-Agent': headers['User-Agent']
+    })}`)
+    
+    try {
+      savedResponse = await fetch(endpoint, { headers })
+      usedEndpoint = endpoint
+      
+      console.log(`📊 Response status for ${endpoint}: ${savedResponse.status}`)
+      console.log(`📊 Response headers: ${JSON.stringify(Object.fromEntries(savedResponse.headers.entries()))}`)
+      
+      if (savedResponse.ok) {
+        console.log(`✅ Success with endpoint: ${endpoint}`)
+        break
+      } else {
+        // Log the error details for this endpoint
+        let errorText = ''
+        try {
+          const errorData = await savedResponse.clone().json()
+          errorText = JSON.stringify(errorData)
+        } catch {
+          errorText = await savedResponse.clone().text()
+        }
+        console.log(`❌ Failed with ${savedResponse.status}: ${errorText}`)
+      }
+    } catch (error) {
+      console.log(`💥 Network error for ${endpoint}:`, error.message)
+    }
+  }
+  
+  if (!savedResponse || !savedResponse.ok) {
+    // If all endpoints failed, get detailed error from the last attempt
     let errorText = ''
     try {
-      const errorData = await savedResponse.json()
+      const errorData = await savedResponse?.json()
       errorText = JSON.stringify(errorData)
     } catch {
-      errorText = await savedResponse.text()
+      errorText = await savedResponse?.text() || 'Unknown error'
     }
     
-    console.error('❌ Reddit saved items error details:', errorText)
+    console.error('❌ All Reddit saved items endpoints failed')
+    console.error('🔍 Last endpoint tried:', usedEndpoint)
+    console.error('🔍 Last error details:', errorText)
+    console.error('🔍 Available scopes check: Please verify your Reddit app has these scopes:')
+    console.error('   - identity ✓ (working - user info retrieved)')
+    console.error('   - history ❓ (needed for saved items)')
+    console.error('   - save ❓ (needed for saved items)')
+    console.error('   - read ✓ (basic read access)')
     
-    throw new Error(`Reddit saved items API failed: ${savedResponse.status} - ${errorText}. This usually indicates missing OAuth scopes. Please ensure your Reddit app has 'identity', 'history', 'save', and 'read' scopes.`)
+    throw new Error(`Reddit saved items API failed: ${savedResponse?.status || 'unknown'} - ${errorText}. 
+Tried ${endpointsToTry.length} different endpoints. This usually indicates missing OAuth scopes. 
+Please ensure your Reddit app has 'identity', 'history', 'save', and 'read' scopes.
+Last endpoint: ${usedEndpoint}`)
   }
   
   const savedData = await savedResponse.json()
   console.log('✅ Successfully fetched Reddit saved items')
+  console.log(`📊 Used endpoint: ${usedEndpoint}`)
+  console.log(`📊 Items found: ${savedData?.data?.children?.length || 0}`)
   
   return savedData
 } 
